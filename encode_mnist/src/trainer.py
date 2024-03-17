@@ -2,16 +2,11 @@
 from model import Autoencoder
 from dataset import MNISTDataModule
 from config import config as cfg
-from config import upack_dict as unpack_dict
+import sys; sys.path += ['/Users/tonton/Documents/motion-synthesis']
+from global_utils import unpack_dict, pretty_print_config
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 # to view logs: tensorboard --logdir=tb_logs
-
-def pretty_print_config(config):
-    print('cfg:',)
-    for k, v in unpack_dict(config, prefix="").items():
-        print(k.ljust(33), ':', v)
-    print()
 
 if __name__ == "__main__":
     logger = TensorBoardLogger("../tb_logs", name="MNISTAutoencoder")

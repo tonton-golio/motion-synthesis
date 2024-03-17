@@ -1,37 +1,14 @@
 # CONFIG FILE
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-def upack_dict(d, out={}, prefix=""):
-    """Recursively unpack dict"""
-    for k, v in d.items():
-        if isinstance(v, dict):
-            out = upack_dict(v, out, prefix + k + ".")
-        
-        else:
-            if not k.startswith("__"):
-                if isinstance(v, list) or isinstance(v, tuple):
-                    for i, item in enumerate(v):
-                        if isinstance(item, dict):
-                            out = upack_dict(item, out, prefix + k + f".{i}.")
-                        else:
-                            out[prefix + k + f".{i}"] = item
-                else:
-                    out[prefix + k] = v
-    return out
-
+import sys; sys.path += ['/Users/tonton/Documents/motion-synthesis']
+from global_utils import dotdict
 config = dotdict({
     
     # General
     ## network
     "MODEL": dotdict({
         'latent_dim': 12,
-        'n_channels': [32, 32],
-        'lin_size': 128,
+        'n_channels': [128, 128],
+        'lin_size': 512,
         'n_linear': 3,
         'activation': 'leaky_relu',
         'dropout': 0.1,
@@ -39,22 +16,22 @@ config = dotdict({
         'clip': False,  # not implemented
         # 'kernel_size': 2,  # can for now only be 2
         # 'stride': 2,  # can for now only be 2
-        'learning_rate': 0.001,
+        'learning_rate': 0.0005,
         'optimizer': 'AdamW',
-        'bool': True,
+        'bool': False,
 
         'load_model' : False,
         'model_path' : '../tb_logs/MNISTAutoencoder/version_0/checkpoints/epoch=76-step=3542.ckpt',
 
         "LOSS" : dotdict({
             'mse': 1.,
-            'klDiv': 0.000002,
+            'klDiv': 0.0000001,
             'l1': 0,
         }),
     }),
 
     'TRAINER' : dotdict({
-        'max_epochs' : 100,
+        'max_epochs' : 20,
     }),
 
     # Data
@@ -70,7 +47,7 @@ config = dotdict({
             'normalize' : (0.1307, 0.3081),
             'shear' : 0.3,
             'scale' : .3,
-            'bool' : True,
+            'bool' : False,
         }),
     })
 })

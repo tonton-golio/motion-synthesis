@@ -6,7 +6,8 @@ import torchvision
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import pytorch_lightning as pl
-from config import dotdict
+import sys; sys.path += ['/Users/tonton/Documents/motion-synthesis']
+from global_utils import dotdict
 
 class Bool(torch.nn.Module):
     def __init__(self):
