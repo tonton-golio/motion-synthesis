@@ -1,4 +1,9 @@
 # Byte-compiled / optimized / DLL files
+
+tb_logs*
+
+*.DS_Store
+
 __pycache__/
 *.py[cod]
 *$py.class

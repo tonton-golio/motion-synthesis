@@ -49,13 +49,12 @@ class MotionDataset(Dataset):
 
 
 class MotionDataModule(pl.LightningDataModule):
-    def __init__(self, file_list_paths, path, sequence_length=42, batch_size=128, num_workers=4):
+    def __init__(self, cfg):
         super().__init__()
-        self.file_list_paths = file_list_paths
-        self.path = path
-        self.sequence_length = sequence_length
-        self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.file_list_paths = cfg.get("file_list_paths")
+        self.path = cfg.get("motion_path")
+        self.sequence_length = cfg.get("seq_len", 200)
+        self.batch_size = cfg.get("batch_size", 128)
 
     def prepare_data(self) -> None:
         pass
@@ -69,11 +68,11 @@ class MotionDataModule(pl.LightningDataModule):
         ]
 
     def train_dataloader(self) -> DataLoader:
-        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, persistent_workers=True)
+        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=4, persistent_workers=True)
 
     def val_dataloader(self) -> DataLoader:
-        return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, persistent_workers=True)
+        return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False, num_workers=2, persistent_workers=True)
 
     def test_dataloader(self) -> DataLoader:
-        return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, persistent_workers=True)
+        return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=False, num_workers=2, persistent_workers=True)
 

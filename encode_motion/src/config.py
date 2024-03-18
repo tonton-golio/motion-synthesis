@@ -1,47 +1,51 @@
 from os.path import join as __pjoin
+import sys; sys.path += ['/Users/tonton/Documents/motion-synthesis']
+from global_utils import dotdict
 
-###### TRACKED PARAMETERS ######
-# data parameters
-SEQ_LEN = 160 # 200
-BATCH_SIZE = 128
+# this is a dictionary of hyperparameters
+config = dotdict({
 
-# model parameters
-N_LAYERS = 4
-N_HEADS = 6
-LATENT_DIM = 256
-DROPOUT = 0.10
-HIDDEN_DIM = 1024
+    "MODEL" : dotdict({
+        "input_length": 200,
+        "input_dim": 66,
+        "hidden_dim": 512,
+        "n_layers": 2,
+        "n_heads": 6,
+        "dropout": 0.1,
+        "latent_dim": 256,
+        "LOSS" : dotdict({
+            'mse': 1.,
+            'klDiv': 0.000001,
+            'l1': 0,
+        }),
+        "learning_rate": 1 * 1e-4,
+        "optimizer": "AdamW",
+        "save_animations": True,
+        "load": False,
+        "checkpoint_path": "../tb_logs/TransformerMotionAutoencoder/version_28/checkpoints/epoch=9-step=1290.ckpt",
+        'output_layer' : "linear", # or "transformer" or None
+        'activation' : "leaky_relu",
+        'transformer_activation' : "gelu",
+    }),
 
-# training parameters
-EPOCHS = 100
-LEARNING_RATE = 1 * 1e-4
-OPTIMIZER = "AdamW"
-LOSS_FUNCTION = "MSELoss + KL"
-KL_WEIGHT = .00001
+    "DATA" : dotdict({
+        "seq_len": 200,
+        "batch_size": 256,
+        "file_list_paths": {
+            "train": "../../data/HumanML3D/HumanML3D/train_cleaned.txt",
+            "val": "../../data/HumanML3D/HumanML3D/val_cleaned.txt",
+            "test": "../../data/HumanML3D/HumanML3D/test_cleaned.txt",
+        },
+        "motion_path": "../../data/HumanML3D/HumanML3D/new_joints",
+    }),
 
+    'TRAINING' : dotdict({
+        "max_epochs": 10,
+        "accelerator": "mps",
+        "devices": 1,
+        "precision": "32-true",
+        "n_gpus": 1,
+        "fast_dev_run": False,
+    }),
+})
 
-###### UNTRACKED PARAMETERS ######
-# paths
-__base_path = "../../data/HumanML3D/HumanML3D/"
-__sets = ["train", "val", "test"]
-__FILE_LIST_PATHS = {i: __pjoin(__base_path, f"{i}_cleaned.txt") for i in __sets}
-__MOTION_PATH = __pjoin(
-    __base_path,
-    "new_joints",
-)
-
-
-# device parameters
-__ACCERLATOR = "mps"
-__DEVICES = 1
-__PRECISION = "32-true"  #"16-mixed" # does not work with mps
-__N_GPUS = 1
-__N_WORKERS = 4
-
-# debugging
-__FAST_DEV_RUN = False
-__SAVE_ANIMATIONS = True
-
-# metric
-# how do i get a metric for hparams in tensorboard?
-# https://pytorch-lightning.readthedocs.io/en/latest/extensions/logging.html#tensorboard
