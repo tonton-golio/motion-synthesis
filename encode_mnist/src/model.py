@@ -277,7 +277,8 @@ class Autoencoder(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         res = self.common_step(batch, batch_idx)
         loss = {k + '_tst': v for k, v in res['loss'].items()}
-        # self.log_dict(loss)#, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        
+        self.log_dict(loss)#, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         # if batch_idx == 0:
         #     self.logger.experiment.add_embedding(res['z'], metadata=res['y'], global_step=self.global_step)
         if batch_idx == 0:
@@ -288,8 +289,6 @@ class Autoencoder(pl.LightningModule):
             self.logger.experiment.add_image('reconstruction', grid, global_step=self.global_step)
 
             # plot latent space to logger
-
-        return loss['total_tst'].item()
         
     def configure_optimizers(self):
         # this is also where we would put the scheduler

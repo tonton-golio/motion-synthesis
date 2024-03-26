@@ -37,34 +37,59 @@ class MotionDataset(Dataset):
         self.sequence_length = sequence_length
         filenames = np.loadtxt(file_list_path, delimiter=",", dtype=str)
         self.filenames = [f"{path}/{f}.npy" for f in filenames]
+        print(len(self.filenames))
 
     def __len__(self):
         return len(self.filenames)
 
     def __getitem__(self, idx):
         file_name = self.filenames[idx]
-        motion_data = np.load(file_name)
-        motion_data = pad_data(motion_data, self.sequence_length)
-        return motion_data
+        motion_seq = np.load(file_name)
+        motion_seq = pad_data(motion_seq, self.sequence_length)
+        pose0 = motion_seq[:1]
 
+        root_travel = motion_seq[:, :1, :]
+        root_travel = root_travel - root_travel[:1]  # relative to the first frame
+        motion_less_root = motion_seq - root_travel# relative motion
+        velocity = np.diff(motion_seq, axis=0)
+        velocity_relative = np.diff(motion_less_root, axis=0)
+        # print('velocity:', velocity.shape)
+        # print('pose0:', pose0.shape)
+        # pose0_and_velocity = np.concatenate([pose0, velocity], axis=0) # (seq_len, joints_num, 3)
+        # pose0_and_velocity_relative = np.concatenate([pose0, velocity_relative], axis=0) # (seq_len, joints_num, 3)
+        # print('velocity:', velocity.shape)
+        
+
+        # now load texts
+        
+
+
+
+        return pose0,  velocity_relative, root_travel, motion_seq
+
+    def reconstruct(pose0,  velocity_relative):
+            motion_less_root = np.cumsum(np.concatenate([pose0, velocity_relative], dim=0), dim=0)
+            return motion_less_root
 
 class MotionDataModule(pl.LightningDataModule):
     def __init__(self, cfg):
         super().__init__()
         self.file_list_paths = cfg.get("file_list_paths")
-        self.path = cfg.get("motion_path")
+        self.path = cfg.get("_motion_path")
         self.sequence_length = cfg.get("seq_len", 200)
         self.batch_size = cfg.get("batch_size", 128)
+
+
 
     def prepare_data(self) -> None:
         pass
 
-    def setup(self, stage) -> None:
+    def setup(self, stage=None) -> None:
         self.train_ds, self.val_ds, self.test_ds = [
             MotionDataset(
                 self.file_list_paths[i], self.path, self.sequence_length
             )
-            for i in ["train", "val", "test"]
+            for i in ["_train", "_val", "_test"]
         ]
 
     def train_dataloader(self) -> DataLoader:

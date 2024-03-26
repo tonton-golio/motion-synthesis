@@ -6,41 +6,47 @@ from global_utils import dotdict
 config = dotdict({
 
     "MODEL" : dotdict({
-        "input_length": 200,
-        "input_dim": 66,
-        "hidden_dim": 512,
-        "n_layers": 2,
+        "hidden_dim": 1024,
+        "hidden_dim_trans" : 1024,
+        "n_layers": 5,
         "n_heads": 6,
         "dropout": 0.1,
-        "latent_dim": 256,
-        "LOSS" : dotdict({
-            'mse': 1.,
-            'klDiv': 0.000001,
-            'l1': 0,
-        }),
-        "learning_rate": 1 * 1e-4,
+        "latent_dim": 1024,
+        "learning_rate": 1 * 1e-7,
         "optimizer": "AdamW",
-        "save_animations": True,
-        "load": False,
-        "checkpoint_path": "../tb_logs/TransformerMotionAutoencoder/version_28/checkpoints/epoch=9-step=1290.ckpt",
-        'output_layer' : "linear", # or "transformer" or None
-        'activation' : "leaky_relu",
-        'transformer_activation' : "gelu",
+        "_save_animations": True,
+        "load": True,
+        "_checkpoint_path": 'latest',#"../tb_logs3/TransformerMotionAutoencoder/version_9/checkpoints/epoch=33-step=1122.ckpt",
+        'output_layer' : 'linear', ##"linear", # or "transformer" or None
+        'activation' : "relu",
+        'transformer_activation' : "relu", # or #gelu
+        'clip_grad_norm': 0.1,
+        'batch_norm': True,
+        
+        'loss_weights' : dotdict({
+            'kl_div': 1e-8,
+            'velocity_relative' : .5,
+            'root' : .01,
+            'pose0' : 0.01,
+            'motion' : 0.,
+            'motion_relative' : 2.,
+        }),
+
     }),
 
     "DATA" : dotdict({
-        "seq_len": 200,
-        "batch_size": 256,
+        "seq_len": 160,
+        "batch_size": 128,
         "file_list_paths": {
-            "train": "../../data/HumanML3D/HumanML3D/train_cleaned.txt",
-            "val": "../../data/HumanML3D/HumanML3D/val_cleaned.txt",
-            "test": "../../data/HumanML3D/HumanML3D/test_cleaned.txt",
+            "_train": "../../data/HumanML3D/HumanML3D/train_cleaned.txt",
+            "_val": "../../data/HumanML3D/HumanML3D/val_cleaned.txt",
+            "_test": "../../data/HumanML3D/HumanML3D/test_cleaned.txt",
         },
-        "motion_path": "../../data/HumanML3D/HumanML3D/new_joints",
+        "_motion_path": "../../data/HumanML3D/HumanML3D/new_joints",
     }),
 
     'TRAINING' : dotdict({
-        "max_epochs": 10,
+        "max_epochs": 300,
         "accelerator": "mps",
         "devices": 1,
         "precision": "32-true",

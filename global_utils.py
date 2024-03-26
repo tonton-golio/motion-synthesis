@@ -28,3 +28,4 @@ def pretty_print_config(config):
     for k, v in unpack_dict(config, prefix="").items():
         print(k.ljust(33), ':', v)
     print()
+

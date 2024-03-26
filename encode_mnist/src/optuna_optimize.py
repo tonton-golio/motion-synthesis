@@ -7,86 +7,50 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 import optuna
 from optuna.integration import PyTorchLightningPruningCallback
+from config import config as cfg
+import sys; sys.path += ['/Users/tonton/Documents/motion-synthesis']
+from global_utils import unpack_dict, pretty_print_config
+import yaml
 
 # to view logs: tensorboard --logdir=tb_logs
-datamodule = MNISTDataModule(
-        batch_size=config.BATCH_SIZE,
-        # include_digits=config.__INCLUDE_DIGITS,
-        transforms=dict(
-            rotate_degrees=config.TRANSFORM_ROTATE_DEGREES,
-            distortion_scale=config.TRANSFORM_DISTORTION_SCALE,
-            translate=(config.TRANSFORM_TRANSLATEx, config.TRANSFORM_TRANSLATEy),
-        ),
-    )
+datamodule = MNISTDataModule(cfg.DATA)
 
 
 def objective(trial: optuna.trial.Trial) -> float:
-    # config.LATENT_DIM = trial.suggest_int("latent_dim", 6, 14)
-    config.LEARNING_RATE = trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True)
-    config.ACTIVATION = trial.suggest_categorical("activation", activation_dict.keys())
-    # config.TRANSFORM_ROTATE_DEGREES = trial.suggest_float("rotate_degrees", 0.0, 8.0)
-    # config.TRANSFORM_DISTORTION_SCALE = trial.suggest_float("distortion_scale", 0.0, .01)
-    hparams = {k: v for k, v in config.__dict__.items() if not k.startswith("__")}
-    logger = TensorBoardLogger("../tb_logs_new_model", name="MNISTAutoencoder")
-    print('hparams:', hparams)
+    # cfg.MODEL.latent_dim = trial.suggest_int("latent_dim", 6, 14)
+    # cfg.MODEL.activation = trial.suggest_categorical("activation", activation_dict.keys())
+    cfg.MODEL.LOSS.klDiv = trial.suggest_float("klDiv", 0.000001, 0.001, log=True)
+
+    logger = TensorBoardLogger("../tb_logs_kl_sweep", name="MNISTAutoencoder")
+    pretty_print_config(cfg)
     
-    loss_weights = {
-        "mse": config.MSE_LOSS,
-        'klDiv': config.KL_LOSS,
-        "l1": config.L1_LOSS,
-        # "klDiv": config.KL_LOSS,
-        # "manhattan": 0.,
-    }
-    hparams["LOSS_DICT"] = loss_weights
-
-
-    model = Autoencoder(hparams)
+    model = Autoencoder(cfg.MODEL)
 
     trainer = Trainer(
         logger=logger,
-        max_epochs=config.EPOCHS,
+        max_epochs=cfg.TRAINER.max_epochs,
         #log_every_n_steps = 100,
-        callbacks=[PyTorchLightningPruningCallback(trial, monitor="mse_unscaled_val")],
+        callbacks=[PyTorchLightningPruningCallback(trial, monitor="mse_us_tst")],
     )
 
     trainer.fit(model, datamodule)
 
     res = trainer.test(model, datamodule.test_dataloader())
+    
+    # logging hyperparameters
+    logger.log_hyperparams(unpack_dict(cfg, prefix=""), metrics=res[0])
     print('res:', res)
-
-    # logger.log_metrics({'mse_unscaled_test': res})
-    # logger.log_hyperparams(hparams)
-    del hparams['LOSS_DICT']
-
-    logger.log_hyperparams(
-        params=hparams, 
-        metrics={"mse_unscaled_test": res[0]['mse_unscaled_test']}
-        )
     
-    # # # manual dump
-    import yaml
-    hparams['mse_unscaled_test'] = res[0]['mse_unscaled_test']
+
+    # manual logging
+    hparams = unpack_dict(cfg, prefix="")
+    hparams['mse_us_tst'] = res[0]['mse_us_tst']
+
     with open(logger.log_dir + '/hparams.yaml', 'w') as file:
-         yaml.dump(hparams, file)
-    
+        yaml.dump(hparams, file)
 
+    return res[0]['mse_us_tst']
 
-    del model
-    del trainer
-    del logger
-
-
-    # # del datamodule
-    # # more clean up
-    import gc
-    gc.collect() # to clear memory
-
-    # close the open files
-    import resource
-    resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-
-
-    return res[0]['mse_unscaled_test']
 
 def main():
     

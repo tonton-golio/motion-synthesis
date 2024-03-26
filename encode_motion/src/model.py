@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from utils import plot_3d_motion_frames_multiple, plot_3d_motion_animation, plot_3d_motion_frames_multiple
 from glob import glob
-
+import matplotlib.pyplot as plt
 
 activation_dict = {
     'tanh': nn.Tanh(),
@@ -25,43 +25,43 @@ activation_dict = {
     # 'sinc': nn.Sinc(),
 }
 
-
 class CustomLoss(nn.Module):
-    def __init__(self, loss_dict):
+    def __init__(self, loss_weights):
         super(CustomLoss, self).__init__()
-        self.loss_weights = {'mse': 0, 'L1': 0, 'klDiv': 0}
-        for key, value in loss_dict.items():
-            if key in ['mse', 'MSELoss']:
-                self.loss_weights['mse'] = value
-            elif key in ['l1', 'L1Loss']:
-                self.loss_weights['L1'] = value
-            elif key in ['kl', 'KL', 'KLLoss', 'klDiv']:
-                self.loss_weights['klDiv'] = value
-            else:
-                raise ValueError(f'Loss function {key} not found')
+        self.loss_weights = loss_weights
+
     
-    def forward(self, x, y, mu, logvar):
-        dic = {}
-        
+    def forward(self, loss_data, mu, logvar):
+        """
+        Should be called like this:
+        loss_data = {
+            'velocity' : {'true': vel, 'rec': vel_rec, 'weight': 1},      
+            'root' : {'true': root, 'rec': root_rec, 'weight': 1},      
+            'pose0' : {'true': pose0, 'rec': pose0_rec, 'weight': 1},    
+        }
+        loss = self.loss_function(loss_data, mu, logvar)
 
-        if self.loss_weights['mse'] > 0:
-            dic['mse_us'] = F.mse_loss(x, y)
-            dic['mse'] = self.loss_weights['mse'] * dic['mse_us']
-        
-        if self.loss_weights['L1'] > 0:
-            dic['L1_us'] = F.l1_loss(x, y)
-            dic['L1'] = self.loss_weights['L1'] * dic['L1_us']
+        return loss, with loss['total'] as the total loss
+        """
+        loss = {}
+        total_loss = 0
+        for key, data in loss_data.items():
+            if self.loss_weights[key] == 0:
+                continue
+            loss[key] = F.mse_loss(data['rec'], data['true']) * self.loss_weights[key]
+            total_loss += loss[key] 
 
-        if self.loss_weights['klDiv'] > 0:
-            dic['klDiv_us'] = self.kl_divergence(mu, logvar)
-            dic['klDiv'] = dic['klDiv_us'] * self.loss_weights['klDiv']
 
-        dic['total'] = sum(v for k, v in dic.items() if '_us' not in k)
-        dic_us_total = {k:v for k, v in dic.items() if '_us' in k or k == 'total'}
-        return dic_us_total
+        kl_loss = self.kl_divergence(mu, logvar)* self.loss_weights['kl_div']
+        total_loss += kl_loss 
+        loss['kl_divergence'] = kl_loss
+        loss['total'] = total_loss
+        return loss
     
+        
     def kl_divergence(self, mu, logvar):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    
 
 def get_optimizer(model, optimizer_name, learning_rate):
     if optimizer_name == "Adam":
@@ -92,8 +92,8 @@ class TransformerMotionAutoencoder(pl.LightningModule):
 
     ):
         super(TransformerMotionAutoencoder, self).__init__()
-        self.input_length = config.get("input_length", 160)
-        self.input_dim = config.get("input_dim", 96)
+        self.seq_len = config.get("seq_len", 160)
+        self.input_dim = config.get("input_dim", 66)
         self.hidden_dim = config.get("hidden_dim", 1024)
         self.n_layers = config.get("n_layers", 8)
         self.n_heads = config.get("n_heads", 6)
@@ -101,51 +101,57 @@ class TransformerMotionAutoencoder(pl.LightningModule):
         self.latent_dim = config.get("latent_dim", 256)
         self.lr = config.get("learning_rate", 1 * 1e-5)
         self.optimizer = config.get("optimizer", "AdamW")
-        self.save_animations = config.get("save_animations", True)
-        self.loss_function = CustomLoss(config.get("LOSS", {'mse': 1., 'klDiv': 0.000002, 'l1': 0.5}))
+        self.save_animations = config.get("_save_animations", True)
+        self.loss_function = CustomLoss(config.get("loss_weights"))
         self.load = config.get("load", False)
-        self.checkpoint_path = config.get("checkpoint_path", None)
+        self.checkpoint_path = config.get("_checkpoint_path", None)
         self.activation = config.get("activation", "relu")
         self.activation = activation_dict[self.activation]
         self.transformer_activation = config.get("transformer_activation", "gelu")
         self.output_layer = config.get("output_layer", "linear")
-
+        self.clip = config.get("clip_grad_norm", 1)
+        self.batch_norm = config.get("batch_norm", False)
+        self.hindden_encoder_layer_widths = config.get("hidden_encoder_layer_widths", [256] * 3 )
+        self.hidden_dim_trans = config.get("hidden_dim_trans", 8192)
 
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=self.input_dim,
                 nhead=self.n_heads,
-                dim_feedforward=self.hidden_dim,
+                dim_feedforward=self.hidden_dim_trans,
                 dropout=self.dropout,
                 batch_first=True,
                 activation=self.transformer_activation,
-                norm_first=False,
+                norm_first=True,
             ),
             num_layers=self.n_layers,
+            norm=nn.LayerNorm(self.input_dim),
         )
 
         self.encoder_linear_block = nn.Sequential(
-            nn.Linear(self.input_dim * self.input_length, self.hidden_dim*8),
+            nn.Linear(self.input_dim * self.seq_len, 8 * self.hidden_dim),
             self.activation,
+            nn.Dropout(self.dropout),
             nn.Linear(self.hidden_dim*8, self.hidden_dim*4),
             self.activation,
-            nn.Linear(self.hidden_dim*4, 2 * self.hidden_dim),
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim *4, self.hidden_dim*2),
             self.activation,
-            nn.Linear(2 * self.hidden_dim, self.hidden_dim),
-            self.activation,
-            nn.Linear(self.hidden_dim, 2 * self.latent_dim),
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim * 2, 2 * self.latent_dim),
         )
 
         self.decoder_linear_block = nn.Sequential(
             nn.Linear(self.latent_dim, self.hidden_dim),
             self.activation,
-            nn.Linear(self.hidden_dim, self.hidden_dim*2),
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim, self.hidden_dim*4),
             self.activation,
-            nn.Linear(self.hidden_dim*2, self.hidden_dim*4),
-            self.activation,
+            nn.Dropout(self.dropout),
             nn.Linear(self.hidden_dim*4, self.hidden_dim*8),
             self.activation,
-            nn.Linear(self.hidden_dim*8, self.input_dim * self.input_length),
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim*8, self.input_dim * self.seq_len),
             self.activation,
         )
 
@@ -153,11 +159,11 @@ class TransformerMotionAutoencoder(pl.LightningModule):
             nn.TransformerDecoderLayer(
                 d_model=self.input_dim,
                 nhead=self.n_heads,
-                dim_feedforward=self.hidden_dim,
+                dim_feedforward=self.hidden_dim_trans,
                 dropout=self.dropout,
                 batch_first=True,
-                activation="gelu",
-                norm_first=False,
+                activation=self.transformer_activation,
+                norm_first=True,
             ),
             num_layers=self.n_layers,
         )
@@ -166,18 +172,18 @@ class TransformerMotionAutoencoder(pl.LightningModule):
         # define out block
         if self.output_layer == "linear":
             # self.fc_out1 = nn.Linear(
-            #     self.input_dim * self.input_length, self.input_dim * self.input_length
+            #     self.input_dim * self.seq_len, self.input_dim * self.seq_len
             # )
             self.output_block = nn.Sequential(
-                # reshape: x = x.view(-1, self.input_dim * self.input_length)
+                # reshape: x = x.view(-1, self.input_dim * self.seq_len)
                 nn.Flatten(),
-                nn.Linear(self.input_dim * self.input_length, self.input_dim * self.input_length),
+                nn.Linear(self.input_dim * self.seq_len, self.input_dim * self.seq_len),
 
             )
                 
         elif self.output_layer == "transformer":
             ## now a decoder layer with no activation function and no normalization
-            self.transformer_decoder_out = nn.TransformerDecoder(
+            self.output_block = nn.TransformerDecoder(
                 nn.TransformerDecoderLayer(
                     d_model=self.input_dim,
                     nhead=self.n_heads,
@@ -185,12 +191,9 @@ class TransformerMotionAutoencoder(pl.LightningModule):
                     dropout=self.dropout,
                     batch_first=True,
                     activation=Identity(),
-                    norm_first=False,
+                    norm_first=True,
                 ),
                 num_layers=1,
-            )
-            self.output_block = nn.Sequential(
-                self.transformer_decoder_out,
             )
 
         else:
@@ -205,27 +208,38 @@ class TransformerMotionAutoencoder(pl.LightningModule):
             self.load_state_dict(weights['state_dict'])
             print('loaded model from:', self.checkpoint_path)
 
+
+        self.epochs_animated = []
+
+    def encode(self, x):
+        x = x.view(-1, self.seq_len, self.input_dim)
+        x = self.transformer_encoder(x)
+        x = x.view(-1, self.input_dim * self.seq_len)
+        x = self.encoder_linear_block(x)
+        mu, logvar = x.chunk(2, dim=1)
+        return mu, logvar
+    
+    def decode(self, z):
+        x = self.decoder_linear_block(z)
+        x = x.view(-1, self.seq_len, self.input_dim)
+        x = self.transformer_decoder(x, x)
+        if self.output_layer == "transformer":
+            x = self.output_block(x, x)
+        else:
+            x = self.output_block(x)
+        x = x.view(-1, self.seq_len, self.input_dim // 3, 3)
+        return x
+
     def reparametrize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
+
     def forward(self, x):
-        # print(x.shape)
-        x = x.view(-1, self.input_length, self.input_dim)
-        x = self.transformer_encoder(x)
-        x = x.view(-1, self.input_dim * self.input_length)
-        x = self.encoder_linear_block(x)
-        mu, logvar = x.chunk(2, dim=1)
-
+        mu, logvar = self.encode(x)
         z = self.reparametrize(mu, logvar)
-
-        x = self.decoder_linear_block(z)
-
-        x = x.view(-1, self.input_length, self.input_dim)
-        x = self.transformer_decoder(x, x)
-        x = self.output_block(x)
-        x = x.view(-1, self.input_length, self.input_dim // 3, 3)
+        x = self.decode(z)
         return x, mu, logvar, z
 
     def training_step(self, batch, batch_idx):
@@ -236,22 +250,42 @@ class TransformerMotionAutoencoder(pl.LightningModule):
         self.log_dict(loss, prog_bar=True, logger=True, on_step=True, on_epoch=False)
         
         # clip gradients --> do i do this here? # TODO
-        # if self.clip:
-        #     torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
+        if self.clip > 0:
+            torch.nn.utils.clip_grad_norm_(self.parameters(), self.clip)
         return res['loss']['total']
 
     def validation_step(self, batch, batch_idx):
         res = self._common_step(batch, batch_idx)
         loss = {k + '_val': v for k, v in res['loss'].items()}
         self.log_dict(loss)
-        if batch_idx == 0:
+        current_epoch = self.current_epoch
+        if current_epoch not in self.epochs_animated:
+            self.epochs_animated.append(current_epoch)
+            print()
             recon = res['recon']
-            x = res['x']
-            im_arr = plot_3d_motion_frames_multiple([recon.cpu().detach().numpy(), x.cpu().detach().numpy()], ["recon", "true"], 
-                                                    nframes=5, radius=2, figsize=(20,8), return_array=True)
+            x = res['motion_seq']
+            im_arr = plot_3d_motion_frames_multiple([recon[0].cpu().detach().numpy(), x[0].cpu().detach().numpy()], ["recon", "true"], 
+                                                    nframes=5, radius=2, figsize=(20,8), return_array=True, velocity=False)
             # print(im_arr.shape)
             self.logger.experiment.add_image("recon_vs_true", im_arr, global_step=self.global_step)
+            if self.save_animations:
+                
+                # print("Saving animations")
+                folder = self.logger.log_dir
+                fname = f"{folder}/recon_epoch{current_epoch}.mp4"
+                plot_3d_motion_animation(recon[0].cpu().detach().numpy(), "recon", 
+                                        figsize=(10, 10), fps=20, radius=2, save_path=fname, velocity=False)
+                plt.close()
 
+                # copy file to latest
+                import shutil
+                shutil.copyfile(fname, f"{folder}/recon_latest.mp4")
+
+
+                if current_epoch == 0:
+                    plot_3d_motion_animation(x[0].cpu().detach().numpy(), "true", 
+                                            figsize=(10, 10), fps=20, radius=2, save_path=f"{folder}/recon_true.mp4", velocity=False)
+                    plt.close()
 
     def test_step(self, batch, batch_idx):
         res = self._common_step(batch, batch_idx)
@@ -260,22 +294,64 @@ class TransformerMotionAutoencoder(pl.LightningModule):
         # we want to add test loss final to the tensorboard
         self.log_dict(loss)
 
-        if batch_idx == 0 and self.save_animations:
+        if batch_idx == 1 and self.save_animations:
             recon = res['recon']
             print("Saving animations")
             folder = self.logger.log_dir
-            plot_3d_motion_animation(recon[0].cpu().detach().numpy(), "recon", figsize=(10, 10), fps=20, radius=2, save_path=f"{folder}/recon.mp4")
+            plot_3d_motion_animation(recon[0].cpu().detach().numpy(), "recon", 
+                                     figsize=(10, 10), fps=20, radius=2, save_path=f"{folder}/recon_test.mp4", velocity=False)
+            plt.close()
         return loss
+    
+    def decompose_recon(self, motion_seq):
+        pose0 = motion_seq[:,:1]
+        root_travel = motion_seq[:, :, :1, :]
+        root_travel = root_travel - root_travel[:1]  # relative to the first frame
+        motion_less_root = motion_seq - root_travel# relative motion
+        velocity = torch.diff(motion_seq, dim=1)
+        velocity_relative = torch.diff(motion_less_root, dim=1)
 
-    def _common_step(self, batch, batch_idx):
-        x = batch
-        recon, mu, logvar, z = self(x)
-        loss = self.loss_function(x, recon, mu=mu, logvar=logvar)
+        return pose0, velocity_relative, root_travel
+
+
+
+    def _common_step(self, batch, batch_idx, verbose=False):
+        pose0,  velocity_relative, root_travel, motion_seq = batch
+        motion_less_root = motion_seq - root_travel# relative motion
+
+        recon, mu, logvar, z = self(motion_seq)
+        pose0_rec, vel_rec, root_rec = self.decompose_recon(recon)
+        motion_less_root_rec = recon - root_rec
+        if verbose:
+            print('motion:', motion_seq.shape)
+            print('pose0:', pose0.shape)
+            print('velocity_relative:', velocity_relative.shape)
+            print('root:', root_travel.shape)
+            print('recon:', recon.shape)
+            print('pose0_rec:', pose0_rec.shape)
+            print('vel_rec:', vel_rec.shape)
+            print('root_rec:', root_rec.shape)
+
+        loss_data = {
+            'velocity_relative' : {'true': velocity_relative, 'rec': vel_rec, },#'weight': 50},      
+            'root' : {'true': root_travel, 'rec': root_rec,},# 'weight':          1},      
+            'pose0' : {'true': pose0, 'rec': pose0_rec, },#'weight':              1},
+            'motion' : {'true': motion_seq, 'rec': recon,},# 'weight':            0.},
+            'motion_relative' : {'true': motion_less_root, 
+                                 'rec': motion_less_root_rec, },#'weight':       100},
+        }
+        # print('loss_data:', {k : v for k, v in loss_data.items() if v['weight'] > 0})
+
+
+        loss = self.loss_function(loss_data, mu, logvar)
+        # loss  = {'total' : F.mse_loss(recon, motion_seq)}
         return dict(
             loss=loss,
-            x = x,
-            recon = recon,
-            z=z,
+            motion_seq=motion_seq,
+            recon=recon,
+            pose0={'true': pose0, 'rec': pose0_rec},
+            vel = {'true': velocity_relative, 'rec': vel_rec},
+            root = {'true': root_travel, 'rec': root_rec},
             mu=mu,
             logvar=logvar,
         )
@@ -287,9 +363,9 @@ class TransformerMotionAutoencoder(pl.LightningModule):
 
 if __name__ == "__main__":
     model = TransformerMotionAutoencoder(
-        input_length=160,
-        input_dim=96,
-        hidden_dim=1024,
+        seq_len=160,
+        input_dim=66,
+        hidden_dim=128,
         n_layers=8,
         n_heads=6,
         dropout=0.10,
@@ -302,6 +378,6 @@ if __name__ == "__main__":
         load=False,
         checkpoint_path=None,
     )
-    x = torch.randn(128, 160, 96)
+    x = torch.randn(128, 160, 66)
     recon, mu, logvar = model(x)
     print(recon.shape)

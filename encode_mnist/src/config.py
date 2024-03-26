@@ -31,7 +31,7 @@ config = dotdict({
     }),
 
     'TRAINER' : dotdict({
-        'max_epochs' : 20,
+        'max_epochs' : 10,
     }),
 
     # Data
