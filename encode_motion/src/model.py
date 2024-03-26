@@ -85,6 +85,80 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
+
+class Decoder(nn.Module):
+    def __init__(self, hidden_dim, latent_dim, seq_len, input_dim, n_layers, n_heads, dropout, hidden_dim_trans, transformer_activation, activation):
+        super(Decoder, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.latent_dim = latent_dim
+        self.seq_len = seq_len
+        self.input_dim = input_dim
+        self.n_layers = n_layers
+        self.n_heads = n_heads
+        self.dropout = dropout
+        self.hidden_dim_trans = hidden_dim_trans
+        self.transformer_activation = transformer_activation
+        self.activation = activation
+        
+
+        # # print all the inputs
+        # print('hidden_dim:', hidden_dim)
+        # print('latent_dim:', latent_dim)
+        # print('seq_len:', seq_len)
+        # print('input_dim:', input_dim)
+        # print('n_layers:', n_layers)
+        # print('n_heads:', n_heads)
+        # print('dropout:', dropout)
+        # print('hidden_dim_trans:', hidden_dim_trans)
+        # print('transformer_activation:', transformer_activation)
+        # print('activation:', activation)
+
+
+        self.decoder_linear_block = nn.Sequential(
+            nn.Linear(self.latent_dim, self.hidden_dim),
+            self.activation,
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim, self.hidden_dim*4),
+            self.activation,
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim*4, self.hidden_dim*8),
+            self.activation,
+            nn.Dropout(self.dropout),
+            nn.Linear(self.hidden_dim*8, self.input_dim * self.seq_len),
+            self.activation,
+        )
+
+        self.transformer_decoder = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(
+                d_model=self.input_dim,
+                nhead=self.n_heads,
+                dim_feedforward=self.hidden_dim_trans,
+                dropout=self.dropout,
+                batch_first=True,
+                activation=self.transformer_activation,
+                norm_first=True,
+            ),
+            num_layers=self.n_layers,
+        )
+
+        self.output_block = nn.Sequential(
+            # reshape: x = x.view(-1, self.input_dim * self.seq_len)
+            nn.Flatten(),
+            nn.Linear(self.input_dim * self.seq_len, self.input_dim * self.seq_len),
+        )
+
+    def forward(self, z):
+        x = self.decoder_linear_block(z)
+        x = x.view(-1, self.seq_len, self.input_dim)
+        x = self.transformer_decoder(x, x)
+        # if self.output_layer == "transformer":
+        #     x = self.output_block(x, x)
+        # else:
+        x = self.output_block(x)
+        x = x.view(-1, self.seq_len, self.input_dim // 3, 3)
+        return x
+
+
 class TransformerMotionAutoencoder(pl.LightningModule):
     def __init__(
         self,
@@ -114,6 +188,19 @@ class TransformerMotionAutoencoder(pl.LightningModule):
         self.hindden_encoder_layer_widths = config.get("hidden_encoder_layer_widths", [256] * 3 )
         self.hidden_dim_trans = config.get("hidden_dim_trans", 8192)
 
+        self.decoder = Decoder(
+            hidden_dim=self.hidden_dim,
+            latent_dim=self.latent_dim,
+            seq_len=self.seq_len,
+            input_dim=self.input_dim,
+            n_layers=self.n_layers,
+            n_heads=self.n_heads,
+            dropout=self.dropout,
+            hidden_dim_trans=self.hidden_dim_trans,
+            transformer_activation=self.transformer_activation,
+            activation=self.activation,
+        )
+
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=self.input_dim,
@@ -141,71 +228,16 @@ class TransformerMotionAutoencoder(pl.LightningModule):
             nn.Linear(self.hidden_dim * 2, 2 * self.latent_dim),
         )
 
-        self.decoder_linear_block = nn.Sequential(
-            nn.Linear(self.latent_dim, self.hidden_dim),
-            self.activation,
-            nn.Dropout(self.dropout),
-            nn.Linear(self.hidden_dim, self.hidden_dim*4),
-            self.activation,
-            nn.Dropout(self.dropout),
-            nn.Linear(self.hidden_dim*4, self.hidden_dim*8),
-            self.activation,
-            nn.Dropout(self.dropout),
-            nn.Linear(self.hidden_dim*8, self.input_dim * self.seq_len),
-            self.activation,
-        )
-
-        self.transformer_decoder = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(
-                d_model=self.input_dim,
-                nhead=self.n_heads,
-                dim_feedforward=self.hidden_dim_trans,
-                dropout=self.dropout,
-                batch_first=True,
-                activation=self.transformer_activation,
-                norm_first=True,
-            ),
-            num_layers=self.n_layers,
-        )
-
-
-        # define out block
-        if self.output_layer == "linear":
-            # self.fc_out1 = nn.Linear(
-            #     self.input_dim * self.seq_len, self.input_dim * self.seq_len
-            # )
-            self.output_block = nn.Sequential(
-                # reshape: x = x.view(-1, self.input_dim * self.seq_len)
-                nn.Flatten(),
-                nn.Linear(self.input_dim * self.seq_len, self.input_dim * self.seq_len),
-
-            )
-                
-        elif self.output_layer == "transformer":
-            ## now a decoder layer with no activation function and no normalization
-            self.output_block = nn.TransformerDecoder(
-                nn.TransformerDecoderLayer(
-                    d_model=self.input_dim,
-                    nhead=self.n_heads,
-                    dim_feedforward=self.hidden_dim,
-                    dropout=self.dropout,
-                    batch_first=True,
-                    activation=Identity(),
-                    norm_first=True,
-                ),
-                num_layers=1,
-            )
-
-        else:
-            # identity
-            self.output_block = nn.Sequential( Identity() )
 
         # 
 
         if self.load:
             print(f"Loading model from {self.checkpoint_path}")
             weights = torch.load(self.checkpoint_path)
-            self.load_state_dict(weights['state_dict'])
+            enc_weight_keys = list(weights['state_dict'].keys())[:70]
+            dec_weight_keys = list(weights['state_dict'].keys())[70:]
+            self.load_state_dict({k: v for k, v in weights['state_dict'].items() if k in enc_weight_keys}, strict=False)
+            self.decoder.load_state_dict({k: v for k, v in weights['state_dict'].items() if k in dec_weight_keys}, strict=False)
             print('loaded model from:', self.checkpoint_path)
 
 
@@ -220,15 +252,9 @@ class TransformerMotionAutoencoder(pl.LightningModule):
         return mu, logvar
     
     def decode(self, z):
-        x = self.decoder_linear_block(z)
-        x = x.view(-1, self.seq_len, self.input_dim)
-        x = self.transformer_decoder(x, x)
-        if self.output_layer == "transformer":
-            x = self.output_block(x, x)
-        else:
-            x = self.output_block(x)
-        x = x.view(-1, self.seq_len, self.input_dim // 3, 3)
-        return x
+        return self.decoder(z)
+
+        
 
     def reparametrize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)

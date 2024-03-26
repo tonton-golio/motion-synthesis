@@ -74,10 +74,14 @@ def plot_trajec(trajec, index, ax):
         color="blue",
     )
 
-def plot_3d_motion_animation(data, title, figsize=(10, 10), fps=20, radius=2, save_path='test.mp4'):
+def plot_3d_motion_animation(data, title, figsize=(10, 10), fps=20, radius=2, save_path='test.mp4', velocity=False, save_path_2=None):
     
     #     matplotlib.use('Agg')
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
+
+    if velocity:
+        data = np.cumsum(data, axis=0)
+
     fig = plt.figure(figsize=figsize)
 
     ax = fig.add_subplot(111, projection="3d")
@@ -118,6 +122,10 @@ def plot_3d_motion_animation(data, title, figsize=(10, 10), fps=20, radius=2, sa
         
     ani = FuncAnimation(fig, update, frames=data.shape[0], interval=100 / fps, repeat=False)
     ani.save(save_path, fps=fps)
+    if save_path_2:
+        ani.save(save_path_2, fps=fps)
+
+    plt.close()
 
 def plot_3d_motion_frames_single(data, title,  axes,  nframes=5, radius=2):
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
@@ -152,9 +160,11 @@ def plot_3d_motion_frames_single(data, title,  axes,  nframes=5, radius=2):
         ax.set_zlim3d([0, radius])
         plot_3d_pose(data, index, ax)
         
-def plot_3d_motion_frames_multiple(data_multiple, titles, nframes=5, radius=2, figsize=(10, 10), return_array=False):
+def plot_3d_motion_frames_multiple(data_multiple, titles, nframes=5, radius=2, figsize=(10, 10), return_array=False, velocity=False):
     fig, axes = plt.subplots(len(data_multiple), nframes, figsize=figsize, subplot_kw={'projection': '3d'})
     for i, data in enumerate(data_multiple):
+        if velocity:
+            data = np.cumsum(data, axis=0)
         plot_3d_motion_frames_single(data, titles[i], axes[i], nframes, radius)
     if return_array:
         
