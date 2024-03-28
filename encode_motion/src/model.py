@@ -48,7 +48,10 @@ class CustomLoss(nn.Module):
         for key, data in loss_data.items():
             if self.loss_weights[key] == 0:
                 continue
+            # l2
             loss[key] = F.mse_loss(data['rec'], data['true']) * self.loss_weights[key]
+            # l1
+            # loss[key] = F.l1_loss(data['rec'], data['true']) * self.loss_weights[key]
             total_loss += loss[key] 
 
 
@@ -188,18 +191,7 @@ class TransformerMotionAutoencoder(pl.LightningModule):
         self.hindden_encoder_layer_widths = config.get("hidden_encoder_layer_widths", [256] * 3 )
         self.hidden_dim_trans = config.get("hidden_dim_trans", 8192)
 
-        self.decoder = Decoder(
-            hidden_dim=self.hidden_dim,
-            latent_dim=self.latent_dim,
-            seq_len=self.seq_len,
-            input_dim=self.input_dim,
-            n_layers=self.n_layers,
-            n_heads=self.n_heads,
-            dropout=self.dropout,
-            hidden_dim_trans=self.hidden_dim_trans,
-            transformer_activation=self.transformer_activation,
-            activation=self.activation,
-        )
+        
 
         self.transformer_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
@@ -228,18 +220,30 @@ class TransformerMotionAutoencoder(pl.LightningModule):
             nn.Linear(self.hidden_dim * 2, 2 * self.latent_dim),
         )
 
-
-        # 
+        self.decoder = Decoder(
+            hidden_dim=self.hidden_dim,
+            latent_dim=self.latent_dim,
+            seq_len=self.seq_len,
+            input_dim=self.input_dim,
+            n_layers=self.n_layers,
+            n_heads=self.n_heads,
+            dropout=self.dropout,
+            hidden_dim_trans=self.hidden_dim_trans,
+            transformer_activation=self.transformer_activation,
+            activation=self.activation,
+        )
 
         if self.load:
             print(f"Loading model from {self.checkpoint_path}")
             weights = torch.load(self.checkpoint_path)
-            enc_weight_keys = list(weights['state_dict'].keys())[:70]
-            dec_weight_keys = list(weights['state_dict'].keys())[70:]
-            self.load_state_dict({k: v for k, v in weights['state_dict'].items() if k in enc_weight_keys}, strict=False)
-            self.decoder.load_state_dict({k: v for k, v in weights['state_dict'].items() if k in dec_weight_keys}, strict=False)
+            # enc_weight_keys = list(weights['state_dict'].keys())[:70]
+            # dec_weight_keys = list(weights['state_dict'].keys())[70:]
+            # self.load_state_dict({k: v for k, v in weights['state_dict'].items() if k in enc_weight_keys}, strict=False)
+            # self.decoder.load_state_dict({k: v for k, v in weights['state_dict'].items() if k in dec_weight_keys}, strict=False)
+            self.load_state_dict(weights['state_dict'])
             print('loaded model from:', self.checkpoint_path)
 
+        
 
         self.epochs_animated = []
 
@@ -254,7 +258,6 @@ class TransformerMotionAutoencoder(pl.LightningModule):
     def decode(self, z):
         return self.decoder(z)
 
-        
 
     def reparametrize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
@@ -299,7 +302,7 @@ class TransformerMotionAutoencoder(pl.LightningModule):
                 # print("Saving animations")
                 folder = self.logger.log_dir
                 fname = f"{folder}/recon_epoch{current_epoch}.mp4"
-                plot_3d_motion_animation(recon[0].cpu().detach().numpy(), "recon", 
+                plot_3d_motion_animation(recon[1].cpu().detach().numpy(), "recon", 
                                         figsize=(10, 10), fps=20, radius=2, save_path=fname, velocity=False)
                 plt.close()
 
@@ -309,7 +312,7 @@ class TransformerMotionAutoencoder(pl.LightningModule):
 
 
                 if current_epoch == 0:
-                    plot_3d_motion_animation(x[0].cpu().detach().numpy(), "true", 
+                    plot_3d_motion_animation(x[1].cpu().detach().numpy(), "true", 
                                             figsize=(10, 10), fps=20, radius=2, save_path=f"{folder}/recon_true.mp4", velocity=False)
                     plt.close()
 
@@ -342,7 +345,7 @@ class TransformerMotionAutoencoder(pl.LightningModule):
 
 
     def _common_step(self, batch, batch_idx, verbose=False):
-        pose0,  velocity_relative, root_travel, motion_seq = batch
+        pose0,  velocity_relative, root_travel, motion_seq, text = batch
         motion_less_root = motion_seq - root_travel# relative motion
 
         recon, mu, logvar, z = self(motion_seq)
@@ -380,6 +383,7 @@ class TransformerMotionAutoencoder(pl.LightningModule):
             root = {'true': root_travel, 'rec': root_rec},
             mu=mu,
             logvar=logvar,
+            text=text,
         )
 
     def configure_optimizers(self):

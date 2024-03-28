@@ -12,7 +12,7 @@ config = dotdict({
         "n_heads": 6,
         "dropout": 0.1,
         "latent_dim": 1024,
-        "learning_rate": 1 * 1e-8,
+        "learning_rate": 1 * 1e-7,
         "optimizer": "AdamW",
         "_save_animations": True,
         "load": True,
@@ -24,14 +24,13 @@ config = dotdict({
         'batch_norm': True,
         
         'loss_weights' : dotdict({
-            'kl_div': 2*1e-8,
-            'velocity_relative' : .5,
-            'root' : .01,
-            'pose0' : 0.01,
+            'kl_div': 1e-6,
+            'velocity_relative' : 100.,
+            'root' : .1,
+            'pose0' : .5,
             'motion' : 0.,
-            'motion_relative' : 2.,
+            'motion_relative' : 1.,
         }),
-
     }),
 
     "DATA" : dotdict({
