@@ -1,6 +1,8 @@
 # Byte-compiled / optimized / DLL files
 
+*.mp4
 tb_logs*
+lightning_logs/
 
 *.DS_Store
 

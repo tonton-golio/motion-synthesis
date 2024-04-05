@@ -153,22 +153,42 @@ from utils import plot_3d_motion_frames_multiple
 
 # inspired by: https://lightning.ai/docs/pytorch/stable/notebooks/course_UvA-DL/06-graph-neural-networks.html#
 
-def get_loss_function(loss_function, kl_weight=0.1, **kwargs):
-    if loss_function == 'L1Loss':
-        return nn.L1Loss()
-    elif loss_function == 'MSELoss':
-        return nn.MSELoss()
-    elif loss_function == 'SmoothL1Loss':
-        return nn.SmoothL1Loss()
-    
-    elif loss_function == "MSELoss + KL":
-        # this should be the sum of the reconstruction loss and the KL divergence
-        mse = nn.MSELoss()
-        kl = lambda mu, logvar: -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return lambda x, y, mu, logvar: mse(x, y) + kl_weight * kl(mu, logvar)
+class CustomLoss(nn.Module):
+    def __init__(self, loss_weights):
+        super(CustomLoss, self).__init__()
+        self.loss_weights = loss_weights
 
-    
-    raise ValueError(f'Loss function {loss_function} not found')
+    def forward(self, loss_data, mu, logvar):
+        """
+        Should be called like this:
+        loss_data = {
+            'velocity' : {'true': vel, 'rec': vel_rec, 'weight': 1},
+            'root' : {'true': root, 'rec': root_rec, 'weight': 1},
+            'pose0' : {'true': pose0, 'rec': pose0_rec, 'weight': 1},
+        }
+        loss = self.loss_function(loss_data, mu, logvar)
+
+        return loss, with loss['total'] as the total loss
+        """
+        loss = {}
+        total_loss = 0
+        for key, data in loss_data.items():
+            if self.loss_weights[key] == 0:
+                continue
+            # l2
+            loss[key] = F.mse_loss(data["rec"], data["true"]) * self.loss_weights[key]
+            # l1
+            # loss[key] = F.l1_loss(data['rec'], data['true']) * self.loss_weights[key]
+            total_loss += loss[key]
+
+        kl_loss = self.kl_divergence(mu, logvar) * self.loss_weights["kl_div"]
+        total_loss += kl_loss
+        loss["kl_divergence"] = kl_loss
+        loss["total"] = total_loss
+        return loss
+
+    def kl_divergence(self, mu, logvar):
+        return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
 def get_optimizer(model, optimizer_name, learning_rate):
     if optimizer_name == 'Adam':
@@ -349,9 +369,11 @@ class GnnAutoEncoder(nn.Module):
         for layer in self.layers_lin_enc:
             x = layer(x)
             # print(x.shape)
-        mu = self.layers_mu(x)
-        # print('mu:', mu.shape)
-        logvar = self.layers_logvar(x)
+        # mu = self.layers_mu(x)
+        # # print('mu:', mu.shape)
+        # logvar = self.layers_logvar(x)
+            
+        mu, logvar = torch.chunk(x, 2, dim=1)
         # print('logvar:', logvar.shape)
         z = self.reparameterize(mu, logvar)
         
@@ -385,6 +407,8 @@ class MLPAutoencoder(nn.Module):
         layers += [nn.Linear(in_channels, c_out)]
         self.layers = nn.Sequential(*layers)
 
+
+
     def forward(self, x, *args, **kwargs):
         """Forward.
 
@@ -394,7 +418,7 @@ class MLPAutoencoder(nn.Module):
         return self.layers(x)
 
 class NodeLevelGNNAutoencoder(L.LightningModule):
-    def __init__(self, model_name, loss_function,kl_weight, **model_kwargs):
+    def __init__(self, model_name, **model_kwargs):
         super().__init__()
         # Saving hyperparameters
         # self.save_hyperparameters()
@@ -404,30 +428,54 @@ class NodeLevelGNNAutoencoder(L.LightningModule):
         else:
             self.model = GnnAutoEncoder(**model_kwargs)
 
+        # if load
+        if model_kwargs.get("load"):
+            self.load_state_dict(torch.load(model_kwargs.get("checkpoint"))['state_dict'])
+            print('Model loaded')
 
-        self.loss_function = get_loss_function(loss_function, kl_weight=kl_weight)
-        self.optimizer = model_kwargs.get("optimizer", "Adam")
-        self.lr = model_kwargs.get("lr", 1e-3)
 
-    def forward(self, data, mode="train"):
-        recon, mu, logvar = self.model(data)
-        loss = self.loss_function(recon, data, mu, logvar)
-        return loss, recon
+        self.loss_function = CustomLoss(model_kwargs.get("loss_weights"))
+        self.optimizer = model_kwargs.get("optimizer")
+        self.lr = model_kwargs.get("lr")
+
+    def forward(self, batch):
+        # root_0 = batch[:, :1, :1]
+        # root_1 = batch[:, :1, 1:2]
+        # root_2 = torch.zeros_like(root_1)
+        # # print(root_0.shape, root_1.shape, root_2.shape)
+        # root = torch.cat([root_0, root_1, root_2], dim=2)
+        root = batch[:, :1, :]
+        # print(root.shape)
+        # print(batch.shape)
+        batch = batch - root
+        recon, mu, logvar = self.model(batch)
+
+        loss_data = {
+            'mse' : {
+                'true': batch,
+                'rec': recon,
+            }
+        }
+
+        loss = self.loss_function(loss_data, mu, logvar)
+        return loss, recon + root
 
     def configure_optimizers(self):
         # this is also where we would put the scheduler
         return get_optimizer(self, self.optimizer, self.lr)
 
     def training_step(self, batch, batch_idx):
-        loss, recon = self.forward(batch, mode="train")
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        if batch_idx % 999999999 == 0:
+        
+        loss, recon = self.forward(batch)
+        loss = {k + "_train": v for k, v in loss.items()}
+        self.log_dict(loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        if batch_idx %1_000 == 0:
             """
             Here we're loggig a row of images. 
             """
             print('Logging images')
             
-            self.logger.experiment.add_graph(self.model, batch)
+            # self.logger.experiment.add_graph(self.model, batch)
             
             # grid = torchvision.utils.make_grid(batch)
             batch_select = batch[:6].detach().cpu().numpy()
@@ -444,12 +492,14 @@ class NodeLevelGNNAutoencoder(L.LightningModule):
             
 
 
-        return loss
+        return loss['total_train']
 
     def validation_step(self, batch, batch_idx):
-        loss, recon = self.forward(batch, mode="val")
-        self.log("val_loss", loss)
+        loss, recon = self.forward(batch,)
+        loss = {k + "_val": v for k, v in loss.items() if k == 'total'}
+        self.log_dict(loss, on_step=True, on_epoch=False, prog_bar=True, logger=True)
 
     def test_step(self, batch, batch_idx):
-        loss, recon = self.forward(batch, mode="test")
-        self.log("test_loss", loss)
+        loss, recon = self.forward(batch,)
+        loss = {k + "_test": v for k, v in loss.items()}# if k == 'total'}
+        self.log_dict(loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)

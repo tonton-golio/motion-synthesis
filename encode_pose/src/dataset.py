@@ -1,29 +1,6 @@
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
-import torch
-from torch_geometric.data import Data
-
-## instead of this, lets not pad with zeros, but instead pad with the last frame
-def pad_data(data, length=420):
-    # print(data.shape)
-    try:
-        # Check if padding or truncation is needed based on the time steps dimension
-        if data.shape[0] < length:
-            # # Only pad the first dimension (time steps), keeping the rest unchanged
-            # padding = ((0, length - data.shape[0]), (0, 0), (0, 0))
-            # data = np.pad(data, padding, 'constant', constant_values=data[-1])
-            padding = np.zeros((length - data.shape[0], data.shape[1], data.shape[2]), dtype=np.float32)
-            padding += data[-1]
-            data = np.concatenate([data, padding], axis=0)
-        elif data.shape[0] > length:
-            data = data[:length]
-        return data
-    except Exception as e:
-        print('data:', data)
-        print('length:', length)
-        print('data.shape:', data.shape)
-        print(e)
 
 # DATASETS
 class PoseDataset(Dataset):
@@ -32,6 +9,11 @@ class PoseDataset(Dataset):
         self.filenames = [f'{motion_path}/{f}.npy' for f in filenames]
         
         all_poses = [np.load(f) for f in self.filenames]
+
+        # subtract root joint
+        for i in range(len(all_poses)):
+            all_poses[i] -= all_poses[i][:, :1, :]
+
         self.all_poses = np.concatenate(all_poses, axis=0)
         if verbose: print('len of all_poses:', len(self.all_poses))
         self.data_format = data_format
@@ -39,20 +21,13 @@ class PoseDataset(Dataset):
     def __len__(self):
         return len(self.all_poses)
 
-    # def make_graph(self, pose):
-    #     # make graph
-        
-    #     pose = torch.tensor(pose, dtype=torch.float)
-        
-    #     data = Data(x=pose, edge_index=edge_index)
-    #     return data
-
     def __getitem__(self, idx):
         pose = self.all_poses[idx]
         return pose
-        if self.data_format == 'graph':
-            pose = self.make_graph(pose)
-            pose.validate(raise_on_error=True)
+    
+    def get_all_poses(self):
+        return self.all_poses
+
         
 class PoseDataModule(pl.LightningDataModule):
     def __init__(self, file_list_paths, path, data_format='array', batch_size=128, num_workers=4):

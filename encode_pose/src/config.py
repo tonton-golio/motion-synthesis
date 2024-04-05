@@ -2,13 +2,13 @@ from os.path import join as __pjoin
 
 ###### TRACKED PARAMETERS ######
 # data parameters
-BATCH_SIZE = 1048
+BATCH_SIZE = 1024
 
 # model parameters
 N_LAYERS = 4
-N_LIN_LAYERS = 4
-N_LIN_UNITS = 256
-LATENT_DIM = 46
+N_LIN_LAYERS = 6
+N_LIN_UNITS = 512
+LATENT_DIM = 48
 DROPOUT = 0.10
 CHANNELS_HIDDEN = 64
 CHANNELS_OUT = 32
@@ -16,10 +16,11 @@ MODEL_TYPE = "graph"
 
 # training parameters
 EPOCHS = 20
-LEARNING_RATE =  1* 1e-4
+LEARNING_RATE =  1* 1e-3
 OPTIMIZER = "AdamW"
-LOSS_FUNCTION = "MSELoss + KL"
-KL_WEIGHT = .000001
+KL_WEIGHT = .00000001
+load = False
+checkpoint_path = "latest"
 
 
 ###### UNTRACKED PARAMETERS ######

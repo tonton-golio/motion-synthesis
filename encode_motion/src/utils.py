@@ -9,7 +9,7 @@ from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
-def plot_3d_pose(data, index, ax = None):
+def plot_3d_pose(data, index, ax=None):
     """Plot a 3D pose."""
 
     if ax is None:
@@ -24,7 +24,13 @@ def plot_3d_pose(data, index, ax = None):
         [9, 13, 16, 18, 20],
     ]
 
-    colors = ["red", "blue", "black", "red", "blue", ]
+    colors = [
+        "red",
+        "blue",
+        "black",
+        "red",
+        "blue",
+    ]
 
     for i, (chain, color) in enumerate(zip(kinematic_chain, colors)):
         ax.plot3D(
@@ -42,6 +48,7 @@ def plot_3d_pose(data, index, ax = None):
 
     return ax
 
+
 def plot_xzPlane(ax, minx, maxx, miny, minz, maxz):
     ## Plot a plane XZ
     verts = [
@@ -54,6 +61,7 @@ def plot_xzPlane(ax, minx, maxx, miny, minz, maxz):
     xz_plane.set_facecolor((0.5, 0.5, 0.5, 0.5))
     ax.add_collection3d(xz_plane)
 
+
 def init(ax, fig, title, radius=2):
     ax.set_xlim3d([-radius / 2, radius / 2])
     ax.set_ylim3d([0, radius])
@@ -65,6 +73,7 @@ def init(ax, fig, title, radius=2):
     fig.suptitle(title, fontsize=20)
     ax.grid(b=False)
 
+
 def plot_trajec(trajec, index, ax):
     ax.plot3D(
         trajec[:index, 0] - trajec[index, 0],
@@ -74,8 +83,17 @@ def plot_trajec(trajec, index, ax):
         color="blue",
     )
 
-def plot_3d_motion_animation(data, title, figsize=(10, 10), fps=20, radius=2, save_path='test.mp4', velocity=False, save_path_2=None):
-    
+
+def plot_3d_motion_animation(
+    data,
+    title,
+    figsize=(10, 10),
+    fps=20,
+    radius=2,
+    save_path="test.mp4",
+    velocity=False,
+    save_path_2=None,
+):
     #     matplotlib.use('Agg')
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
@@ -98,7 +116,8 @@ def plot_3d_motion_animation(data, title, figsize=(10, 10), fps=20, radius=2, sa
         # ax.dist = 7.5
         def do_it_all(data, index, ax):
             ax.view_init(elev=120, azim=-90)
-            plot_xzPlane(ax,
+            plot_xzPlane(
+                ax,
                 MINS[0] - trajec[index, 0],
                 MAXS[0] - trajec[index, 0],
                 0,
@@ -113,23 +132,24 @@ def plot_3d_motion_animation(data, title, figsize=(10, 10), fps=20, radius=2, sa
             ax.set_ylim3d([0, radius])
             ax.set_zlim3d([0, radius])
 
-            
             plot_3d_pose(data, index, ax)
 
         ax.clear()
         do_it_all(data, index, ax)
 
-        
-    ani = FuncAnimation(fig, update, frames=data.shape[0], interval=100 / fps, repeat=False)
+    ani = FuncAnimation(
+        fig, update, frames=data.shape[0], interval=100 / fps, repeat=False
+    )
     ani.save(save_path, fps=fps)
     if save_path_2:
         ani.save(save_path_2, fps=fps)
 
     plt.close()
 
-def plot_3d_motion_frames_single(data, title,  axes,  nframes=5, radius=2):
+
+def plot_3d_motion_frames_single(data, title, axes, nframes=5, radius=2):
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
-    
+
     # init(ax, fig, title, radius)
     MINS, MAXS = data.min(axis=0).min(axis=0), data.max(axis=0).max(axis=0)
 
@@ -140,12 +160,13 @@ def plot_3d_motion_frames_single(data, title,  axes,  nframes=5, radius=2):
     data[..., 2] -= data[:, 0:1, 2]  # centering
 
     # frames to plot
-    frames_to_plot = np.linspace(0, len(data)-1, nframes, dtype=int)
+    frames_to_plot = np.linspace(0, len(data) - 1, nframes, dtype=int)
     axes.flatten()[0].set_ylabel(title)
-    for (ax, index) in zip(axes.flatten(), frames_to_plot):
+    for ax, index in zip(axes.flatten(), frames_to_plot):
         # ax.clear()
         ax.view_init(elev=120, azim=-90)
-        plot_xzPlane(ax,
+        plot_xzPlane(
+            ax,
             MINS[0] - trajec[index, 0],
             MAXS[0] - trajec[index, 0],
             0,
@@ -153,37 +174,50 @@ def plot_3d_motion_frames_single(data, title,  axes,  nframes=5, radius=2):
             MAXS[2] - trajec[index, 1],
         )
         if index > 1:
-                plot_trajec(trajec, index, ax)
+            plot_trajec(trajec, index, ax)
 
         ax.set_xlim3d([-radius / 2, radius / 2])
         ax.set_ylim3d([0, radius])
         ax.set_zlim3d([0, radius])
         plot_3d_pose(data, index, ax)
-        
-def plot_3d_motion_frames_multiple(data_multiple, titles, nframes=5, radius=2, figsize=(10, 10), return_array=False, velocity=False):
-    fig, axes = plt.subplots(len(data_multiple), nframes, figsize=figsize, subplot_kw={'projection': '3d'})
+
+
+def plot_3d_motion_frames_multiple(
+    data_multiple,
+    titles,
+    nframes=5,
+    radius=2,
+    figsize=(10, 10),
+    return_array=False,
+    velocity=False,
+):
+    fig, axes = plt.subplots(
+        len(data_multiple), nframes, figsize=figsize, subplot_kw={"projection": "3d"}
+    )
     for i, data in enumerate(data_multiple):
         if velocity:
             data = np.cumsum(data, axis=0)
         plot_3d_motion_frames_single(data, titles[i], axes[i], nframes, radius)
     if return_array:
-        
-        plt.savefig('tmp.png')
-        X = plt.imread('tmp.png')
+        plt.savefig("tmp.png")
+        X = plt.imread("tmp.png")
         plt.close()
 
         # delete the file
-        
-        os.remove('tmp.png')
+
+        os.remove("tmp.png")
 
         return torch.tensor(X).permute(2, 0, 1)
 
-if __name__ == '__main__':
-    path = '../data/HumanML3D/joints/000000.npy'
+
+if __name__ == "__main__":
+    path = "../data/HumanML3D/joints/000000.npy"
     motion = np.load(path)
-    print('motion shape: ', motion.shape)
+    print("motion shape: ", motion.shape)
     # plot_3d_motion_animation(motion, 'test', radius=1.4, save_path='test.mp4')
-    motion1, motion2 = motion[:len(motion)//2], motion[len(motion)//2:]
+    motion1, motion2 = motion[: len(motion) // 2], motion[len(motion) // 2 :]
     motion_stacked = [motion1, motion2]
-    X = plot_3d_motion_frames_multiple(motion_stacked, nframes=5, radius=1.4, figsize=(20,10), return_array=True)
+    X = plot_3d_motion_frames_multiple(
+        motion_stacked, nframes=5, radius=1.4, figsize=(20, 10), return_array=True
+    )
     print(X.shape)
