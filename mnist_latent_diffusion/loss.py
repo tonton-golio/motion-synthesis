@@ -46,6 +46,8 @@ class VAE_Loss(nn.Module):
                 losses_unscaled[k] = F.l1_loss(v['rec'], v['true'], reduction='mean') 
             elif method == 'KL':
                 losses_unscaled[k] = self.kl_divergence(v['mu'], v['logvar'])
+            elif method == 'BCE':
+                losses_unscaled[k] = F.binary_cross_entropy(v['rec'], v['true'], reduction='mean')
             else:
                 raise ValueError(f"Invalid loss method '{method}' provided for loss component '{k}'.")
 
@@ -66,7 +68,6 @@ class VAE_Loss(nn.Module):
             Tensor: The computed KL divergence loss.
         """
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return -0.5 * torch.sum(3-mu.pow(2))
 
 if __name__ == '__main__':
 

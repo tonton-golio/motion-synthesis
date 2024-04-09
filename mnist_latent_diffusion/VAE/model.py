@@ -4,6 +4,32 @@ import pytorch_lightning as pl
 import torchvision
 import os
 
+def print_scientific(x):
+    return "{:.2e}".format(x)
+
+def plotUMAP(latent, labels, latent_dim, KL_weight,  save_path, show=False):
+    if latent_dim > 2:
+        import umap
+        reducer = umap.UMAP()
+        projection = reducer.fit_transform(latent.cpu().detach().numpy())
+    else:
+        projection = latent.cpu().detach().numpy()
+        reducer = None
+    
+    fig = plt.figure()
+    plt.scatter(projection[:, 0], projection[:, 1], c=labels.cpu().numpy(), cmap='tab10', alpha=0.5, s=4)
+    plt.colorbar()
+    plt.title(f'UMAP projection of latent space (LD={latent_dim}, KL={print_scientific(KL_weight)})')
+    
+    if save_path is not None:
+        plt.savefig(f'{save_path}/projection_LD{latent_dim}_KL{print_scientific(KL_weight)}.png')
+    
+        return projection, reducer
+    elif show:
+        plt.show()
+    return fig
+import matplotlib.pyplot as plt
+
 activation_dict = {
     'tanh': nn.Tanh(),
     'leaky_relu': nn.LeakyReLU(),
@@ -112,7 +138,7 @@ class VAE(pl.LightningModule):
         self.criterion = criterion
         self.setup_blocks()
 
-        self.validation_step_outputs = {'x_hat' : [], 'z' : []}
+        self.validation_step_outputs = {'x_hat' : [], 'z' : [], 'y' : []}
         self.test_step_outputs = []
 
     def setup_blocks(self):
@@ -200,7 +226,7 @@ class VAE(pl.LightningModule):
             'RECONSTRUCTION_L2': {'rec': x_hat, 'true': x},
             'DIVERGENCE_KL': {'mu': mu, 'logvar': logvar}
         }
-
+        # print('loss_data _common_step:', loss_data)
         total_loss, losses_scaled, losses_unscaled = self.criterion(loss_data)
 
         losses_scaled = {f'{stage}_{k}': v for k, v in losses_scaled.items()}
@@ -233,6 +259,7 @@ class VAE(pl.LightningModule):
         self.log_dict(res['losses_unscaled'], prog_bar=False)
         self.validation_step_outputs['x_hat'].append(res['x_hat'])
         self.validation_step_outputs['z'].append(res['z'])
+        self.validation_step_outputs['y'].append(res['y'])
 
     def on_validation_epoch_end(self):
         # show images at the end of the epoch
@@ -245,7 +272,18 @@ class VAE(pl.LightningModule):
         z = torch.cat(self.validation_step_outputs['z'], dim=0)
         self.logger.experiment.add_histogram('z', z, self.current_epoch)
 
+        y = torch.cat(self.validation_step_outputs['y'], dim=0)
+        fig = plotUMAP(z, y, latent_dim=self.latent_dim, 
+                       KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
+                          save_path=None, show=False)
+        self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)
+        plt.close(fig)
+
+        self.validation_step_outputs['y'] = []
         self.validation_step_outputs['z'] = []
+
+        # increase KL weight by 10%
+        # self.criterion.loss_weights['DIVERGENCE_KL'] *= 1.05
 
     def test_step(self, batch, batch_idx):
         res = self._common_step(batch, 'test')
@@ -259,5 +297,10 @@ class VAE(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
-        return [optimizer], [scheduler]
+        scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=.9)
+        # increase lr by 2x
+        # scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1.)
+
+        # Increase KL weight by 10x
+
+        return [optimizer],  [scheduler1]

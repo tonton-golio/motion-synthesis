@@ -7,7 +7,42 @@ import os
 import torch
 import yaml
 from loss import VAE_Loss
+import torch.nn as nn
+import torch.optim as optim
+class Classifier(nn.Module):
+        def __init__(self):
+            super(Classifier, self).__init__()
+            self.fc1 = nn.Linear(8, 128)
+            self.fc2 = nn.Linear(128, 128)
+            self.fc3 = nn.Linear(128, 128)
+            self.fc4 = nn.Linear(128, 10)
+            self.sigmoid = nn.Sigmoid()
+            self.act = nn.LeakyReLU()
 
+        def forward(self, x):
+            x = self.act(self.fc1(x))
+            x = self.act(self.fc2(x))
+            x = self.act(self.fc3(x))
+            x = self.fc4(x)
+            return self.sigmoid(x)
+        
+class ClassifierDataset(torch.utils.data.Dataset):
+    def __init__(self, z, y):
+        self.z = z
+        self.y = y
+
+        # embed y
+        self.y = y
+        
+        self.y = self.y.to('mps')
+        self.z = self.z.to('mps')
+
+    def __len__(self):
+        return len(self.z)
+    
+    def __getitem__(self, idx):
+        return self.z[idx], self.y[idx]
+    
 
 if __name__ == "__main__":
     logger = TensorBoardLogger("logs/", name="LatentDiffusion")
@@ -38,10 +73,51 @@ if __name__ == "__main__":
     # loss
     criteria = VAE_Loss(config['DIFFUSE']['LOSS'])
 
+    # classifier
+    print('Initializing classifier')
+    # z y classifier
+    
+
+    
+    criterion_classifier = nn.BCELoss()
+    classifier = Classifier().to('mps')
+    # try load
+    try:
+        classifier = torch.load(f'classifier.pth')
+        print('loaded classifier')
+    except:
+        print('failed to load classifier, training')
+
+        optimizer = optim.AdamW(classifier.parameters(), lr=1e-3)
+
+        if scaler is None:
+            z_scaled = z
+        else:
+            z_scaled = torch.tensor(scaler.transform(z.detach().cpu())).float()
+        dataset = ClassifierDataset(dm.X, dm.y)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=256, shuffle=True)
+
+        for epoch in range(25):
+            running_loss = 0
+            for z_batch, y_batch in dataloader:
+                # z_batch = z_batch.to(device)
+                # y_batch = y_batch.to(device)
+                optimizer.zero_grad()
+                y_pred = classifier(z_batch)
+                loss = criterion_classifier(y_pred, y_batch)
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+                print(f'Epoch {epoch} Loss: {loss.item()}', end='\r')
+            print(f'Epoch {epoch} Loss: {running_loss/len(dataloader)}')
+
+        torch.save(classifier, f'classifier.pth')
+        print('done training classifier')
     # set up model
     model = LatentDiffusionModel(autoencoder=autoencoder, 
                                  scaler=scaler,
-                                criteria=criteria,  
+                                criteria=criteria,
+                                classifier=classifier,
                                  **config['DIFFUSE']['MODEL'])
     
     # load
@@ -72,6 +148,7 @@ if __name__ == "__main__":
     print("done")
 
     # save model
+    del model.classifier
     torch.save(model, f'{"/".join(logger.log_dir.split("/")[:-1])}//model.pth')
 
     print("model saved")

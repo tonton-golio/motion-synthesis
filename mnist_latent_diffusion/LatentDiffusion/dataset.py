@@ -4,18 +4,29 @@ import pytorch_lightning as pl
 
 from sklearn.preprocessing import StandardScaler
 
+import numpy as np
+def one_hot(y, num_classes):
+    return np.eye(num_classes)[y]
+
 class LatentSpaceDataModule(pl.LightningDataModule):
-    def __init__(self, X, y, batch_size=64):
+    def __init__(self, X, y, batch_size=64, scale=False):
         super().__init__()
         self.batch_size = batch_size
 
         self.X = X  # (N, D)
-        self.y = y
+        # y = y.unsqueeze(1)  # (N, 1)
+        # make it into an index tensor
+        # print('y', y.shape, y)
+        self.y = torch.nn.functional.one_hot(y.long(), num_classes=10).float()#.squeeze().to('mps')
 
         # normalize X
-        self.scaler = StandardScaler()
-        self.X = self.scaler.fit_transform(self.X.detach().numpy())
-        self.X = torch.tensor(self.X).float()
+        if scale:
+            self.scaler = StandardScaler()
+            self.X = self.scaler.fit_transform(self.X.detach().numpy())
+            self.X = torch.tensor(self.X).float()
+        else:
+            self.X = self.X.float()
+            self.scaler = None
 
         # inverse transform
         # self.X = self.scaler.inverse_transform(self.X)
@@ -42,20 +53,21 @@ class LatentSpaceDataModule(pl.LightningDataModule):
         self.X_train = X_train.clone().detach()
         self.X_val = X_val.clone().detach()
         self.X_test = X_test.clone().detach()
-        self.y_train = y_train.clone().detach().unsqueeze(1)
-        self.y_val = y_val.clone().detach().unsqueeze(1)
-        self.y_test = y_test.clone().detach().unsqueeze(1)
+        self.y_train = y_train.clone().detach()#.unsqueeze(1)
+        self.y_val = y_val.clone().detach()#.unsqueeze(1)
+        self.y_test = y_test.clone().detach()#.unsqueeze(1)
+
 
         self.train_dataset = TensorDataset(self.X_train, self.y_train)
         self.val_dataset = TensorDataset(self.X_val, self.y_val)
         self.test_dataset = TensorDataset(self.X_test, self.y_test)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=8, persistent_workers=True)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=8, persistent_workers=True, drop_last=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, persistent_workers=True)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, persistent_workers=True, drop_last=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, persistent_workers=True)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, persistent_workers=True, drop_last=True)
 

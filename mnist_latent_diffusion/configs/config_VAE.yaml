@@ -1,0 +1,29 @@
+# Description: Configuration file for the project
+VAE:
+  DATA:
+    BATCH_SIZE: 128
+    ROTAION: 0
+    SCALE: 0
+    TRANSLATE_X: 0.
+    TRANSLATE_Y: 0.
+    SHEAR: 0.
+    NORM_MEAN: 0.0
+    NORM_STD: 1
+    BOOL: False
+  MODEL:
+    LATENT_DIM: 8
+    CONV_CHANNELS: [16, 32, 64] # has to be length 3
+    FC_UNITS: [256, 128, 64, 32, 16] # has to be length 5
+    ACTIVATION: leaky_relu
+    OUT_ACTIVATION: None
+    LEARNING_RATE: 0.001
+  LOSS:
+    RECONSTRUCTION_L2: 1.
+    DIVERGENCE_KL: 0.000_01
+
+  TRAINER:
+    max_epochs: 80
+    log_every_n_steps: 40
+    # overfit_batches: 0
+    # CONTINUE_TRAINING: False
+    fast_dev_run: False

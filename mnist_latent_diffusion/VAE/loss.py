@@ -13,8 +13,16 @@ class VAE_Loss(nn.Module):
         """
         super(VAE_Loss, self).__init__()
         self.loss_weights = loss_weights
-           
+
     def forward(self, loss_data):
+        try:
+            self.__forward(loss_data)
+        except Exception as e:
+            print(e)
+            print('loss_data:', loss_data)
+            raise e
+           
+    def __forward(self, loss_data):
         """
         Calculate and return the custom loss based on the provided loss data and methods defined
         in the initialization.
@@ -33,6 +41,7 @@ class VAE_Loss(nn.Module):
         losses_unscaled = {}
         losses_scaled  = {}
         for k, v in loss_data.items():
+            print(k, v)
             # print(k)
             name, method = k.split('_')
             weight = self.loss_weights.get(k)
