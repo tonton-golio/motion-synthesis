@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 import math
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 import torchvision
 
@@ -77,10 +78,15 @@ class SimpleModel(nn.Module):
 
     def forward(self, x, y, t):
         # print('x', x.shape)
+        # print('SimpleModel: y', y.shape)
+        # print('SimpleModel: t', t.shape)
+        # print('SimpleModel: x', x.shape)
         t = self.time_embedding(t)  # embed time
+        # print('time embedding success')
         x = self.time_mlp(x, t)  # dim is hidden_dim
-
+        # print('time mlp success')
         y = self.target_mlp(y)  # dim is hidden_dim
+        # print('target mlp success')
 
         # print('x', x.shape)
         # print('y', y.shape)
@@ -129,6 +135,8 @@ class LatentDiffusion(nn.Module):
             # target_embedding_dim=target_embedding_dim,
         )
 
+        self.target_embedding = nn.Embedding(10, 10)
+
     def forward(self, x, y, noise):
         # x:NCHW
         t = torch.randint(0, self.timesteps, (x.shape[0],)).to(x.device)
@@ -138,39 +146,35 @@ class LatentDiffusion(nn.Module):
         return pred_noise
 
     @torch.no_grad()
-    def sampling(self, n_samples, y=None, device="mps"):
-        x_t = torch.randn(
-            (n_samples, self.latent_dim,)
-        ).to(device)
-        x_orig = x_t.clone()
-        x_clean = x_t.clone()
-        history = []
-        if y is None:
-            y = torch.randint(0, 10, (n_samples,)).to(device)
+    @torch.no_grad()
+    def sampling(self,n_samples,clipped_reverse_diffusion=True,device="mps", y=True, tqdm_disable=True):
+        
+        x_t = torch.randn( (n_samples, self.latent_dim), device=device, dtype=torch.float32)
+        hist = []
+        hist.append(x_t)
+
+        if y:
+            y = torch.randint(0, 10, (n_samples,), device=device, dtype=torch.long)
+            y_emb = self.target_embedding(y)
         else:
-            y = torch.tensor(y).to(device).repeat(n_samples)
+            y = None
 
-        y = torch.nn.functional.one_hot(y.long(), num_classes=10).float()
-        print()
-        orig_noised = False
-        for i in tqdm(range(self.timesteps - 1, -1, -1), desc="Sampling", disable=True):
-            noise = torch.randn_like(x_t).to(device) * self.noise_multiplier
-            t = torch.tensor([i for _ in range(n_samples)]).to(device)
-            if not orig_noised:
-                x_orig = self._forward_diffusion(x_orig, 
-                                                 t,
-                                                   noise)
-                orig_noised = True
-                
-            t = torch.tensor([i for _ in range(n_samples)]).to(device)
-            x_t = self._reverse_diffusion(x_t, y, t, noise)
+        for i in tqdm(range(self.timesteps-1,-1,-1),desc="Sampling", disable=tqdm_disable):
+            noise=torch.randn_like(x_t).to(device) * 1
+            t=torch.tensor([i for _ in range(n_samples)], device=device, dtype=torch.long)
 
-            history.append(x_t)
+            # if clipped_reverse_diffusion:
+            #     x_t=self._reverse_diffusion_with_clip(x_t, y, t, noise)
+            # else:
+            x_t=self._reverse_diffusion(x_t, y_emb, t, noise)
 
-        history = torch.stack(history, dim=0)
-        # x_t = (x_t + 1.0) / 2.0  # [-1,1] to [0,1]
+            hist.append(x_t)
 
-        return x_t, history, y, x_orig, x_clean
+        # x_t=(x_t+1.)/2. #[-1,1] to [0,1]
+
+        hist=torch.stack(hist,dim=0)
+
+        return x_t, hist, y
 
     def _cosine_variance_schedule(self, timesteps, epsilon=0.008):
         steps = torch.linspace(0, timesteps, steps=timesteps + 1, dtype=torch.float32)
@@ -265,15 +269,18 @@ class LatentDiffusionModel(pl.LightningModule):
 
         self.criteria = criteria
         self.classifier = classifier
+
+        self.use_label_for_decoder = kwargs.get("USE_LABEL_FOR_DECODER", False)
     
     def forward(self, data):
         x, y = data
+        # print('forward: x', x.shape)
+        # print('forward: y', y.shape)
         noise = torch.randn_like(x) * self.noise_multiplier
         return self.model(x, y, noise), noise
 
     def training_step(self, batch, batch_idx):
         res = self._common_step(batch, stage="train")
-
         # clip gradients
         torch.nn.utils.clip_grad_norm_(self.parameters(), 1.)
         return res["loss"]
@@ -314,42 +321,71 @@ class LatentDiffusionModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         res = self._common_step(batch, stage="val")
+        
+        if batch_idx == 0 and self.current_epoch == 0:
+            self.check_noise_level(batch)
+
         return res["loss"]
+            
+
 
     def on_validation_epoch_end(self):
         with torch.no_grad():
-            x_t, history, y, x_orig, x_clean = self.model.sampling(200, device="mps")
-            # sample
-            if self.scaler is not None:
-                x_t = self.scaler.inverse_transform(x_t.cpu())
-                x_t = torch.tensor(x_t).float().to("mps")
+            # Simplify y value assignment            
+            # Sample from model
+            print('starting sampling')
+            n_samples = 6
+            n_time_steps_show = 6
+            sample, hist, y_flags = self.model.sampling(n_samples, y=True, device='mps', tqdm_disable=True)
+            print('done sampling')
 
-                x_orig = self.scaler.inverse_transform(x_orig.cpu())
-                x_orig = torch.tensor(x_orig).float().to("mps")
 
-                x_clean = self.scaler.inverse_transform(x_clean.cpu())
-                x_clean = torch.tensor(x_clean).float().to("mps")
+            # Ensure hist is not empty and prepare it for plotting
             
-
-            recon_t = self.decoder(x_t)
-            recon_orig = self.decoder(x_orig)
-            recon_clean = self.decoder(x_clean)
-
-            # accuracy in y vs class_pred
-            class_pred = self.classifier(x_t)
-            acc = (class_pred.argmax(dim=1) == y.argmax(dim=1)).float().mean()
-            self.log("val_acc", acc, prog_bar=True)
+            hist = hist[::len(hist) // n_time_steps_show].squeeze().cpu()
 
 
-            grid = torchvision.utils.make_grid(
-                torch.cat([recon_clean[:8], recon_orig[:8], recon_t[:8]], dim=0),
-                nrow=8,
-                normalize=False,
-            )
+            # decode
+            if self.decoder is not None:
+                # reshape
+                ## current shapes: hist: (timesteps, n_samples, latent_dim), y_flags: (n_samples)
+                ## desired shapes: hist: (n_samples* timesteps, latent_dim), y_flags: (n_samples*timesteps)
+                # y_flags_rep = y_flags.repeat(hist.shape[0])
+                # hist = hist.view(-1, hist.shape[-1]).to('mps')
 
-            self.logger.experiment.add_image(
-                "clean, noisy, cleaned", grid, global_step=self.global_step
-            )
+                print('hist', hist.shape)
+                hist_expanded = []
+                # sample = self.decoder(sample)
+                for i in range(len(hist)):
+                    hist_expanded.append(self.decoder(hist[i].to('mps'), y_flags))
+
+                hist = torch.stack(hist_expanded, dim=0).squeeze().cpu()
+
+                print('hist', hist.shape)
+
+
+            # Create a figure with subplots
+            rows, cols = hist.shape[:2]
+            fig, axes = plt.subplots(rows, cols, figsize=(10, 10 * rows / cols))
+            
+            # for i in range(rows):
+            #     for j in range(cols):
+            #         ax[i, j].imshow(hist[i, j], cmap='gray')
+            #         ax[i, j].axis('off')
+            for i in range(rows):
+                for j in range(cols):
+                    axes[i, j].imshow(hist[i, j], cmap='gray')
+                    axes[i, j].axis('off')
+                    axes[i, j].set_title(f'y={y_flags[j].item()}')
+                    
+            
+            # # Set top row titles to y_flags
+            # if y_flags is not None and len(y_flags) == cols:
+            #     for i, flag in enumerate(y_flags):
+                    # axes[0, i].set_title(f'y={flag.item()}')
+                    
+            self.logger.experiment.add_figure(f'hist latent', fig,  global_step=self.global_step)
+            plt.close()
 
 
     def test_step(self, batch, batch_idx):
@@ -366,4 +402,30 @@ class LatentDiffusionModel(pl.LightningModule):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.25, verbose=False)
         return [optimizer], [scheduler]
+
+
+    @torch.no_grad()
+    def check_noise_level(self, batch, N=8):
+        x, y = batch
+        x = x[:N]
+        y = y[:N]
+
+        x = x[2:3]
+        x = x.repeat(N, 1)
+        y = y[2:3].argmax(1).repeat(N)
+        
+        # print(x.shape)
+        # print(y.shape)
+
+        noise = torch.randn_like(x)
+        # make t an interger linspace
+        t = torch.linspace(0, self.model.timesteps, steps=N, dtype=torch.long).to('mps')
+        x_t = self.model._forward_diffusion(x, t, noise)
+
+        # decode
+        x_t = self.decoder(x_t, y)
+
+        grid = torchvision.utils.make_grid(x_t, nrow=3)
+        self.logger.experiment.add_image("x_t", grid, global_step=self.global_step)
+
 

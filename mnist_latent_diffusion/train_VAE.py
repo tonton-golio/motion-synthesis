@@ -43,7 +43,7 @@ def prep_save(model, data_loaders, ):
             x_, y_ = batch
             x.append(x_)
             labels.append(y_)
-            x_hat_, z, mu, logvar = model(x_)
+            x_hat_, z, mu, logvar = model(x_, y_)
             latent.append(z)
             x_hat.append(x_hat_)
     latent = torch.cat(latent, dim=0)  # maybe detach

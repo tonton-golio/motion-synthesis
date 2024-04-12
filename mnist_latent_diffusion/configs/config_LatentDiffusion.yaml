@@ -1,25 +1,26 @@
 # Description: Configuration file for the project
 DIFFUSE:
   DATA:
-    BATCH_SIZE: 16
-    V: 38
+    BATCH_SIZE: 64
+    V: 50
   MODEL:
-    LATENT_DIM: 8
+    LATENT_DIM: 3
     HIDDEN_DIM: 256
-    TIMESTEPS: 4
-    TIME_EMBEDDING: 4
+    TIMESTEPS: 100
+    TIME_EMBEDDING: 10
     EPSILON: 0.01
     ACTIVATION: leaky_relu
     OUT_ACTIVATION: None
     LEARNING_RATE: 0.001
     NOISE: 1
     LOAD: False  #"epoch=9-step=140.ckpt"  TODO: load doesn't work
+    USE_LABEL_FOR_DECODER: True
   LOSS:
-    NOISE_L2: 1. #1.
-    CLASS_BCE: 10.
+    NOISE_L2: 1 #1.
+    CLASS_BCE: 0.
   TRAINER:
     max_epochs: 200
-    log_every_n_steps: 400
+    log_every_n_steps: 100
     # overfit_batches: 0
     # CONTINUE_TRAINING: False
 

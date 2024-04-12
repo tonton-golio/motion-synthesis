@@ -1,7 +1,7 @@
 # Description: Configuration file for the project
-VAE:
+TRAIN:
   DATA:
-    BATCH_SIZE: 128
+    BATCH_SIZE: 512
     ROTAION: 0
     SCALE: 0
     TRANSLATE_X: 0.
@@ -11,18 +11,51 @@ VAE:
     NORM_STD: 1
     BOOL: False
   MODEL:
-    LATENT_DIM: 8
+    LATENT_DIM: 3
     CONV_CHANNELS: [16, 32, 64] # has to be length 3
     FC_UNITS: [256, 128, 64, 32, 16] # has to be length 5
     ACTIVATION: leaky_relu
     OUT_ACTIVATION: None
     LEARNING_RATE: 0.001
+    USE_LABEL_FOR_DECODER: True
+    MUL_KL_PER_EPOCH: 1
   LOSS:
     RECONSTRUCTION_L2: 1.
-    DIVERGENCE_KL: 0.000_01
+    DIVERGENCE_KL: 0.000_001
 
   TRAINER:
     max_epochs: 80
+    log_every_n_steps: 40
+    # overfit_batches: 0
+    # CONTINUE_TRAINING: False
+    fast_dev_run: False
+
+OPTUNA:
+  DATA:
+    BATCH_SIZE: 512
+    ROTAION: 0
+    SCALE: 0
+    TRANSLATE_X: 0.
+    TRANSLATE_Y: 0.
+    SHEAR: 0.
+    NORM_MEAN: 0.0
+    NORM_STD: 1
+    BOOL: False
+  MODEL:
+    #LATENT_DIM: 3
+    CONV_CHANNELS: [16, 32, 64] # has to be length 3
+    FC_UNITS: [256, 128, 64, 32, 16] # has to be length 5
+    ACTIVATION: leaky_relu
+    OUT_ACTIVATION: None
+    LEARNING_RATE: 0.001
+    USE_LABEL_FOR_DECODER: True
+    MUL_KL_PER_EPOCH: 1  # if 1 it does not change the KL weight
+  LOSS:
+    RECONSTRUCTION_L2: 1.
+    #DIVERGENCE_KL: 0.000_001
+
+  TRAINER:
+    max_epochs: 50
     log_every_n_steps: 40
     # overfit_batches: 0
     # CONTINUE_TRAINING: False

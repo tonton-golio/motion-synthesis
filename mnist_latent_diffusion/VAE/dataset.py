@@ -60,7 +60,7 @@ class MNISTDataModule(pl.LightningDataModule):
             transform_lst.append(transforms.Normalize(*self.normalize))
         return transforms.Compose(transform_lst)
     
-    def setup(self, stage=None):
+    def setup(self, stage=None, max_samples=None):
         """
         Get dataloaders for MNIST dataset.
         """   
@@ -68,6 +68,12 @@ class MNISTDataModule(pl.LightningDataModule):
 
         data_train = MNIST(root=self.path, train=True, download=False, transform=transforms)
         self.data_test = MNIST(root=self.path, train=False, download=False, transform=transforms)
+        print('len before', len(data_train), len(self.data_test))
+        if max_samples is not None:
+            
+            data_train = torch.utils.data.Subset(data_train, torch.arange(max_samples))
+            self.data_test = torch.utils.data.Subset(self.data_test, torch.arange(max_samples))
+            print('len after',len(data_train), len(self.data_test))
 
         # split train into train and val
         train_size = int(0.8 * len(data_train))

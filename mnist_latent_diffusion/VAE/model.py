@@ -3,6 +3,7 @@ from torch import nn
 import pytorch_lightning as pl
 import torchvision
 import os
+from VAE.metrics import obtain_metrics
 
 def print_scientific(x):
     return "{:.2e}".format(x)
@@ -31,20 +32,23 @@ def plotUMAP(latent, labels, latent_dim, KL_weight,  save_path, show=False):
 import matplotlib.pyplot as plt
 
 activation_dict = {
+    # soft step
     'tanh': nn.Tanh(),
+    'sigmoid': nn.Sigmoid(),
+    'softsign': nn.Softsign(),
+
+    # rectifiers
     'leaky_relu': nn.LeakyReLU(),
     'ReLU': nn.ReLU(),
-    'sigmoid': nn.Sigmoid(),
     'elu': nn.ELU(),
-    'swish': nn.SiLU(),
-    'mish': nn.Mish(),
-    'softplus': nn.Softplus(),
-    'softsign': nn.Softsign(),
+    #'swish': nn.SiLU(),
+    #'mish': nn.Mish(),
+    #'softplus': nn.Softplus(),
     # 'bent_identity': nn.BentIdentity(),
     # 'gaussian': nn.Gaussian(),
-    'softmax': nn.Softmax(),
-    'softmin': nn.Softmin(),
-    'softshrink': nn.Softshrink(),
+    #'softmax': nn.Softmax(),
+    #'softmin': nn.Softmin(),
+    #'softshrink': nn.Softshrink(),
     'None': nn.Identity(),
     # 'sinc': nn.Sinc(),
 }
@@ -136,10 +140,20 @@ class VAE(pl.LightningModule):
         self.lr = kwargs.get("LEARNING_RATE", 1e-3)
 
         self.criterion = criterion
+
+        self.use_label_for_decoder = kwargs.get("USE_LABEL_FOR_DECODER", False)
+        self.mul_KL_per_epoch = kwargs.get("MUL_KL_PER_EPOCH", 1)
+
+
         self.setup_blocks()
 
         self.validation_step_outputs = {'x_hat' : [], 'z' : [], 'y' : []}
         self.test_step_outputs = []
+
+        self.target_embedding = nn.Embedding(10, 10)
+
+        self.test_latents = []
+        self.test_labels = []
 
     def setup_blocks(self):
         cc = self.conv_channels
@@ -162,8 +176,11 @@ class VAE(pl.LightningModule):
         )
 
         # decoder
+        dim_z = self.latent_dim
+        if self.use_label_for_decoder:
+            dim_z += 10
         self.decoder_linear_block = nn.Sequential(
-            LinearLayer(self.latent_dim, fu[4], dropout=0.0, act=self.act_func),
+            LinearLayer(dim_z, fu[4], dropout=0.0, act=self.act_func),
             LinearLayer(fu[4], fu[3], dropout=0.0, act=self.act_func),
             LinearLayer(fu[3], fu[2], dropout=0.0, act=self.act_func),
             LinearLayer(fu[2], fu[1], dropout=0.05, act=self.act_func),
@@ -207,20 +224,27 @@ class VAE(pl.LightningModule):
         eps = torch.randn_like(std)
         return eps.mul(std).add_(mu)
     
-    def decode(self, z):
+    def decode(self, z, y=None):
+        
+        if y is not None and self.use_label_for_decoder:
+            # print('y:', y.shape)
+            y_emb = self.target_embedding(y)
+            z = torch.cat([z, y_emb], dim=1)
         x = self.decoder_linear_block(z)
         x = self.decoder_conv_block(x)
         x = self.output_linear_block(x)
         return x
     
-    def forward(self, x):
+    def forward(self, x, y=None):
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
-        return self.decode(z), z,  mu, logvar
+        return self.decode(z, y), z,  mu, logvar
     
     def _common_step(self, batch, stage='train'):
         x, y = batch
-        x_hat, z, mu, logvar = self(x)
+        if not self.use_label_for_decoder:
+            y = None
+        x_hat, z, mu, logvar = self(x, y)
 
         loss_data = {
             'RECONSTRUCTION_L2': {'rec': x_hat, 'true': x},
@@ -247,7 +271,7 @@ class VAE(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         res = self._common_step(batch, 'train')
         self.log('train_loss', res['loss'])
-        self.log_dict(res['losses_scaled'], prog_bar=True)
+        #self.log_dict(res['losses_scaled'], prog_bar=True)
         self.log_dict(res['losses_unscaled'], prog_bar=False)
 
         return res['loss']
@@ -255,7 +279,7 @@ class VAE(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         res = self._common_step(batch, 'val')
         self.log('val_loss', res['loss'])
-        self.log_dict(res['losses_scaled'], prog_bar=True)
+        #self.log_dict(res['losses_scaled'], prog_bar=True)
         self.log_dict(res['losses_unscaled'], prog_bar=False)
         self.validation_step_outputs['x_hat'].append(res['x_hat'])
         self.validation_step_outputs['z'].append(res['z'])
@@ -271,7 +295,6 @@ class VAE(pl.LightningModule):
 
         z = torch.cat(self.validation_step_outputs['z'], dim=0)
         self.logger.experiment.add_histogram('z', z, self.current_epoch)
-
         y = torch.cat(self.validation_step_outputs['y'], dim=0)
         fig = plotUMAP(z, y, latent_dim=self.latent_dim, 
                        KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
@@ -282,18 +305,35 @@ class VAE(pl.LightningModule):
         self.validation_step_outputs['y'] = []
         self.validation_step_outputs['z'] = []
 
-        # increase KL weight by 10%
-        # self.criterion.loss_weights['DIVERGENCE_KL'] *= 1.05
+        # increase KL
+        self.criterion.loss_weights['DIVERGENCE_KL'] *= self.mul_KL_per_epoch
 
     def test_step(self, batch, batch_idx):
         res = self._common_step(batch, 'test')
         self.log('test_loss', res['loss'])
-        self.log_dict(res['losses_scaled'], prog_bar=True)
+        #self.log_dict(res['losses_scaled'], prog_bar=True)
         self.log_dict(res['losses_unscaled'], prog_bar=False)
         self.test_step_outputs.append(res['losses_unscaled']['test_unscaled_RECONSTRUCTION_L2'])
 
+        latents = res['z']
+        labels = res['y']
+        self.test_latents.append(latents)
+        self.test_labels.append(labels)
+
     def on_test_epoch_end(self):
-        return torch.stack(self.test_step_outputs).mean()
+        # run metrics on test latents
+        latents = torch.cat(self.test_latents, dim=0)
+        y = torch.cat(self.test_labels, dim=0)
+        # convert to numpy
+        latents = latents.cpu().detach().numpy()
+        y = y.cpu().detach().numpy()
+        # calculate metrics
+        metrics_res = obtain_metrics(latents, y)
+
+        # log metrics
+        self.log_dict(metrics_res, prog_bar=False)
+        self.metric_res = metrics_res
+        return torch.stack(self.test_step_outputs).mean(), 
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)

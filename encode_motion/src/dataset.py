@@ -65,7 +65,7 @@ class MotionDataset(Dataset):
     def __getitem__(self, idx):
         file_name = self.filenames[idx]
         motion_seq = np.load(file_name)
-        motion_seq = pad_data(motion_seq, self.sequence_length)
+        #motion_seq = pad_data(motion_seq, self.sequence_length)
         pose0 = motion_seq[:1]
 
         root_travel = motion_seq[:, :1, :]

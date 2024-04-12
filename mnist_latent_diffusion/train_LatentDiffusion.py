@@ -61,6 +61,7 @@ if __name__ == "__main__":
     # load latent space
     path = f"logs/MNIST_VAE/version_{config['DIFFUSE']['DATA']['V']}/saved_latent/"
     z = torch.load(path + 'z.pt')
+    print('z shape', z.shape)
     autoencoder = torch.load(path + 'model.pth').to(torch.device('mps'))
     y = torch.load(path + 'y.pt')
 
@@ -97,7 +98,7 @@ if __name__ == "__main__":
         dataset = ClassifierDataset(dm.X, dm.y)
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=256, shuffle=True)
 
-        for epoch in range(25):
+        for epoch in range(2):
             running_loss = 0
             for z_batch, y_batch in dataloader:
                 # z_batch = z_batch.to(device)
