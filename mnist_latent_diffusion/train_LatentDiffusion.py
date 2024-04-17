@@ -64,9 +64,11 @@ if __name__ == "__main__":
     print('z shape', z.shape)
     autoencoder = torch.load(path + 'model.pth').to(torch.device('mps'))
     y = torch.load(path + 'y.pt')
+    projector = torch.load(path + 'projector.pt')
+    projection = torch.load(path + 'projection.pt')
 
     # set up data module
-    dm = LatentSpaceDataModule(z, y, batch_size=config['DIFFUSE']['DATA']['BATCH_SIZE'])
+    dm = LatentSpaceDataModule(z, y, batch_size=config['DIFFUSE']['DATA']['BATCH_SIZE'], scale=config['DIFFUSE']['DATA']['SCALE'],)
     dm.setup()
     scaler = dm.scaler
     torch.save(scaler, f'{logger.log_dir}/scaler.pth')
@@ -115,10 +117,15 @@ if __name__ == "__main__":
         torch.save(classifier, f'classifier.pth')
         print('done training classifier')
     # set up model
+    
+
     model = LatentDiffusionModel(autoencoder=autoencoder, 
                                  scaler=scaler,
                                 criteria=criteria,
                                 classifier=classifier,
+                                projector=projector,
+                                projection=projection,
+                                labels=y,
                                  **config['DIFFUSE']['MODEL'])
     
     # load

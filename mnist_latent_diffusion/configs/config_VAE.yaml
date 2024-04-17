@@ -1,30 +1,31 @@
 # Description: Configuration file for the project
 TRAIN:
   DATA:
-    BATCH_SIZE: 512
+    BATCH_SIZE: 128
     ROTAION: 0
-    SCALE: 0
-    TRANSLATE_X: 0.
-    TRANSLATE_Y: 0.
-    SHEAR: 0.
-    NORM_MEAN: 0.0
+    SCALE: .0
+    TRANSLATE_X: 0.0
+    TRANSLATE_Y: 0.0
+    SHEAR: 0.0
+    NORM_MEAN: 0.5
     NORM_STD: 1
     BOOL: False
+    NO_NORMALIZE: True
   MODEL:
-    LATENT_DIM: 3
-    CONV_CHANNELS: [16, 32, 64] # has to be length 3
-    FC_UNITS: [256, 128, 64, 32, 16] # has to be length 5
+    # LATENT_DIM: 8
+    # CONV_CHANNELS: [32, 64, 64] # has to be length 3
+    # FC_UNITS: [256, 128, 64, 64, 64] # has to be length 5
     ACTIVATION: leaky_relu
     OUT_ACTIVATION: None
-    LEARNING_RATE: 0.001
-    USE_LABEL_FOR_DECODER: True
+    LEARNING_RATE: 0.0005
+    USE_LABEL_FOR_DECODER: False
     MUL_KL_PER_EPOCH: 1
   LOSS:
     RECONSTRUCTION_L2: 1.
     DIVERGENCE_KL: 0.000_001
 
   TRAINER:
-    max_epochs: 80
+    max_epochs: 200
     log_every_n_steps: 40
     # overfit_batches: 0
     # CONTINUE_TRAINING: False
@@ -32,7 +33,7 @@ TRAIN:
 
 OPTUNA:
   DATA:
-    BATCH_SIZE: 512
+    BATCH_SIZE: 2048
     ROTAION: 0
     SCALE: 0
     TRANSLATE_X: 0.
@@ -46,8 +47,8 @@ OPTUNA:
     CONV_CHANNELS: [16, 32, 64] # has to be length 3
     FC_UNITS: [256, 128, 64, 32, 16] # has to be length 5
     ACTIVATION: leaky_relu
-    OUT_ACTIVATION: None
-    LEARNING_RATE: 0.001
+    OUT_ACTIVATION: sigmoid
+    LEARNING_RATE: 0.003
     USE_LABEL_FOR_DECODER: True
     MUL_KL_PER_EPOCH: 1  # if 1 it does not change the KL weight
   LOSS:
@@ -55,8 +56,8 @@ OPTUNA:
     #DIVERGENCE_KL: 0.000_001
 
   TRAINER:
-    max_epochs: 50
-    log_every_n_steps: 40
+    max_epochs: 20
+    log_every_n_steps: 50
     # overfit_batches: 0
     # CONTINUE_TRAINING: False
     fast_dev_run: False

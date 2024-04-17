@@ -28,6 +28,7 @@ class MNISTDataModule(pl.LightningDataModule):
         self.shear = kwargs.get("SHEAR", 0)
         self.normalize = (kwargs.get("NORMALIZE_MEAN", 0.1307), kwargs.get("NORMALIZE_STD", 0.3081))
         self.bool = kwargs.get("BOOL", False)
+        self.no_normalize = kwargs.get("NO_NORMALIZE", False)
 
         if verbose: self.print_params()
 
@@ -41,6 +42,7 @@ class MNISTDataModule(pl.LightningDataModule):
         print("\tshear:", self.shear)
         print("\tnormalize:", self.normalize)
         print("\tbool:", self.bool)
+        print("\tno_normalize:", self.no_normalize)
 
     def compose_transfoms(self):
         """
@@ -56,8 +58,12 @@ class MNISTDataModule(pl.LightningDataModule):
                                                          fill=0))
         if self.bool:
             transform_lst.append(BoolTransform())
+        elif self.no_normalize:
+            pass
         else:
             transform_lst.append(transforms.Normalize(*self.normalize))
+            
+            # instead do 0 to 1 
         return transforms.Compose(transform_lst)
     
     def setup(self, stage=None, max_samples=None):

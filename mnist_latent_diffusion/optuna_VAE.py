@@ -21,14 +21,14 @@ dm.setup()
 
 def objective(trial: optuna.trial.Trial) -> float:
     # these are our sweep parameters
-    ld = trial.suggest_categorical("latent_dim", [4, 6, 8, 10, 12, 14])
+    ld = trial.suggest_categorical("latent_dim", [4, 6, 8, 10])
 
     acts = ['tanh', 'sigmoid', 'softsign', 'leaky_relu', 'ReLU', 'elu']
-    act = trial.suggest_categorical("activation", acts)
+    #act = trial.suggest_categorical("activation", acts)
     klDiv = trial.suggest_float("klDiv", 1e-6, 1e-4, log=True)
     
     # activation func
-    config['OPTUNA']['MODEL']['activation'] = act
+    #config['OPTUNA']['MODEL']['activation'] = act
 
     # set up loss function
     loss_dict = {
@@ -38,7 +38,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     criteria = VAE_Loss(loss_dict)
 
     # instantiate the logger
-    logger = TensorBoardLogger("logs/", name="mnistVAEoptuna")
+    logger = TensorBoardLogger("logs/", name="mnistVAEoptuna_sigmoid_outact")
     
     # Create the model
     model = VAE(criteria, **config['OPTUNA']['MODEL'], LATENT_DIM=ld)
@@ -47,7 +47,8 @@ def objective(trial: optuna.trial.Trial) -> float:
         logger=logger,
         **config['OPTUNA']['TRAINER'],
         enable_checkpointing=False,
-        val_check_interval=0.5,
+        # val_check_interval=0.5,
+        callbacks=[PyTorchLightningPruningCallback(trial, monitor="test_loss")],
     )
 
     trainer.fit(model, dm)
@@ -73,7 +74,7 @@ def objective(trial: optuna.trial.Trial) -> float:
 
 def main():
     study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=200, timeout=60*60*3)
+    study.optimize(objective, n_trials=200, timeout=60*60*12)
     print('best trial:', study.best_trial.params)
     
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 from VAE.dataset import MNISTDataModule
-from VAE.model import VAE
+from VAE.model import VAE2 as VAE
 from loss import VAE_Loss
 import yaml
 import matplotlib.pyplot as plt
@@ -32,7 +32,7 @@ def plotUMAP(latent, labels, latent_dim, KL_weight,  save_path, show=False):
         plt.show()
     return fig
 
-def prep_save(model, data_loaders, ):
+def prep_save(model, data_loaders, enable_y=False):
     latent = []
     labels = []
     x = []
@@ -43,7 +43,10 @@ def prep_save(model, data_loaders, ):
             x_, y_ = batch
             x.append(x_)
             labels.append(y_)
-            x_hat_, z, mu, logvar = model(x_, y_)
+            if enable_y:
+                x_hat_, z, mu, logvar = model(x_, y_)
+            else:
+                x_hat_, z, mu, logvar = model(x_)
             latent.append(z)
             x_hat.append(x_hat_)
     latent = torch.cat(latent, dim=0)  # maybe detach
@@ -58,7 +61,6 @@ def save_for_diffusion(save_path, model, **kwargs):
     """
     Save:
         'model' : 'model.pth',
-
         'latent' : 'z.pt',
         'labels' : 'y.pt',
         'projection' : 'projection.pt',
@@ -88,14 +90,14 @@ if __name__ == "__main__":
         config = yaml.safe_load(file)
 
     # Create the data module
-    dm = MNISTDataModule(**config['VAE']['DATA'], verbose=False)
+    dm = MNISTDataModule(**config['TRAIN']['DATA'], verbose=False)
     dm.setup()
 
     # set up loss
-    criteria = VAE_Loss(config['VAE']['LOSS'])
+    criteria = VAE_Loss(config['TRAIN']['LOSS'])
 
     # Create the model
-    model = VAE(criteria, **config['VAE']['MODEL'])
+    model = VAE(criteria, **config['TRAIN']['MODEL'])
 
     # load
     # if config['VAE']['MODEL']['load']:
@@ -103,22 +105,25 @@ if __name__ == "__main__":
     #     model = VAE.load_from_checkpoint(config['VAE']['MODEL']['load'])
 
     # train the model
-    trainer = Trainer(logger=logger, **config['VAE']['TRAINER'])
+    trainer = Trainer(logger=logger, **config['TRAIN']['TRAINER'])
     trainer.fit(model, dm)
 
     # test
     trainer.test(model, datamodule=dm)
     res = model.on_test_epoch_end()
-    logger.log_hyperparams(model.hparams, {'unscaled mse test loss' : res} )
+    logger.log_hyperparams(model.hparams, {'unscaled mse test loss' : res[0]} )
 
     # make latent space
     print('Preparing latent space')
     dataloaders = [dm.test_dataloader(), dm.train_dataloader(), dm.val_dataloader()]
     
-    latent_dim = config['VAE']['MODEL']['LATENT_DIM']
-    KL_weight = config['VAE']['LOSS']['DIVERGENCE_KL']
+    latent_dim = 9 #config['TRAIN']['MODEL']['LATENT_DIM']
+    KL_weight = config['TRAIN']['LOSS']['DIVERGENCE_KL']
 
     latent, labels, x, x_hat = prep_save(model, dataloaders)
+    # reshape latent, as -1, 9
+    latent = latent.view(-1, latent_dim)
+
     projection, reducer = plotUMAP(latent, labels, latent_dim, KL_weight, logger.log_dir, show=False)
     if input('save for diffusion? [y/n]') == 'y':
         save_for_diffusion(save_path=logger.log_dir+'/saved_latent',

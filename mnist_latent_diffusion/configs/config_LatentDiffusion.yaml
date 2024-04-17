@@ -1,20 +1,22 @@
 # Description: Configuration file for the project
 DIFFUSE:
   DATA:
-    BATCH_SIZE: 64
-    V: 50
+    BATCH_SIZE: 256
+    V: 77
+    SCALE: False
   MODEL:
-    LATENT_DIM: 3
-    HIDDEN_DIM: 256
-    TIMESTEPS: 100
+    LATENT_DIM: 8
+    HIDDEN_DIM: 64
+    N_HIDDEN: 5
+    TIMESTEPS: 1  # 1 for navigate to cluster, 1 for close range correction
     TIME_EMBEDDING: 10
-    EPSILON: 0.01
+    EPSILON: 0.001
     ACTIVATION: leaky_relu
     OUT_ACTIVATION: None
     LEARNING_RATE: 0.001
-    NOISE: 1
+    NOISE: 100
     LOAD: False  #"epoch=9-step=140.ckpt"  TODO: load doesn't work
-    USE_LABEL_FOR_DECODER: True
+    USE_LABEL_FOR_DECODER: False
   LOSS:
     NOISE_L2: 1 #1.
     CLASS_BCE: 0.
