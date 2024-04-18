@@ -141,11 +141,10 @@ class ConvTransposeLayer(nn.Module):
     def __repr__(self):
         return f'ConvTransposeLayer(in_channels={self.conv.in_channels}, out_channels={self.conv.out_channels}, kernel_size={self.conv.kernel_size}, stride={self.conv.stride}, padding={self.conv.padding})'
 
-
-class VAE_cnn(pl.LightningModule):
+class VAE_cnn2(pl.LightningModule):
     def __init__(self, **kwargs):
         """
-        Latent dim fixed at 9
+        Latent dim fixed at 16
         """
         super().__init__()
         self.verbose = kwargs.get('verbose', False)
@@ -155,39 +154,34 @@ class VAE_cnn(pl.LightningModule):
         # self.batch_norm = nn.BatchNorm2d(1)
 
         self.encoder_conv_block = nn.Sequential(
-            ConvLayer(1, 16, dropout=0.1, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
-            ConvLayer(16, 32, dropout=0.1, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
-            ConvLayer(32, 64, dropout=0.1, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
-            ConvLayer(64, 128, dropout=0.1, batch_norm=True, act=self.act, pool=True, verbose=self.verbose)
+            ConvLayer(1, 32, dropout=0.1, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
+            ConvLayer(32, 64, dropout=0.0, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
+            ConvLayer(64, 32, dropout=0.1, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
+            ConvLayer(32, 16, dropout=0.0, batch_norm=True, act=self.act, pool=True, verbose=self.verbose)
         )
 
         self.encoder_linear_block = nn.Sequential(
+            # flatten
+            nn.Flatten(),
+            LinearLayer(256, 128, dropout=0.0, act=self.act, verbose=self.verbose),
             LinearLayer(128, 64, dropout=0.0, act=self.act, verbose=self.verbose),
-            LinearLayer(64, 32, dropout=0.0, act=self.act, verbose=self.verbose),
-            LinearLayer(32, 2, dropout=0., act=nn.Identity(), verbose=self.verbose)
+            LinearLayer(64, 32, dropout=0., act=nn.Identity(), verbose=self.verbose)
         )
 
         # decoder
         self.decoder_linear_block = nn.Sequential(
-            LinearLayer(1, 2, dropout=0.0, act=self.act, verbose=self.verbose),
-            LinearLayer(2, 4, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(16, 32, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(32, 64, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(64, 128, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(128, 256, dropout=0.0, act=self.act, verbose=self.verbose),
         )
 
         self.decoder_conv_block = nn.Sequential(
-            ConvTransposeLayer(4, 64, dropout=0.0, batch_norm=True, act=self.act, out_padding=1, verbose=self.verbose),
-            ConvTransposeLayer(64, 128, dropout=0.0, batch_norm=True, act=self.act, verbose=self.verbose),
-            ConvTransposeLayer(128, 64, dropout=0.1, batch_norm=True, act=self.act, verbose=self.verbose),
-            ConvLayer(64, 32, dropout=0.1, stride=1, kernel_size=3, padding=1, batch_norm=True, act=self.act, pool=False, 
-                      verbose=self.verbose,),
-            ConvLayer(32, 16, dropout=0.0,stride=1, kernel_size=3, padding=1, batch_norm=True, act=self.act, pool=False, 
-                      verbose=self.verbose,),
-            ConvLayer(16, 4, dropout=0.0, stride=1, kernel_size=3, padding=1, batch_norm=True, act=self.act, pool=False, 
-                      verbose=self.verbose,),
-                    
-        )
-
-        self.linear_output_block = nn.Sequential(
-            LinearLayer(4,1, dropout=0.0, act=self.out_act, verbose=self.verbose)
+            # unflatten
+            nn.Unflatten(1, (16, 4, 4)),
+            ConvTransposeLayer(16, 32, kernel_size=3, stride=1, dropout=0.0, batch_norm=True, act=self.act, out_padding=0, verbose=self.verbose),
+            ConvTransposeLayer(32, 16, kernel_size=3, stride=2, dropout=0.0, batch_norm=True, act=self.act, verbose=self.verbose),
+            ConvTransposeLayer(16, 1, kernel_size=3, dropout=0.0, batch_norm=True, act=self.act, verbose=self.verbose, out_padding=1),           
         )
 
         # initialize weights as xavier
@@ -195,7 +189,6 @@ class VAE_cnn(pl.LightningModule):
         self.encoder_linear_block.apply(self._init_weights)
         self.decoder_linear_block.apply(self._init_weights)
         self.decoder_conv_block.apply(self._init_weights)
-        self.linear_output_block.apply(self._init_weights)
 
     def _init_weights(self, m):
         if type(m) == nn.Linear or type(m) == nn.Conv2d:
@@ -203,8 +196,11 @@ class VAE_cnn(pl.LightningModule):
             m.bias.data.fill_(0.1)
 
     def encode(self, x):
+        # pad with 2 zeros on each side
+        x = F.pad(x, (2, 2, 2, 2), mode='constant', value=0)
+
         x = self.encoder_conv_block(x)
-        x = x.permute(0, 2, 3, 1)
+        
         x = self.encoder_linear_block(x)
         mu, logvar = x.chunk(2, dim=-1)
         return mu, logvar
@@ -216,11 +212,9 @@ class VAE_cnn(pl.LightningModule):
     
     def decode(self, z):
         x = self.decoder_linear_block(z)
-        x = x.permute(0, 3, 1, 2)
+        
         x = self.decoder_conv_block(x)
-        x = x.permute(0, 2, 3, 1)
-        x = self.linear_output_block(x)
-        x = x.permute(0, 3, 1, 2)
+
         return x
     
     def forward(self, x):
@@ -230,6 +224,124 @@ class VAE_cnn(pl.LightningModule):
         z = self.reparameterize(mu, logvar)
         x_tilde = self.decode(z)
         return x_tilde, z,  mu, logvar
+
+class VAE_cnn(pl.LightningModule):
+    def __init__(self, **kwargs):
+        """
+        Latent dim fixed at 16
+        """
+        super().__init__()
+        self.verbose = kwargs.get('verbose', False)
+        self.act = kwargs.get('act', nn.ReLU())
+        self.out_act = kwargs.get('out_act', nn.Identity())
+        self.latent_drop_out_rate = kwargs.get('latent_drop_out_rate', 0.25)
+
+        # self.batch_norm = nn.BatchNorm2d(1)
+
+        self.encoder_conv_block = nn.Sequential(
+            ConvLayer(1, 32, dropout=0.1, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
+            ConvLayer(32, 64, dropout=0.0, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
+            ConvLayer(64, 32, dropout=0.1, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
+            ConvLayer(32, 16, dropout=0.0, batch_norm=True, act=self.act, pool=True, verbose=self.verbose)
+        )
+
+        self.encoder_linear_block = nn.Sequential(
+            # flatten
+            nn.Flatten(),
+            LinearLayer(256, 128, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(128, 64, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(64, 32, dropout=0., act=nn.Identity(), verbose=self.verbose)
+        )
+
+        self.latent_dropout = nn.Dropout(self.latent_drop_out_rate)  # we could look at the latent covariance matrix as a function of the dropout rate
+
+        # decoder
+        self.decoder_linear_block = nn.Sequential(
+            LinearLayer(16, 32, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(32, 64, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(64, 128, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(128, 256, dropout=0.0, act=self.act, verbose=self.verbose),
+        )
+
+        self.decoder_conv_block = nn.Sequential(
+            # unflatten
+            nn.Unflatten(1, (16, 4, 4)),
+            ConvTransposeLayer(16, 32, kernel_size=3, stride=1, dropout=0.0, batch_norm=True, act=self.act, out_padding=0, verbose=self.verbose),
+            ConvTransposeLayer(32, 16, kernel_size=3, stride=2, dropout=0.0, batch_norm=True, act=self.act, verbose=self.verbose),
+            ConvTransposeLayer(16, 2, kernel_size=3, dropout=0.0, batch_norm=True, act=self.act, verbose=self.verbose, out_padding=1),           
+        )
+
+        self.out_block_kernel3 = nn.Sequential(
+            ConvLayer(2, 2, kernel_size=3, dropout=0.0, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
+        )
+
+        self.out_block_kernel5 = nn.Sequential(
+            ConvLayer(2, 2,kernel_size=5, dropout=0.0, batch_norm=True, act=self.act, pool=False, verbose=self.verbose, padding=2),
+        )
+
+        self.out_block_kernel7 = nn.Sequential(
+            ConvLayer(2, 2, kernel_size=7, dropout=0.0, batch_norm=True, act=self.act, pool=False, verbose=self.verbose, padding=3),
+        )
+
+        self.linear_final_out = nn.Sequential(
+             LinearLayer(8, 4, dropout=0.0, act=self.act, verbose=self.verbose),
+                LinearLayer(4, 2, dropout=0.0, act=self.act, verbose=self.verbose),
+                LinearLayer(2, 1, dropout=0.0, act=self.out_act, verbose=self.verbose),
+        )
+
+        # initialize weights as xavier
+        self.encoder_conv_block.apply(self._init_weights)
+        self.encoder_linear_block.apply(self._init_weights)
+        self.decoder_linear_block.apply(self._init_weights)
+        self.decoder_conv_block.apply(self._init_weights)
+        self.out_block_kernel3.apply(self._init_weights)
+        self.out_block_kernel5.apply(self._init_weights)
+        self.out_block_kernel7.apply(self._init_weights)
+        self.linear_final_out.apply(self._init_weights)
+
+
+    def _init_weights(self, m):
+        if type(m) == nn.Linear or type(m) == nn.Conv2d:
+            nn.init.xavier_uniform_(m.weight)
+            m.bias.data.fill_(0.1)
+
+    def encode(self, x):
+        # pad with 2 zeros on each side
+        x = F.pad(x, (2, 2, 2, 2), mode='constant', value=0)
+
+        x = self.encoder_conv_block(x)
+        
+        x = self.encoder_linear_block(x)
+        mu, logvar = x.chunk(2, dim=-1)
+        return mu, logvar
+    
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return eps.mul(std).add_(mu)
+    
+    def decode(self, z):
+        x = self.decoder_linear_block(z)
+        
+        out1 = self.decoder_conv_block(x)
+        out_block_kernel3 = self.out_block_kernel3(out1)
+        out_block_kernel5 = self.out_block_kernel5(out1)
+        out_block_kernel7 = self.out_block_kernel7(out1)
+        x = torch.cat([out1, out_block_kernel3, out_block_kernel5, out_block_kernel7], dim=1)
+        x = x.permute(0, 2, 3, 1).contiguous()
+        x = self.linear_final_out(x)
+        x = x.permute(0, 3, 1, 2).contiguous()
+        return x
+    
+    def forward(self, x):
+        # apply batch norm
+        # x = self.batch_norm(x)
+        mu, logvar = self.encode(x)
+        z = self.reparameterize(mu, logvar)
+        z = self.latent_dropout(z)
+        x_tilde = self.decode(z)
+        return x_tilde, z,  mu, logvar
+
 
 class VAE2(pl.LightningModule):
     def __init__(self,criterion, **kwargs):
@@ -305,11 +417,11 @@ class VAE2(pl.LightningModule):
         self.logger.experiment.add_image('reconstruction', grid, self.current_epoch)
         self.validation_step_outputs['x_hat'] = []
 
-        z = torch.cat(self.validation_step_outputs['z'], dim=0).view(-1, 9)
+        z = torch.cat(self.validation_step_outputs['z'], dim=0).view(-1, 16)
         # self.logger.experiment.add_histogram('z', z, self.current_epoch)
         y = torch.cat(self.validation_step_outputs['y'], dim=0)
         # print('z shape:', z.shape, 'y shape:', y.shape)
-        fig = plotUMAP(z, y, latent_dim=9, 
+        fig = plotUMAP(z, y, latent_dim=16, 
                        KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
                           save_path=None, show=False, max_points=10000)
         self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)

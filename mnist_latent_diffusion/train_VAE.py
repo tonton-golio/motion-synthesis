@@ -33,28 +33,18 @@ def plotUMAP(latent, labels, latent_dim, KL_weight,  save_path, show=False):
     return fig
 
 def prep_save(model, data_loaders, enable_y=False):
-    latent = []
-    labels = []
-    x = []
-    x_hat = []
-
+    latent, labels = list(), list()
     for data_loader in data_loaders:
         for batch in data_loader:
             x_, y_ = batch
-            x.append(x_)
+            _, z, _, _ = model(x_, y_) if enable_y else model(x_)
             labels.append(y_)
-            if enable_y:
-                x_hat_, z, mu, logvar = model(x_, y_)
-            else:
-                x_hat_, z, mu, logvar = model(x_)
             latent.append(z)
-            x_hat.append(x_hat_)
+
     latent = torch.cat(latent, dim=0)  # maybe detach
     labels = torch.cat(labels, dim=0)
-    x = torch.cat(x, dim=0)
-    x_hat = torch.cat(x_hat, dim=0)
 
-    return latent, labels, x, x_hat
+    return latent, labels
 
     
 def save_for_diffusion(save_path, model, **kwargs):
@@ -117,10 +107,12 @@ if __name__ == "__main__":
     print('Preparing latent space')
     dataloaders = [dm.test_dataloader(), dm.train_dataloader(), dm.val_dataloader()]
     
-    latent_dim = 9 #config['TRAIN']['MODEL']['LATENT_DIM']
+    
     KL_weight = config['TRAIN']['LOSS']['DIVERGENCE_KL']
 
-    latent, labels, x, x_hat = prep_save(model, dataloaders)
+    latent, labels = prep_save(model, dataloaders)
+    latent_dim = torch.prod(torch.tensor(latent.shape[1:]))
+    print('latent shape:', latent.shape)
     # reshape latent, as -1, 9
     latent = latent.view(-1, latent_dim)
 
@@ -131,8 +123,8 @@ if __name__ == "__main__":
                             z = latent,
                             y = labels,
                             projection = projection,
-                            x_hat = x_hat,
-                            x = x,
+                            # x_hat = x_hat,
+                            # x = x,
                             projector = reducer,
                             )
                             
