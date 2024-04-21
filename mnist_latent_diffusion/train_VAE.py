@@ -44,6 +44,14 @@ def prep_save(model, data_loaders, enable_y=False):
     latent = torch.cat(latent, dim=0)  # maybe detach
     labels = torch.cat(labels, dim=0)
 
+    # make covariance matrix of latent space
+    cov = torch.cov(latent.T)
+    cov_fig = plt.figure()
+    plt.imshow(cov.cpu().detach().numpy())
+    plt.colorbar()
+    plt.title('Covariance matrix of latent space')
+    plt.savefig(f'{logger.log_dir}/covariance_matrix.png')
+    plt.close(cov_fig)
     return latent, labels
 
     

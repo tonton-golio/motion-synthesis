@@ -39,7 +39,7 @@ config = dotdict(
         ),
         "DATA": dotdict(
             {
-                "seq_len": 160,
+                "seq_len": 420,
                 "batch_size": 64,
                 "file_list_paths": {
                     "_train": "../../data/HumanML3D/HumanML3D/train_cleaned.txt",

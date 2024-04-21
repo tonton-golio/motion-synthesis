@@ -141,7 +141,7 @@ class ConvTransposeLayer(nn.Module):
     def __repr__(self):
         return f'ConvTransposeLayer(in_channels={self.conv.in_channels}, out_channels={self.conv.out_channels}, kernel_size={self.conv.kernel_size}, stride={self.conv.stride}, padding={self.conv.padding})'
 
-class VAE_cnn2(pl.LightningModule):
+class VAE_cnn_old(pl.LightningModule):
     def __init__(self, **kwargs):
         """
         Latent dim fixed at 16
@@ -253,7 +253,12 @@ class VAE_cnn(pl.LightningModule):
             LinearLayer(64, 32, dropout=0., act=nn.Identity(), verbose=self.verbose)
         )
 
-        self.latent_dropout = nn.Dropout(self.latent_drop_out_rate)  # we could look at the latent covariance matrix as a function of the dropout rate
+        # we could look at the latent covariance matrix as a function of the dropout rate
+        self.latent_dropouts = [
+                nn.Dropout(self.latent_drop_out_rate),
+                nn.Dropout(self.latent_drop_out_rate/2),
+                nn.Dropout(0),
+        ]  
 
         # decoder
         self.decoder_linear_block = nn.Sequential(
@@ -322,7 +327,6 @@ class VAE_cnn(pl.LightningModule):
     
     def decode(self, z):
         x = self.decoder_linear_block(z)
-        
         out1 = self.decoder_conv_block(x)
         out_block_kernel3 = self.out_block_kernel3(out1)
         out_block_kernel5 = self.out_block_kernel5(out1)
@@ -338,7 +342,12 @@ class VAE_cnn(pl.LightningModule):
         # x = self.batch_norm(x)
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
-        z = self.latent_dropout(z)
+
+        # z = self.latent_dropout(z)
+        # pick random dropout
+        z = self.latent_dropouts[torch.randint(0, len(self.latent_dropouts), (1,))](z)
+
+        
         x_tilde = self.decode(z)
         return x_tilde, z,  mu, logvar
 
@@ -351,8 +360,8 @@ class VAE2(pl.LightningModule):
         self.act_func = activation_dict[kwargs.get("ACTIVATION", 'ReLU')]
         self.out_act_func = activation_dict[kwargs.get("OUT_ACTIVATION", 'None')]
         self.verbose = kwargs.get('verbose', False)
-
-        self.model = VAE_cnn(verbose=self.verbose, act=self.act_func, out_act=self.out_act_func)
+        self.latent_drop_out_rate = kwargs.get('LATENT_DROP_OUT_RATE', 0.25)
+        self.model = VAE_cnn(verbose=self.verbose, act=self.act_func, out_act=self.out_act_func, latent_drop_out_rate=self.latent_drop_out_rate)
 
         self.lr = kwargs.get("LEARNING_RATE", 1e-3)
         self.criterion = criterion
@@ -396,7 +405,7 @@ class VAE2(pl.LightningModule):
         res = self._common_step(batch, 'train')
         self.log('train_loss', res['loss'])
         #self.log_dict(res['losses_scaled'], prog_bar=True)
-        self.log_dict(res['losses_unscaled'], prog_bar=False)
+        self.log_dict(res['losses_unscaled'], prog_bar=True)
 
         return res['loss']
     
@@ -426,6 +435,14 @@ class VAE2(pl.LightningModule):
                           save_path=None, show=False, max_points=10000)
         self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)
         plt.close(fig)
+
+        # make covariance matrix of latent space and plot
+        cov = torch.cov(z.T)
+        cov_fig = plt.figure()
+        plt.imshow(cov.cpu().detach().numpy())
+        plt.colorbar()
+        plt.title('Covariance matrix of latent space')
+        self.logger.experiment.add_figure('Covariance matrix', cov_fig, self.current_epoch)
 
         
         self.validation_step_outputs['y'] = []
@@ -473,7 +490,7 @@ class VAE2(pl.LightningModule):
 
         return [optimizer],  [scheduler1]
 
-class VAE(pl.LightningModule):
+class VAE_old(pl.LightningModule):
     def __init__(self, criterion, **kwargs):
         
         super().__init__()

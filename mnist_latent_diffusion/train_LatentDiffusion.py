@@ -61,6 +61,8 @@ if __name__ == "__main__":
     # load latent space
     path = f"logs/MNIST_VAE/version_{config['DIFFUSE']['DATA']['V']}/saved_latent/"
     z = torch.load(path + 'z.pt')
+    print('z min', z.min(axis=0))
+    print('z max', z.max(axis=0))
     print('z shape', z.shape)
     autoencoder = torch.load(path + 'model.pth').to(torch.device('mps'))
     y = torch.load(path + 'y.pt')
