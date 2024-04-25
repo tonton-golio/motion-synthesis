@@ -1,4 +1,38 @@
 # Description: Configuration file for the project
+BUILD:
+  DATA:
+    BATCH_SIZE: 128
+    ROTAION: 0
+    SCALE: .0
+    TRANSLATE_X: 0.0
+    TRANSLATE_Y: 0.0
+    SHEAR: 0.0
+    NORM_MEAN: 0.5
+    NORM_STD: 1
+    BOOL: False
+    NO_NORMALIZE: True
+  MODEL:
+    # LATENT_DIM: 8
+    # CONV_CHANNELS: [32, 64, 64] # has to be length 3
+    # FC_UNITS: [256, 128, 64, 64, 64] # has to be length 5
+    ACTIVATION: leaky_relu
+    OUT_ACTIVATION: None
+    LEARNING_RATE: 0.0005
+    USE_LABEL_FOR_DECODER: False
+    MUL_KL_PER_EPOCH: 1
+    LATENT_DROP_OUT_RATE: 0.5
+  LOSS:
+    RECONSTRUCTION_L2: 1.
+    DIVERGENCE_KL: 0.000_000_01
+
+  TRAINER:
+    max_epochs: 60
+    log_every_n_steps: 40
+    overfit_batches: 1
+    check_val_every_n_epoch: 10
+    # CONTINUE_TRAINING: False
+    fast_dev_run: False
+
 TRAIN:
   DATA:
     BATCH_SIZE: 128
