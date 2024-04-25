@@ -96,3 +96,6 @@ OPTUNA:
     # overfit_batches: 0
     # CONTINUE_TRAINING: False
     fast_dev_run: False
+  OPTIMIZE:
+    n_trials: 100
+    timeout: 600
