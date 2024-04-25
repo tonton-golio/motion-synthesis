@@ -2,6 +2,7 @@
 
 *.mp4
 tb_logs*
+logs/
 lightning_logs/
 
 *.DS_Store
