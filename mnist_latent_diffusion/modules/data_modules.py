@@ -27,7 +27,7 @@ class MNISTDataModule(pl.LightningDataModule):
         super().__init__()
         self.batch_size = kwargs.get("BATCH_SIZE", 256)
         self.path = '/Users/tonton/Documents/motion-synthesis/mnist_latent_diffusion/'
-
+        self.shuffle = kwargs.get("SHUFFLE", True)
         # transforms
         self.rotation = kwargs.get("ROTATION", 0)
         self.scale = kwargs.get("SCALE", 0)
@@ -94,7 +94,7 @@ class MNISTDataModule(pl.LightningDataModule):
         self.data_train, self.data_val = random_split(data_train, [train_size, val_size])
 
     def train_dataloader(self):
-        return DataLoader(self.data_train, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=4, persistent_workers=True)
+        return DataLoader(self.data_train, batch_size=self.batch_size, shuffle=self.shuffle, drop_last=False, num_workers=4, persistent_workers=True)
 
     def val_dataloader(self):
         return DataLoader(self.data_val, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=2, persistent_workers=True)

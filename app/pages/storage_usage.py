@@ -71,7 +71,8 @@ if __name__ == "__main__":
 
     # total size by file extension
     print((df.groupby('file_extension')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:7])
-
+    count_by_ext = df.groupby('file_extension').count()['size'].sort_values(ascending=False)
+    count_by_ext
     # total size by parent folder
     print((df.groupby('parent_folder')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:7])
 

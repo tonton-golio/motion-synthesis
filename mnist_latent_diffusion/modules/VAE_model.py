@@ -44,16 +44,10 @@ activation_dict = {
     'ReLU': nn.ReLU(),
     'elu': nn.ELU(),
     'swish': nn.SiLU(),
-    #'mish': nn.Mish(),
-    #'softplus': nn.Softplus(),
-    # 'bent_identity': nn.BentIdentity(),
-    # 'gaussian': nn.Gaussian(),
-    #'softmax': nn.Softmax(),
-    #'softmin': nn.Softmin(),
-    #'softshrink': nn.Softshrink(),
+
+    # identity
     'None': nn.Identity(),
     None: nn.Identity(),
-    # 'sinc': nn.Sinc(),
 }
 
 class ConvLayer(nn.Module):
@@ -235,22 +229,23 @@ class VAE_cnn(pl.LightningModule):
         self.act = kwargs.get('act', nn.ReLU())
         self.out_act = kwargs.get('out_act', nn.Identity())
         self.latent_drop_out_rate = kwargs.get('latent_drop_out_rate', 0.25)
+        self.dropout = kwargs.get('dropout', 0.0)
 
         # self.batch_norm = nn.BatchNorm2d(1)
 
         self.encoder_conv_block = nn.Sequential(
-            ConvLayer(1, 32, dropout=0.1, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
-            ConvLayer(32, 64, dropout=0.0, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
-            ConvLayer(64, 32, dropout=0.1, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
-            ConvLayer(32, 16, dropout=0.0, batch_norm=True, act=self.act, pool=True, verbose=self.verbose)
+            ConvLayer(1, 32, dropout=self.dropout, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
+            ConvLayer(32, 64, dropout=self.dropout, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
+            ConvLayer(64, 32, dropout=self.dropout, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
+            ConvLayer(32, 16, dropout=self.dropout, batch_norm=True, act=self.act, pool=True, verbose=self.verbose)
         )
 
         self.encoder_linear_block = nn.Sequential(
             # flatten
             nn.Flatten(),
-            LinearLayer(256, 128, dropout=0.0, act=self.act, verbose=self.verbose),
-            LinearLayer(128, 64, dropout=0.0, act=self.act, verbose=self.verbose),
-            LinearLayer(64, 32, dropout=0., act=nn.Identity(), verbose=self.verbose)
+            LinearLayer(256, 128, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(128, 64, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(64, 32, dropout=self.dropout, act=nn.Identity(), verbose=self.verbose)
         )
 
         # we could look at the latent covariance matrix as a function of the dropout rate
@@ -262,36 +257,36 @@ class VAE_cnn(pl.LightningModule):
 
         # decoder
         self.decoder_linear_block = nn.Sequential(
-            LinearLayer(16, 32, dropout=0.0, act=self.act, verbose=self.verbose),
-            LinearLayer(32, 64, dropout=0.0, act=self.act, verbose=self.verbose),
-            LinearLayer(64, 128, dropout=0.0, act=self.act, verbose=self.verbose),
-            LinearLayer(128, 256, dropout=0.0, act=self.act, verbose=self.verbose),
+            LinearLayer(16, 32, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(32, 64, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(64, 128, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(128, 256, dropout=self.dropout, act=self.act, verbose=self.verbose),
         )
 
         self.decoder_conv_block = nn.Sequential(
             # unflatten
             nn.Unflatten(1, (16, 4, 4)),
-            ConvTransposeLayer(16, 32, kernel_size=3, stride=1, dropout=0.0, batch_norm=True, act=self.act, out_padding=0, verbose=self.verbose),
-            ConvTransposeLayer(32, 16, kernel_size=3, stride=2, dropout=0.0, batch_norm=True, act=self.act, verbose=self.verbose),
-            ConvTransposeLayer(16, 2, kernel_size=3, dropout=0.0, batch_norm=True, act=self.act, verbose=self.verbose, out_padding=1),           
+            ConvTransposeLayer(16, 32, kernel_size=3, stride=1, dropout=self.dropout, batch_norm=True, act=self.act, out_padding=0, verbose=self.verbose),
+            ConvTransposeLayer(32, 16, kernel_size=3, stride=2, dropout=self.dropout, batch_norm=True, act=self.act, verbose=self.verbose),
+            ConvTransposeLayer(16, 2, kernel_size=3, dropout=self.dropout, batch_norm=True, act=self.act, verbose=self.verbose, out_padding=1),           
         )
 
         self.out_block_kernel3 = nn.Sequential(
-            ConvLayer(2, 2, kernel_size=3, dropout=0.0, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
+            ConvLayer(2, 2, kernel_size=3, dropout=self.dropout, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
         )
 
         self.out_block_kernel5 = nn.Sequential(
-            ConvLayer(2, 2,kernel_size=5, dropout=0.0, batch_norm=True, act=self.act, pool=False, verbose=self.verbose, padding=2),
+            ConvLayer(2, 2,kernel_size=5, dropout=self.dropout, batch_norm=True, act=self.act, pool=False, verbose=self.verbose, padding=2),
         )
 
         self.out_block_kernel7 = nn.Sequential(
-            ConvLayer(2, 2, kernel_size=7, dropout=0.0, batch_norm=True, act=self.act, pool=False, verbose=self.verbose, padding=3),
+            ConvLayer(2, 2, kernel_size=7, dropout=self.dropout, batch_norm=True, act=self.act, pool=False, verbose=self.verbose, padding=3),
         )
 
         self.linear_final_out = nn.Sequential(
-             LinearLayer(8, 4, dropout=0.0, act=self.act, verbose=self.verbose),
-                LinearLayer(4, 2, dropout=0.0, act=self.act, verbose=self.verbose),
-                LinearLayer(2, 1, dropout=0.0, act=self.out_act, verbose=self.verbose),
+             LinearLayer(8, 4, dropout=self.dropout, act=self.act, verbose=self.verbose),
+                LinearLayer(4, 2, dropout=self.dropout, act=self.act, verbose=self.verbose),
+                LinearLayer(2, 1, dropout=self.dropout, act=self.out_act, verbose=self.verbose),
         )
 
         # initialize weights as xavier
@@ -361,16 +356,21 @@ class VAE2(pl.LightningModule):
         self.out_act_func = activation_dict[kwargs.get("OUT_ACTIVATION", 'None')]
         self.verbose = kwargs.get('verbose', False)
         self.latent_drop_out_rate = kwargs.get('LATENT_DROP_OUT_RATE', 0.25)
-        self.model = VAE_cnn(verbose=self.verbose, act=self.act_func, out_act=self.out_act_func, latent_drop_out_rate=self.latent_drop_out_rate)
+        self.dropout = kwargs.get('DROPOUT', 0.0)
+        self.model = VAE_cnn(verbose=self.verbose, act=self.act_func, out_act=self.out_act_func, latent_drop_out_rate=self.latent_drop_out_rate, dropout=self.dropout)
 
         self.lr = kwargs.get("LEARNING_RATE", 1e-3)
         self.criterion = criterion
         self.mul_KL_per_epoch = kwargs.get("MUL_KL_PER_EPOCH", 1)
 
         self.validation_step_outputs = {'x_hat' : [], 'z' : [], 'y' : []}
+        self.train_step_outputs = {'x_hat' : [], 'z' : [], 'y' : []}
+
         self.test_step_outputs = []
         self.test_latents = []
         self.test_labels = []
+
+        self.enable_UMAP = kwargs.get('ENABLE_UMAP', False)
 
     
     def forward(self, x):
@@ -407,8 +407,43 @@ class VAE2(pl.LightningModule):
         #self.log_dict(res['losses_scaled'], prog_bar=True)
         self.log_dict(res['losses_unscaled'], prog_bar=True)
 
+        if batch_idx <10:
+            self.train_step_outputs['x_hat'].append(res['x_hat'])
+            self.train_step_outputs['z'].append(res['z'])
+            self.train_step_outputs['y'].append(res['y'])
+
         return res['loss']
     
+    def on_train_epoch_end(self):
+        # show images at the end of the epoch
+        recs = torch.cat(self.train_step_outputs['x_hat'], dim=0)[:32]
+        grid = torchvision.utils.make_grid(recs, nrow=8, normalize=True)
+        self.logger.experiment.add_image('reconstruction_train', grid, self.current_epoch)
+        self.train_step_outputs['x_hat'] = []
+
+        z = torch.cat(self.train_step_outputs['z'], dim=0).view(-1, 16)
+        # self.logger.experiment.add_histogram('z', z, self.current_epoch)
+        y = torch.cat(self.train_step_outputs['y'], dim=0)
+        if self.enable_UMAP:
+            fig = plotUMAP(z, y, latent_dim=16, 
+                        KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
+                        save_path=None, show=False, max_points=10000)
+            self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)
+            plt.close(fig)
+
+        # make covariance matrix of latent space and plot
+        cov = torch.cov(z.T)
+        cov_fig = plt.figure()
+        plt.imshow(cov.cpu().detach().numpy())
+        plt.colorbar()
+        plt.title('Covariance matrix of latent space')
+        self.logger.experiment.add_figure('Covariance matrix', cov_fig, self.current_epoch)
+
+        self.train_step_outputs['y'] = []
+        self.train_step_outputs['z'] = []
+
+        # increase KL
+        
     def validation_step(self, batch, batch_idx):
         res = self._common_step(batch, 'val')
         self.log('val_loss', res['loss'])
@@ -423,18 +458,19 @@ class VAE2(pl.LightningModule):
         
         recs = torch.cat(self.validation_step_outputs['x_hat'], dim=0)[:32]
         grid = torchvision.utils.make_grid(recs, nrow=8, normalize=True)
-        self.logger.experiment.add_image('reconstruction', grid, self.current_epoch)
+        self.logger.experiment.add_image('reconstruction_val', grid, self.current_epoch)
         self.validation_step_outputs['x_hat'] = []
 
         z = torch.cat(self.validation_step_outputs['z'], dim=0).view(-1, 16)
         # self.logger.experiment.add_histogram('z', z, self.current_epoch)
         y = torch.cat(self.validation_step_outputs['y'], dim=0)
-        # print('z shape:', z.shape, 'y shape:', y.shape)
-        fig = plotUMAP(z, y, latent_dim=16, 
-                       KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
-                          save_path=None, show=False, max_points=10000)
-        self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)
-        plt.close(fig)
+        if self.enable_UMAP:
+            # print('z shape:', z.shape, 'y shape:', y.shape)
+            fig = plotUMAP(z, y, latent_dim=16, 
+                        KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
+                            save_path=None, show=False, max_points=10000)
+            self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)
+            plt.close(fig)
 
         # make covariance matrix of latent space and plot
         cov = torch.cov(z.T)

@@ -1,7 +1,7 @@
 # Description: Configuration file for the project
-BUILD:
+BASE:
   DATA:
-    BATCH_SIZE: 128
+    BATCH_SIZE: 256
     ROTAION: 0
     SCALE: .0
     TRANSLATE_X: 0.0
@@ -12,89 +12,44 @@ BUILD:
     BOOL: False
     NO_NORMALIZE: True
   MODEL:
-    # LATENT_DIM: 8
-    # CONV_CHANNELS: [32, 64, 64] # has to be length 3
-    # FC_UNITS: [256, 128, 64, 64, 64] # has to be length 5
-    ACTIVATION: leaky_relu
+    ACTIVATION: swish
     OUT_ACTIVATION: None
-    LEARNING_RATE: 0.0005
+    LEARNING_RATE: 0.005
     USE_LABEL_FOR_DECODER: False
     MUL_KL_PER_EPOCH: 1
-    LATENT_DROP_OUT_RATE: 0.5
+    LATENT_DROP_OUT_RATE: 0.0
+    DROPOUT: 0.1
   LOSS:
     RECONSTRUCTION_L2: 1.
-    DIVERGENCE_KL: 0.000_000_01
+    DIVERGENCE_KL: 0.000_0000001
 
+BUILD:
+  DATA:
+    BATCH_SIZE: 1
+    SHUFFLE: false
+  MODEL:
+    ENABLE_UMAP: False
   TRAINER:
-    max_epochs: 60
+    max_epochs: 600
     log_every_n_steps: 40
     overfit_batches: 1
-    check_val_every_n_epoch: 10
+    check_val_every_n_epoch: 100
+    enable_checkpointing: false
+    # detect_anomaly: true
     # CONTINUE_TRAINING: False
     fast_dev_run: False
 
 TRAIN:
-  DATA:
-    BATCH_SIZE: 128
-    ROTAION: 0
-    SCALE: .0
-    TRANSLATE_X: 0.0
-    TRANSLATE_Y: 0.0
-    SHEAR: 0.0
-    NORM_MEAN: 0.5
-    NORM_STD: 1
-    BOOL: False
-    NO_NORMALIZE: True
-  MODEL:
-    # LATENT_DIM: 8
-    # CONV_CHANNELS: [32, 64, 64] # has to be length 3
-    # FC_UNITS: [256, 128, 64, 64, 64] # has to be length 5
-    ACTIVATION: leaky_relu
-    OUT_ACTIVATION: None
-    LEARNING_RATE: 0.0005
-    USE_LABEL_FOR_DECODER: False
-    MUL_KL_PER_EPOCH: 1
-    LATENT_DROP_OUT_RATE: 0.5
-  LOSS:
-    RECONSTRUCTION_L2: 1.
-    DIVERGENCE_KL: 0.000_000_01
-
   TRAINER:
     max_epochs: 60
     log_every_n_steps: 40
-    # overfit_batches: 0
     # CONTINUE_TRAINING: False
-    fast_dev_run: False
 
 OPTUNA:
-  DATA:
-    BATCH_SIZE: 2048
-    ROTAION: 0
-    SCALE: 0
-    TRANSLATE_X: 0.
-    TRANSLATE_Y: 0.
-    SHEAR: 0.
-    NORM_MEAN: 0.0
-    NORM_STD: 1
-    BOOL: False
-  MODEL:
-    #LATENT_DIM: 3
-    CONV_CHANNELS: [16, 32, 64] # has to be length 3
-    FC_UNITS: [256, 128, 64, 32, 16] # has to be length 5
-    ACTIVATION: leaky_relu
-    OUT_ACTIVATION: sigmoid
-    LEARNING_RATE: 0.003
-    USE_LABEL_FOR_DECODER: True
-    MUL_KL_PER_EPOCH: 1  # if 1 it does not change the KL weight
-  LOSS:
-    RECONSTRUCTION_L2: 1.
-    #DIVERGENCE_KL: 0.000_001
-
+  # vary: KL loss weight, latent dropout rate
   TRAINER:
     max_epochs: 20
-    log_every_n_steps: 50
-    # overfit_batches: 0
-    # CONTINUE_TRAINING: False
+    log_every_n_steps: 100
     fast_dev_run: False
   OPTIMIZE:
     n_trials: 100
