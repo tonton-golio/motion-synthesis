@@ -4,6 +4,10 @@
 tb_logs*
 logs/
 lightning_logs/
+stranger_repos/
+MNIST/
+saved_latent/
+data_fully_preprocessed/
 
 *.DS_Store
 
