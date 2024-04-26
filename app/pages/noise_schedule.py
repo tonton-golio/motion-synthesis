@@ -1,7 +1,8 @@
 import sys
 sys.path.append('..')
 import streamlit as st
-from mnist_latent_diffusion.data_modules import MNISTDataModule
+from mnist_latent_diffusion.modules.data_modules import MNISTDataModule
+
 import matplotlib.pyplot as plt
 import numpy as np
 

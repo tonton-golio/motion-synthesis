@@ -6,6 +6,8 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 
+'# Principal Component Analysis (PCA)'
+
 # Generate data
 np.random.seed(1)
 

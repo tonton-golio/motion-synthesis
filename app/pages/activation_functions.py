@@ -58,3 +58,5 @@ if __name__ == '__main__':
     fig = plot_functions(act_funcs['rectifier'], x)
     cols[1].pyplot(fig)
     
+
+    '''I wonder if these create different latent spaces.'''

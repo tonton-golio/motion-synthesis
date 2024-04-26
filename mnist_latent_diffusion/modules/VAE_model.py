@@ -43,7 +43,7 @@ activation_dict = {
     'leaky_relu': nn.LeakyReLU(),
     'ReLU': nn.ReLU(),
     'elu': nn.ELU(),
-    #'swish': nn.SiLU(),
+    'swish': nn.SiLU(),
     #'mish': nn.Mish(),
     #'softplus': nn.Softplus(),
     # 'bent_identity': nn.BentIdentity(),
