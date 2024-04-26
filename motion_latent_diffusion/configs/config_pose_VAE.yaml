@@ -1,0 +1,35 @@
+
+tracked_parameters:
+  BATCH_SIZE: 1024
+  N_LAYERS: 4
+  N_LIN_LAYERS: 6
+  N_LIN_UNITS: 512
+  LATENT_DIM: 48
+  DROPOUT: 0.10
+  CHANNELS_HIDDEN: 64
+  CHANNELS_OUT: 32
+  MODEL_TYPE: "graph"
+  EPOCHS: 20
+  LEARNING_RATE: 1e-3
+  OPTIMIZER: "AdamW"
+  KL_WEIGHT: 0.00000001
+  load: False
+  checkpoint_path: "latest"
+
+untracked_parameters:
+  __base_path: "../../data/HumanML3D/HumanML3D/"
+  __sets:
+    - "train"
+    - "val"
+    - "test"
+  __FILE_LIST_PATHS:
+    train: "data/HumanML3D/HumanML3D/train_cleaned.txt"
+    val: "data/HumanML3D/HumanML3D/val_cleaned.txt"
+    test: "data/HumanML3D/HumanML3D/test_cleaned.txt"
+  __MOTION_PATH: "data/HumanML3D/HumanML3D/new_joints"
+  __ACCERLATOR: "mps"
+  __DEVICES: 1
+  __PRECISION: "32-true"
+  __N_GPUS: 1
+  __N_WORKERS: 4
+  __FAST_DEV_RUN: False

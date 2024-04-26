@@ -1,0 +1,25 @@
+
+MODEL:
+  learning_rate: 0.0001
+  latent_dim: 1024
+  load: false
+  _checkpoint_path: "latest"
+  clip_grad_norm: 1.0
+  loss_weights:
+    kl_div: 0.0000001
+    velocity: 0.0
+    root: 0.0
+    motion: 2.0
+    motion_relative: 10.0
+    velocity_relative: 0.0
+DATA:
+  seq_len: 120
+  max_text_len: 100
+  batch_size: 128
+TRAINING:
+  max_epochs: 300
+  accelerator: "mps"
+  devices: 1
+  precision: "32-true"
+  n_gpus: 1
+  fast_dev_run: true

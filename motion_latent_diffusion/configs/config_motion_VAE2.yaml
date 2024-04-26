@@ -1,0 +1,90 @@
+MODEL:
+  latent_dim: 256
+  klDiv_weight: 0.000001
+  learning_rate: 0.0001
+  optimizer: AdamW
+  _save_animations: true
+  load: false
+  _checkpoint_path: latest
+  clip_grad_norm: 1
+  vel_transformer_encoder:
+    nhead: 6
+    dim_feedforward: 1024
+    dropout: 0.1
+    activation: relu
+    num_layers: 6
+  vel_linear_encoder:
+    hidden_layer_widths:
+      - 1024
+      - 1024
+      - 1024
+    dropout: 0.1
+    activation: relu
+  root_travel_transformer_encoder:
+    nhead: 3
+    dim_feedforward: 256
+    dropout: 0.1
+    activation: relu
+    num_layers: 6
+  root_linear_encoder:
+    hidden_layer_widths:
+      - 1024
+      - 1024
+      - 1024
+    dropout: 0.1
+    activation: relu
+  linear_encoder:
+    hidden_layer_widths:
+      - 1024
+      - 1024
+      - 1024
+    dropout: 0.1
+    activation: relu
+  linear_decoder:
+    hidden_layer_widths:
+      - 1024
+      - 1024
+      - 1024
+    dropout: 0.1
+    activation: relu
+  vel_linear_decoder:
+    hidden_layer_widths:
+      - 1024
+      - 1024
+      - 1024
+    dropout: 0.1
+    activation: relu
+  vel_transformer_decoder:
+    nhead: 6
+    dim_feedforward: 1024
+    dropout: 0.1
+    activation: relu
+    num_layers: 6
+  root_linear_decoder:
+    hidden_layer_widths:
+      - 1024
+      - 1024
+      - 1024
+    dropout: 0.1
+    activation: relu
+  root_travel_transformer_decoder:
+    nhead: 3
+    dim_feedforward: 1024
+    dropout: 0.1
+    activation: relu
+    num_layers: 6
+DATA:
+  seq_len: 160
+  batch_size: 128
+  file_list_paths:
+    _train: data/HumanML3D/HumanML3D/train_cleaned.txt
+    _val: data/HumanML3D/HumanML3D/val_cleaned.txt
+    _test: data/HumanML3D/HumanML3D/test_cleaned.txt
+  _motion_path: data/HumanML3D/HumanML3D/new_joints
+TRAINING:
+  max_epochs: 100
+  accelerator: mps
+  devices: 1
+  precision: "32-true"
+  n_gpus: 1
+  fast_dev_run: true
