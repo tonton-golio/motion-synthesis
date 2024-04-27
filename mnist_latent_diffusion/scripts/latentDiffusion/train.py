@@ -15,7 +15,7 @@ import torch.optim as optim
 class Classifier(nn.Module):
         def __init__(self):
             super(Classifier, self).__init__()
-            self.fc1 = nn.Linear(8, 128)
+            self.fc1 = nn.Linear(16, 128)
             self.fc2 = nn.Linear(128, 128)
             self.fc3 = nn.Linear(128, 128)
             self.fc4 = nn.Linear(128, 10)

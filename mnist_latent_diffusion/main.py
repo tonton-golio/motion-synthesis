@@ -9,9 +9,8 @@ from pytorch_lightning import Trainer
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from utils import load_config, manual_config_log
+from utils import load_config, manual_config_log, get_ckpt
 from modules.dataModules import MNISTDataModule
-
 
 
 if __name__ == "__main__":
@@ -22,7 +21,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args.model, args.mode)
     assert args.model in ['VAE', 'imageDiffusion', 'latentDiffusion']  # assert valid
-    
     assert args.mode in ['train', 'build', 'inference', 'optuna']
 
     if args.model == 'VAE':
@@ -48,7 +46,6 @@ if __name__ == "__main__":
             train_VAE(dm, criteria, config, logger, VAE, save_latent=True)
 
         elif args.mode == 'optuna': optuna_VAE(VAE, dm, config)
-        else: raise NotImplementedError
         
     elif args.model == 'imageDiffusion':
         from mnist_latent_diffusion.modules.imageDiffusion import ImageDiffusionModule, _calculate_FID_SCORE
@@ -66,21 +63,10 @@ if __name__ == "__main__":
                                 logger=logger,)
             trainer.fit(plModule, dm)
         elif args.mode == 'inference':
+
+            
             parent_log_dir = 'logs/imageDiffusion/train/'
-
-            # find available checkpoints
-            import os
-            checkpoints = {}
-            for root, dirs, files in os.walk(parent_log_dir):
-                for file in files:
-                    if file.endswith(".ckpt"):
-                        cp_name = file.split('_')[0]
-
-                        checkpoints[cp_name] = os.path.join(root, file)
-
-            print(checkpoints)
-
-            checkpoint = checkpoints[input('Enter checkpoint name: ')]
+            checkpoint = get_ckpt(parent_log_dir)
 
             plModule = ImageDiffusionModule.load_from_checkpoint(checkpoint)
 
@@ -93,21 +79,16 @@ if __name__ == "__main__":
             ax.set_yticks([])
             plt.show()
 
-
-        else:
-            raise NotImplementedError
-
     elif args.model == 'latentDiffusion':
         
         from modules.latentDiffusion import LatentDiffusionModel
         if args.mode == 'train':
-            from scripts.latentDiffusion.train_LatentDiffusion import train as train_LatentDiffusion
+            from scripts.latentDiffusion.train import train as train_LatentDiffusion
             train_LatentDiffusion()
         
         elif args.mode == 'inference':
             print('Inference')
-            pass
-
-
-    else:
-        raise NotImplementedError
+            parent_log_dir = 'logs/latentDiffusion/train/'
+            checkpoint = get_ckpt(parent_log_dir)
+            
+    else: raise NotImplementedError

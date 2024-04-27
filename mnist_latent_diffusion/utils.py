@@ -2,7 +2,21 @@ import yaml, os, shutil
 import matplotlib.pyplot as plt
 import torch
 
+def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/'):
+    # find available checkpoints
+    
+    checkpoints = {}
+    for root, dirs, files in os.walk(parent_log_dir):
+        for file in files:
+            if file.endswith(".ckpt"):
+                cp_name = file.split('_')[0]
 
+                checkpoints[cp_name] = os.path.join(root, file)
+
+    print(checkpoints)
+
+    checkpoint = checkpoints[input('Enter checkpoint name: ')]
+    return checkpoint
 
 def dict_merge(dct, merge_dct):
     """Recursively merge two dictionaries, dct takes precedence over merge_dct."""
