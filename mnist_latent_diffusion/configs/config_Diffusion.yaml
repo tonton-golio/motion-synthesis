@@ -1,0 +1,55 @@
+# Description: Configuration file for the project
+BASE:
+  DATA:
+    BATCH_SIZE: 256
+    ROTAION: 20
+    SCALE: .2
+    TRANSLATE_X: 0.1
+    TRANSLATE_Y: 0.1
+    SHEAR: 0.1
+    NORMALIZE_MEAN: 0.
+    NORMALIZE_STD: 1
+    BOOL: False
+    NO_NORMALIZE: False
+  MODEL:
+    CLIPPED_REVERSE_DIFFUSION: false
+    LEARNING_RATE: 0.001
+    SAMPLE_EVERY: 1
+    TIMESTEPS: 100
+    TIME_EMBEDDING_DIM: 24
+    NOISE_SCHEDULE_METHOD: 'cosine'
+    EPSILON: 0.008
+    BETA_START: 0.00001
+    BETA_END: 0.005
+    BASE_DIM: 32
+
+BUILD:
+  DATA:
+    BATCH_SIZE: 1
+    SHUFFLE: false
+  TRAINER:
+    max_epochs: 600
+    log_every_n_steps: 40
+    overfit_batches: 1
+    check_val_every_n_epoch: 100
+    enable_checkpointing: false
+    # detect_anomaly: true
+    # CONTINUE_TRAINING: False
+    fast_dev_run: False
+
+TRAIN:
+  TRAINER:
+    max_epochs: 10
+    log_every_n_steps: 40
+    # CONTINUE_TRAINING: False
+    fast_dev_run: true
+
+OPTUNA:
+  # vary: KL loss weight, latent dropout rate
+  TRAINER:
+    max_epochs: 5
+    log_every_n_steps: 100
+    fast_dev_run: False
+  OPTIMIZE:
+    n_trials: 3
+    timeout: 240

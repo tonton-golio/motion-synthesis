@@ -1,144 +1,112 @@
-
-
-
 # This file Is our main run file for the application.
 
-# models: VAE, Diffusion, LatentDiffusion
-# modes: train, build, inference, optuna
-
-## In build mode: we want to overfit just a single sample.
-
-import argparse
-from modules.data_modules import MNISTDataModule
-from modules.VAE_model import VAE2 as VAE
-from modules.loss import VAE_Loss
-import yaml
+# models: VAE, imageDiffusion, latentDiffusion
+# modes: train, build (over_fit single batch), inference, optuna
+import yaml, argparse
 import matplotlib.pyplot as plt
+import torch.nn as nn
 from pytorch_lightning import Trainer
+import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
-import shutil
-import os
-import optuna
-from optuna.integration import PyTorchLightningPruningCallback
-import torch
 
-from utils import load_config, plotUMAP, prep_save, save_for_diffusion
+from utils import load_config, manual_config_log
+from modules.dataModules import MNISTDataModule
+
+
+
 if __name__ == "__main__":
     # add arguments for model and mode
     parser = argparse.ArgumentParser(description='Run the model')
     parser.add_argument('--model', type=str, default='VAE', help='Model to run')
     parser.add_argument('--mode', type=str, default='train', help='Mode to run')
-
     args = parser.parse_args()
-    assert args.model in ['VAE', 'Diffusion', 'LatentDiffusion']  # assert valid
+    print(args.model, args.mode)
+    assert args.model in ['VAE', 'imageDiffusion', 'latentDiffusion']  # assert valid
+    
     assert args.mode in ['train', 'build', 'inference', 'optuna']
 
     if args.model == 'VAE':
+        from modules.VAE import VAE2 as VAE
+        from modules.loss import VAE_Loss
+        from scripts.VAE.train import train as train_VAE
+        from scripts.VAE.optuna import optuna_sweep as optuna_VAE
+
         config = load_config('VAE')
-        # VAE accepts train, build, optuna
         dm = MNISTDataModule(**config[args.mode.upper()]['DATA'], verbose=False)
         dm.setup()
         logger = TensorBoardLogger("logs/VAE/", name=f"{args.mode}")
-        criteria = VAE_Loss(config['TRAIN']['LOSS'])
+        criteria = VAE_Loss(config[args.mode.upper()]['LOSS'])
 
-        if args.mode == 'train':
-            if not os.path.exists(logger.log_dir): os.makedirs(logger.log_dir)
-            shutil.copyfile('configs/config_VAE.yaml', f"{logger.log_dir}/config_VAE.yaml")
-
-            # train
-            model = VAE(criteria, **config['TRAIN']['MODEL'])
-            trainer = Trainer(logger=logger, **config['TRAIN']['TRAINER'])
-            trainer.fit(model, dm)
-
-            # test
-            trainer.test(model, datamodule=dm)
-            res = model.on_test_epoch_end()
-            logger.log_hyperparams(model.hparams, {'unscaled mse test loss' : res[0]} )
-
-            # save
-            dataloaders = [dm.test_dataloader(), dm.train_dataloader(), dm.val_dataloader()]
-            KL_weight = config['TRAIN']['LOSS']['DIVERGENCE_KL']
-            latent, labels = prep_save(model, dataloaders, enable_y=True, log_dir=logger.log_dir)
-            latent_dim = torch.prod(torch.tensor(latent.shape[1:]))
-            latent = latent.view(-1, latent_dim)
-
-            projection, reducer = plotUMAP(latent, labels, latent_dim, KL_weight, logger.log_dir, show=False)
-            if input('save for diffusion? [y/n]') == 'y':
-                save_for_diffusion(save_path=logger.log_dir+'/saved_latent', model = model, z = latent, y = labels, projection = projection, projector = reducer,  )
-
-        elif args.mode == 'build':
+        if args.mode == 'build':
             # overfit a single sample
             model = VAE(criteria, **config['BUILD']['MODEL'])
             trainer = Trainer(logger=logger, **config['BUILD']['TRAINER'])
             trainer.fit(model, dm)
 
-        elif args.mode == 'optuna':
-            def objective(trial: optuna.trial.Trial) -> float:
-                # these are our sweep parameters
-                ld = trial.suggest_categorical("latent_dim", [4, 6, 8, 10])
+        elif args.mode == 'train':
+            manual_config_log(logger.log_dir, cp_file='configs/config_VAE.yaml')
+            train_VAE(dm, criteria, config, logger, VAE, save_latent=True)
 
-                acts = ['tanh', 'sigmoid', 'softsign', 'leaky_relu', 'ReLU', 'elu']
-                #act = trial.suggest_categorical("activation", acts)
-                klDiv = trial.suggest_float("klDiv", 1e-6, 1e-4, log=True)
-                
-                # activation func
-                #config['OPTUNA']['MODEL']['activation'] = act
+        elif args.mode == 'optuna': optuna_VAE(VAE, dm, config)
+        else: raise NotImplementedError
+        
+    elif args.model == 'imageDiffusion':
+        from mnist_latent_diffusion.modules.imageDiffusion import ImageDiffusionModule, _calculate_FID_SCORE
+        config = load_config('Diffusion')
 
-                # set up loss function
-                loss_dict = {
-                    'RECONSTRUCTION_L2': 1,
-                    'DIVERGENCE_KL': klDiv,
-                }
-                criteria = VAE_Loss(loss_dict)
+        if args.mode == 'train':
+            dm = MNISTDataModule(**config[args.mode.upper()]['DATA'], verbose=False)
+            dm.setup()
 
-                # instantiate the logger
-                logger = TensorBoardLogger("logs/", name="mnistVAEoptuna_sigmoid_outact")
-                
-                # Create the model
-                model = VAE(criteria, **config['OPTUNA']['MODEL'], LATENT_DIM=ld)
+            # if args.mode == 'build':
+            plModule = ImageDiffusionModule(criteria=nn.MSELoss(), **config['TRAIN']['MODEL'])
 
-                trainer = Trainer(
-                    logger=logger,
-                    **config['OPTUNA']['TRAINER'],
-                    enable_checkpointing=False,
-                    # val_check_interval=0.5,
-                    callbacks=[PyTorchLightningPruningCallback(trial, monitor="test_loss")],
-                )
+            logger = pl.loggers.TensorBoardLogger("logs/imageDiffusion", name="train")
+            trainer = pl.Trainer(max_epochs=400,
+                                logger=logger,)
+            trainer.fit(plModule, dm)
+        elif args.mode == 'inference':
+            parent_log_dir = 'logs/imageDiffusion/train/'
 
-                trainer.fit(model, dm)
+            # find available checkpoints
+            import os
+            checkpoints = {}
+            for root, dirs, files in os.walk(parent_log_dir):
+                for file in files:
+                    if file.endswith(".ckpt"):
+                        cp_name = file.split('_')[0]
 
-                res = trainer.test(model, dm.test_dataloader())
-                print('res:', res   )
-                # logging hyperparameters
-                logger.log_hyperparams(model.hparams, metrics=res[0])    
+                        checkpoints[cp_name] = os.path.join(root, file)
 
-                # manual logging in hparams.yaml
-                hparams = {k: v for k, v in model.hparams.items()}
-                ## append the test loss, and sweep parameters and model.metric_res
-                hparams['mse_us_tst'] = res[0]['test_unscaled_RECONSTRUCTION_L2']
-                hparams['latent_dim'] = ld
-                hparams['klDivWeight'] = klDiv
-                for k, v in res[0].items():
-                    hparams[k] = v
-                
-                with open(logger.log_dir + '/hparams.yaml', 'w') as file:
-                    yaml.dump(hparams, file)
+            print(checkpoints)
 
-                return res[0]['test_unscaled_RECONSTRUCTION_L2']
+            checkpoint = checkpoints[input('Enter checkpoint name: ')]
 
-            study = optuna.create_study(direction="minimize")
-            study.optimize(objective, n_trials=config['OPTUNA']['OPTIMIZE']['n_trials'], timeout=config['OPTUNA']['OPTIMIZE']['timeout'] )
-            print('best trial:', study.best_trial.params)
+            plModule = ImageDiffusionModule.load_from_checkpoint(checkpoint)
+
+            x_t, hist, y = plModule.model.sampling(1, clipped_reverse_diffusion=False, y=True, device='mps', tqdm_disable=False)
+
+            fig, ax = plt.subplots(1, 1, figsize=(5, 6))
+            ax.imshow(x_t.squeeze().detach().cpu().numpy(), cmap='gray')
+            ax.set_title(f'Sample from model, with label y={y.item()}')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            plt.show()
+
+
         else:
             raise NotImplementedError
-        
-    elif args.model == 'Diffusion':
-        pass
 
-    elif args.model == 'LatentDiffusion':
+    elif args.model == 'latentDiffusion':
         
-
-        pass
+        from modules.latentDiffusion import LatentDiffusionModel
+        if args.mode == 'train':
+            from scripts.latentDiffusion.train_LatentDiffusion import train as train_LatentDiffusion
+            train_LatentDiffusion()
+        
+        elif args.mode == 'inference':
+            print('Inference')
+            pass
 
 
     else:

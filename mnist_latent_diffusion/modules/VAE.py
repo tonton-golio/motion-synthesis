@@ -5,32 +5,7 @@ import torchvision
 from modules.metrics import obtain_metrics
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-import umap
-
-
-
-def plotUMAP(latent, labels, latent_dim, KL_weight,  save_path, show=False, max_points=40000):
-
-    if latent.shape[0] > max_points:
-        idx = torch.randperm(latent.shape[0])[:max_points]
-        latent = latent[idx]
-        labels = labels[idx]
-    
-    reducer = umap.UMAP()
-    projection = reducer.fit_transform(latent.cpu().detach().numpy())
-
-    fig = plt.figure()
-    plt.scatter(projection[:, 0], projection[:, 1], c=labels.cpu().numpy(), cmap='tab10', alpha=0.5, s=4)
-    plt.colorbar()
-    plt.title(f'UMAP projection of latent space (LD={latent_dim}, KL={"{:.2e}".format(KL_weight)})')
-    
-    if save_path is not None:
-        plt.savefig(f'{save_path}/projection_LD{latent_dim}_KL{"{:.2e}".format(KL_weight)}.png')
-    
-        return projection, reducer
-    elif show:
-        plt.show()
-    return fig
+from utils import plotUMAP
 
 
 activation_dict = {

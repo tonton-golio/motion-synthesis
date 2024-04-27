@@ -1,27 +1,27 @@
 # Description: Configuration file for the project
 BASE:
   DATA:
-    BATCH_SIZE: 256
+    BATCH_SIZE: 1024
     ROTAION: 0
     SCALE: .0
     TRANSLATE_X: 0.0
     TRANSLATE_Y: 0.0
     SHEAR: 0.0
-    NORM_MEAN: 0.5
-    NORM_STD: 1
+    NORMALIZE_MEAN: 0.5
+    NORMALIZE_STD: 1
     BOOL: False
-    NO_NORMALIZE: True
+    NO_NORMALIZE: False
   MODEL:
     ACTIVATION: swish
     OUT_ACTIVATION: None
-    LEARNING_RATE: 0.005
+    LEARNING_RATE: 0.001
     USE_LABEL_FOR_DECODER: False
     MUL_KL_PER_EPOCH: 1
     LATENT_DROP_OUT_RATE: 0.0
     DROPOUT: 0.1
   LOSS:
     RECONSTRUCTION_L2: 1.
-    DIVERGENCE_KL: 0.000_0000001
+    DIVERGENCE_KL: 0.000_0001
 
 BUILD:
   DATA:
@@ -41,16 +41,16 @@ BUILD:
 
 TRAIN:
   TRAINER:
-    max_epochs: 60
+    max_epochs: 10
     log_every_n_steps: 40
     # CONTINUE_TRAINING: False
 
 OPTUNA:
   # vary: KL loss weight, latent dropout rate
   TRAINER:
-    max_epochs: 20
+    max_epochs: 5
     log_every_n_steps: 100
     fast_dev_run: False
   OPTIMIZE:
-    n_trials: 100
-    timeout: 600
+    n_trials: 3
+    timeout: 240

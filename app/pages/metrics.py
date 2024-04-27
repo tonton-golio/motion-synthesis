@@ -2,7 +2,7 @@
 import sys
 sys.path.append('..')
 import streamlit as st
-from mnist_latent_diffusion.modules.data_modules import MNISTDataModule
+from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 import numpy as np
 import matplotlib.pyplot as plt
 from torcheval.metrics import FrechetInceptionDistance as FID

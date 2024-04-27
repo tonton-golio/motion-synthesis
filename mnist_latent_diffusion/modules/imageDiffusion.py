@@ -9,6 +9,14 @@ import torchvision
 import matplotlib.pyplot as plt
 # from torcheval.metrics import FrechetInceptionDistance as FID
 
+# implement tghe following:
+
+def get_index_from_list(vals, t, x_shape):
+    batch_size = t.shape[0]
+    out = vals.gather(-1, t)
+    return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
+
+
 from torch import Tensor
 def _calculate_frechet_distance(
         mu1: Tensor,
@@ -395,7 +403,7 @@ class ImageDiffusion(nn.Module):
 
         for i in tqdm(range(self.timesteps-1,-1,-1),desc="Sampling", disable=tqdm_disable):
             noise=torch.randn_like(x_t).to(device)
-            t=torch.tensor([i for _ in range(n_samples)], device=device, dtype=torch.int32)
+            t=torch.tensor([i for _ in range(n_samples)], device=device, dtype=torch.int64)
 
             if clipped_reverse_diffusion:
                 x_t=self._reverse_diffusion_with_clip(x_t, y, t, noise)

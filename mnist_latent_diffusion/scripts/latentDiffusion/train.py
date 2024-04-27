@@ -1,5 +1,6 @@
-from LatentDiffusion.dataset import LatentSpaceDataModule
-from modules.LatentDiffusion_model import LatentDiffusionModel
+
+from modules.dataModules import LatentSpaceDataModule
+from modules.latentDiffusion import LatentDiffusionModel
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 import shutil
@@ -9,6 +10,8 @@ import yaml
 from modules.loss import VAE_Loss
 import torch.nn as nn
 import torch.optim as optim
+
+
 class Classifier(nn.Module):
         def __init__(self):
             super(Classifier, self).__init__()
@@ -44,8 +47,8 @@ class ClassifierDataset(torch.utils.data.Dataset):
         return self.z[idx], self.y[idx]
     
 
-if __name__ == "__main__":
-    logger = TensorBoardLogger("logs/", name="LatentDiffusion")
+def train():
+    logger = TensorBoardLogger("logs/latentDiffusion/", name="train")
 
     # make logs directory
     if not os.path.exists(logger.log_dir):
@@ -59,7 +62,7 @@ if __name__ == "__main__":
         config = yaml.safe_load(file)
 
     # load latent space
-    path = f"logs/MNIST_VAE/version_{config['DIFFUSE']['DATA']['V']}/saved_latent/"
+    path = f"logs/VAE/train/version_{config['DIFFUSE']['DATA']['V']}/saved_latent/"
     z = torch.load(path + 'z.pt')
     print('z min', z.min(axis=0))
     print('z max', z.max(axis=0))

@@ -1,6 +1,7 @@
-import yaml, os
+import yaml, os, shutil
 import matplotlib.pyplot as plt
 import torch
+
 
 
 def dict_merge(dct, merge_dct):
@@ -29,6 +30,10 @@ def load_config(name):
             cfg[key] = dict_merge(cfg[key], base_cfg)
 
     return cfg
+
+def manual_config_log(log_dir, cp_file='configs/config_VAE.yaml'):
+                if not os.path.exists(log_dir): os.makedirs(log_dir)
+                shutil.copyfile(cp_file, f"{log_dir}/{cp_file.split('/')[-1]}")
     
 
 def print_scientific(x):
