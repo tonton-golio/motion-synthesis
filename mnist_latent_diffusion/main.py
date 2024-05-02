@@ -26,7 +26,7 @@ if __name__ == "__main__":
     if args.model == 'VAE':
         from modules.VAE import VAE2 as VAE
         from modules.loss import VAE_Loss
-        from scripts.VAE.train import train as train_VAE
+        from scripts.VAE.train import train, test
         from scripts.VAE.optuna import optuna_sweep as optuna_VAE
 
         config = load_config('VAE')
@@ -43,7 +43,8 @@ if __name__ == "__main__":
 
         elif args.mode == 'train':
             manual_config_log(logger.log_dir, cp_file='configs/config_VAE.yaml')
-            train_VAE(dm, criteria, config, logger, VAE, save_latent=True)
+            model, trainer = train(dm, criteria, config, logger, VAE)
+            test(dm, trainer, model, logger, config, save_latent=False)
 
         elif args.mode == 'optuna': optuna_VAE(VAE, dm, config)
         
@@ -51,7 +52,10 @@ if __name__ == "__main__":
         from mnist_latent_diffusion.modules.imageDiffusion import ImageDiffusionModule, _calculate_FID_SCORE
         config = load_config('Diffusion')
 
-        if args.mode == 'train':
+        if args.mode == 'build':
+            pass
+
+        elif args.mode == 'train':
             dm = MNISTDataModule(**config[args.mode.upper()]['DATA'], verbose=False)
             dm.setup()
 
@@ -62,9 +66,8 @@ if __name__ == "__main__":
             trainer = pl.Trainer(max_epochs=400,
                                 logger=logger,)
             trainer.fit(plModule, dm)
-        elif args.mode == 'inference':
 
-            
+        elif args.mode == 'inference':
             parent_log_dir = 'logs/imageDiffusion/train/'
             checkpoint = get_ckpt(parent_log_dir)
 

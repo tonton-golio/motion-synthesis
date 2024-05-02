@@ -180,7 +180,7 @@ class Decoder(nn.Module):
 class TransformerMotionAutoencoder(pl.LightningModule):
     def __init__(
         self,
-        config,
+        **config,
     ):
         super(TransformerMotionAutoencoder, self).__init__()
         self.seq_len = config.get("seq_len", 160)

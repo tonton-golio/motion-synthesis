@@ -5,7 +5,7 @@
 #   - Velocity
 #   - Nan and zero values
 # and then trims the data accordingly
-
+import streamlit as st
 import numpy as np
 import os, sys, glob
 import matplotlib.pyplot as plt
@@ -49,19 +49,21 @@ def shape_consistency_check(files, min_frames=10, verbose=True, plot=False, **kw
         else:
             valid_shapes.append(data.shape[0])
 
+
+    fig = None
     if plot:
         # print('Making plot')
-        plt.figure(figsize=(4, 3))
+        fig = plt.figure(figsize=(4, 3))
         plt.hist(valid_shapes, bins=20, edgecolor='black', linewidth=1.2, facecolor='salmon', alpha=0.7)
         plt.title('Distribution of sequence lengths')
         plt.xlabel('Sequence Length')
         plt.ylabel('Frequency')
         plt.yscale('log')
         plt.tight_layout()
-        plt.savefig('assets/sequence_length_distribution.png')
+        # plt.savefig('assets/sequence_length_distribution.png')
 
     
-    return [file.name for file in bad_files]
+    return [file.name for file in bad_files], fig
 
 def check_velocity(data, threshold=0.5, root_idx = 0):
     """Check if the velocity of the root joint exceeds a threshold."""
@@ -90,7 +92,7 @@ def check_velocity_all(files, threshold=.5, root_idx = 0, plot=False, **kwargs):
     for k, v in velocities.items():
         velocities[k] = np.hstack(v, ) if len(v) > 0 else np.array([])
 
-    
+    fig = None
     if plot:
         fig, ax = plt.subplots(1,2, figsize=(8, 3))
         ax[0].hist(velocities['all'], bins=50, edgecolor='black', linewidth=1.2, facecolor='salmon', alpha=0.7)
@@ -105,10 +107,11 @@ def check_velocity_all(files, threshold=.5, root_idx = 0, plot=False, **kwargs):
         fig.suptitle('Velocity of root joint')
 
         plt.tight_layout()
-        plt.savefig('assets/velocity_of_root_joint.png')
+        # plt.savefig('assets/velocity_of_root_joint.png')
 
 
-    return bad_files
+
+    return bad_files, fig
 
 def nan_zero_check(files, verbose=False, plot=True, **kwargs):
     if verbose: print('-----------------------\nChecking for nan and zero values:')
@@ -132,11 +135,11 @@ def nan_zero_check(files, verbose=False, plot=True, **kwargs):
         print('Number of zero values:', zero_count)
         print('Files with nan or zero values:', bad_files)
         print('-----------------------')
-
+    fig = None
     if plot:
         pass
 
-    return bad_files
+    return bad_files, fig
 
 # remove files
 def remove_from_lst(files, bad_files):            
@@ -153,13 +156,13 @@ def remove_from_lst(files, bad_files):
     return files_reduced#, len_before - len_after
 
 def run_check(func, files, plot=False, **kwargs):
-    bad_files = func(files, plot=plot, **kwargs)
+    bad_files, fig = func(files, plot=plot, **kwargs)
     files = remove_from_lst(files, bad_files)
     print('After check:', func.__name__, len(files))
-    return files
+    return files, fig
 
 #  train test val
-def get_train_test_val(base_path = 'HumanML3D/HumanML3D/', suffix = ''):
+def get_train_test_val(base_path = 'stranger_repos/HumanML3D/HumanML3D/', suffix = ''):
     # load text file
     paths = {i : f'{base_path}{i}{suffix}.txt' for i in ['train', 'val', 'test']}
     files_4_selection = {k : np.loadtxt(v, delimiter=',', dtype=str) for k, v in paths.items()}
@@ -189,17 +192,18 @@ def print_summary(files_4_selection, title='Summary'):
     print(text)
     
 if __name__ == '__main__':
-    base_path = 'HumanML3D/HumanML3D/'
+    base_path = '../stranger_repos/HumanML3D/HumanML3D/'
     path = pjoin(base_path,  'new_joints/')
     files = find_files(path, 'npy')
     print('After get filelist: len(files)' , len(files))
     # run checks
     for check in [shape_consistency_check, nan_zero_check, check_velocity_all]:
-        files = run_check(check, files, plot=True, threshold=0.5, root_idx=0)
-
+        files, fig = run_check(check, files, plot=True, threshold=0.5, root_idx=0)
+        if fig is not None:
+            st.pyplot(fig)
     # get train test val
     files = [file_name_change(f, to_short=True) for f in files]
-    files_4_selection = {'raw': get_train_test_val()}
+    files_4_selection = {'raw': get_train_test_val(base_path)}
     files_4_selection['trimmed'] = trim_files_4_selection(files_4_selection['raw'], files)
     print_summary(files_4_selection)
     files_4_selection = files_4_selection['trimmed']

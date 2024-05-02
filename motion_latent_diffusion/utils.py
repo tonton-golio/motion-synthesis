@@ -8,6 +8,59 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import yaml
+import torch.nn as nn
+import glob
+
+activation_dict = {
+    "tanh": nn.Tanh(),
+    "leaky_relu": nn.LeakyReLU(),
+    "relu": nn.ReLU(),
+    "sigmoid": nn.Sigmoid(),
+    "elu": nn.ELU(),
+    "swish": nn.SiLU(),
+    "mish": nn.Mish(),
+    "softplus": nn.Softplus(),
+    "softsign": nn.Softsign(),
+    # 'bent_identity': nn.BentIdentity(),
+    # 'gaussian': nn.Gaussian(),
+    "softmax": nn.Softmax(),
+    "softmin": nn.Softmin(),
+    "softshrink": nn.Softshrink(),
+    # 'sinc': nn.Sinc(),
+}
+
+def get_ckpts(log_dir):
+    folders = glob.glob(f"{log_dir}*") # like: version_0, ...
+    # print(folders)
+    ckpts = {}
+    count = {'success': 0, 'fail': 0}
+    for folder in folders:
+        
+        try:
+            path = glob.glob(f"{folder}/checkpoints/*.ckpt")[0]
+            file = path.split('/')[-1]
+            config = glob.glob(f"{folder}/*.yaml")
+            epoch = int(file.split('-')[0].split('=')[-1])
+            step = int(file.split('=')[2].split('.')[0])
+
+            version = folder.split('/')[-1]
+            version_num = int(version.split('_')[-1])
+            ckpts[version_num] = {
+                'epoch' : epoch,
+                'step' : step,
+                'path' : path,
+                'cfg_path' : config,
+            }
+            count['success'] += 1
+        except:
+            count['fail'] += 1
+            # print(f"Failed to get checkpoint for {folder}")
+    # print(count)
+
+    # ckpts['latest'] = ckpts[max(ckpts.keys(), key=lambda x: int(x.split('_')[-1]))
+    
+
+    return ckpts
 
 def load_config(name):
     with open(f'configs/config_{name}.yaml', 'r') as file:

@@ -5,25 +5,7 @@ import torchvision
 from modules.metrics import obtain_metrics
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from utils import plotUMAP
-
-
-activation_dict = {
-    # soft step
-    'tanh': nn.Tanh(),
-    'sigmoid': nn.Sigmoid(),
-    'softsign': nn.Softsign(),
-
-    # rectifiers
-    'leaky_relu': nn.LeakyReLU(),
-    'ReLU': nn.ReLU(),
-    'elu': nn.ELU(),
-    'swish': nn.SiLU(),
-
-    # identity
-    'None': nn.Identity(),
-    None: nn.Identity(),
-}
+from utils import plotUMAP, activation_dict
 
 class ConvLayer(nn.Module):
     def __init__(self, in_channels, out_channels, **kwargs):
@@ -34,11 +16,18 @@ class ConvLayer(nn.Module):
         padding = kwargs.get('padding', 1)
         batch_norm = kwargs.get('batch_norm', True)
         pool = kwargs.get('pool', True)
+        self.pool_method = kwargs.get('pool_method', 'max')
     
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
         self.bn = nn.BatchNorm2d(out_channels) if batch_norm else nn.Identity()
         self.act = kwargs.get('act', nn.ReLU())
-        self.pool = nn.MaxPool2d(2, 2) if pool else nn.Identity()
+        if pool:
+            if self.pool_method == 'avg':
+                self.pool = nn.AvgPool2d(2, 2)
+            else:
+                self.pool = nn.MaxPool2d(2, 2)
+        else:
+            self.pool = nn.Identity()
         self.dropout = kwargs.get('dropout', 0.)
         
     def forward(self, x):
@@ -204,64 +193,66 @@ class VAE_cnn(pl.LightningModule):
         self.act = kwargs.get('act', nn.ReLU())
         self.out_act = kwargs.get('out_act', nn.Identity())
         self.latent_drop_out_rate = kwargs.get('latent_drop_out_rate', 0.25)
+        self.latent_dim = kwargs.get('latent_dim', 16)
         self.dropout = kwargs.get('dropout', 0.0)
 
         # self.batch_norm = nn.BatchNorm2d(1)
 
         self.encoder_conv_block = nn.Sequential(
-            ConvLayer(1, 32, dropout=self.dropout, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
-            ConvLayer(32, 64, dropout=self.dropout, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
-            ConvLayer(64, 32, dropout=self.dropout, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
-            ConvLayer(32, 16, dropout=self.dropout, batch_norm=True, act=self.act, pool=True, verbose=self.verbose)
+            ConvLayer(1, 8, dropout=self.dropout, batch_norm=True, act=self.act, pool=True, verbose=self.verbose),
+            ConvLayer(8, 32, dropout=self.dropout, batch_norm=False, act=self.act, pool=True, verbose=self.verbose),
+            ConvLayer(32, 64, dropout=self.dropout, batch_norm=False, act=self.act, pool=True, verbose=self.verbose, pool_method='avg'),   
         )
 
         self.encoder_linear_block = nn.Sequential(
             # flatten
             nn.Flatten(),
+            LinearLayer(64*4*4, 512, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(512, 256, dropout=self.dropout, act=self.act, verbose=self.verbose),
             LinearLayer(256, 128, dropout=self.dropout, act=self.act, verbose=self.verbose),
-            LinearLayer(128, 64, dropout=self.dropout, act=self.act, verbose=self.verbose),
-            LinearLayer(64, 32, dropout=self.dropout, act=nn.Identity(), verbose=self.verbose)
+            LinearLayer(128, 2*self.latent_dim, dropout=self.dropout, act=nn.Identity(), verbose=self.verbose)
         )
 
         # we could look at the latent covariance matrix as a function of the dropout rate
         self.latent_dropouts = [
                 nn.Dropout(self.latent_drop_out_rate),
-                nn.Dropout(self.latent_drop_out_rate/2),
-                nn.Dropout(0),
+                # nn.Dropout(self.latent_drop_out_rate/2),
+                # nn.Dropout(0),
         ]  
 
         # decoder
         self.decoder_linear_block = nn.Sequential(
-            LinearLayer(16, 32, dropout=self.dropout, act=self.act, verbose=self.verbose),
-            LinearLayer(32, 64, dropout=self.dropout, act=self.act, verbose=self.verbose),
-            LinearLayer(64, 128, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(self.latent_dim, 128, dropout=self.dropout, act=self.act, verbose=self.verbose),
             LinearLayer(128, 256, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(256, 512, dropout=self.dropout, act=self.act, verbose=self.verbose),
+            LinearLayer(512, 20*7*7, dropout=self.dropout, act=self.act, verbose=self.verbose),
         )
 
         self.decoder_conv_block = nn.Sequential(
             # unflatten
-            nn.Unflatten(1, (16, 4, 4)),
-            ConvTransposeLayer(16, 32, kernel_size=3, stride=1, dropout=self.dropout, batch_norm=True, act=self.act, out_padding=0, verbose=self.verbose),
-            ConvTransposeLayer(32, 16, kernel_size=3, stride=2, dropout=self.dropout, batch_norm=True, act=self.act, verbose=self.verbose),
-            ConvTransposeLayer(16, 2, kernel_size=3, dropout=self.dropout, batch_norm=True, act=self.act, verbose=self.verbose, out_padding=1),           
+            nn.Unflatten(1, (20, 7, 7)),
+            ConvTransposeLayer(20, 16, kernel_size=3, stride=2, dropout=self.dropout, batch_norm=True, act=self.act, out_padding=1, verbose=self.verbose, padding=1),
+            ConvTransposeLayer(16, 4, kernel_size=3, stride=2,  dropout=self.dropout, batch_norm=True, act=nn.Identity(), verbose=self.verbose, out_padding=1, padding=1),           
         )
 
         self.out_block_kernel3 = nn.Sequential(
-            ConvLayer(2, 2, kernel_size=3, dropout=self.dropout, batch_norm=True, act=self.act, pool=False, verbose=self.verbose),
+            ConvLayer(4, 4, kernel_size=3, dropout=self.dropout, batch_norm=True, act=nn.Identity(), pool=False, verbose=self.verbose),
         )
 
         self.out_block_kernel5 = nn.Sequential(
-            ConvLayer(2, 2,kernel_size=5, dropout=self.dropout, batch_norm=True, act=self.act, pool=False, verbose=self.verbose, padding=2),
+            ConvLayer(4, 4,kernel_size=5, dropout=self.dropout, batch_norm=True, act=nn.Identity(), pool=False, verbose=self.verbose, padding=2),
         )
 
         self.out_block_kernel7 = nn.Sequential(
-            ConvLayer(2, 2, kernel_size=7, dropout=self.dropout, batch_norm=True, act=self.act, pool=False, verbose=self.verbose, padding=3),
+            ConvLayer(4, 4, kernel_size=7, dropout=self.dropout, batch_norm=True, act=nn.Identity(), pool=False, verbose=self.verbose, padding=3),
         )
 
         self.linear_final_out = nn.Sequential(
-             LinearLayer(8, 4, dropout=self.dropout, act=self.act, verbose=self.verbose),
-                LinearLayer(4, 2, dropout=self.dropout, act=self.act, verbose=self.verbose),
-                LinearLayer(2, 1, dropout=self.dropout, act=self.out_act, verbose=self.verbose),
+             LinearLayer(16+self.latent_dim, 32, dropout=self.dropout, act=self.act, verbose=self.verbose),
+                LinearLayer(32, 16, dropout=self.dropout, act=self.act, verbose=self.verbose),
+                LinearLayer(16, 8, dropout=self.dropout, act=self.act, verbose=self.verbose),
+                LinearLayer(8, 4, dropout=self.dropout, act=self.act, verbose=self.verbose),
+                LinearLayer(4, 1, dropout=self.dropout, act=self.out_act, verbose=self.verbose),
         )
 
         # initialize weights as xavier
@@ -285,7 +276,6 @@ class VAE_cnn(pl.LightningModule):
         x = F.pad(x, (2, 2, 2, 2), mode='constant', value=0)
 
         x = self.encoder_conv_block(x)
-        
         x = self.encoder_linear_block(x)
         mu, logvar = x.chunk(2, dim=-1)
         return mu, logvar
@@ -296,13 +286,16 @@ class VAE_cnn(pl.LightningModule):
         return eps.mul(std).add_(mu)
     
     def decode(self, z):
-        x = self.decoder_linear_block(z)
+        x = self.decoder_linear_block(z)  # this output a linear layer which we will concatenate later
+        
         out1 = self.decoder_conv_block(x)
         out_block_kernel3 = self.out_block_kernel3(out1)
         out_block_kernel5 = self.out_block_kernel5(out1)
         out_block_kernel7 = self.out_block_kernel7(out1)
         x = torch.cat([out1, out_block_kernel3, out_block_kernel5, out_block_kernel7], dim=1)
         x = x.permute(0, 2, 3, 1).contiguous()
+        z =  z[:, None, None, :].repeat(1, 28, 28, 1)
+        x = torch.cat([x,z], dim=-1)
         x = self.linear_final_out(x)
         x = x.permute(0, 3, 1, 2).contiguous()
         return x
@@ -321,7 +314,6 @@ class VAE_cnn(pl.LightningModule):
         x_tilde = self.decode(z)
         return x_tilde, z,  mu, logvar
 
-
 class VAE2(pl.LightningModule):
     def __init__(self,criterion, **kwargs):
         
@@ -332,22 +324,27 @@ class VAE2(pl.LightningModule):
         self.verbose = kwargs.get('verbose', False)
         self.latent_drop_out_rate = kwargs.get('LATENT_DROP_OUT_RATE', 0.25)
         self.dropout = kwargs.get('DROPOUT', 0.0)
-        self.model = VAE_cnn(verbose=self.verbose, act=self.act_func, out_act=self.out_act_func, latent_drop_out_rate=self.latent_drop_out_rate, dropout=self.dropout)
+        self.latent_dim = kwargs.get('LATENT_DIM', 16)
+
+
+        self.model = VAE_cnn(verbose=self.verbose, act=self.act_func, out_act=self.out_act_func, latent_drop_out_rate=self.latent_drop_out_rate, dropout=self.dropout, latent_dim=self.latent_dim)
 
         self.lr = kwargs.get("LEARNING_RATE", 1e-3)
         self.criterion = criterion
         self.mul_KL_per_epoch = kwargs.get("MUL_KL_PER_EPOCH", 1)
 
         self.validation_step_outputs = {'x_hat' : [], 'z' : [], 'y' : []}
-        self.train_step_outputs = {'x_hat' : [], 'z' : [], 'y' : []}
 
         self.test_step_outputs = []
         self.test_latents = []
         self.test_labels = []
 
-        self.enable_UMAP = kwargs.get('ENABLE_UMAP', False)
+        self.umap_freq = kwargs.get('UMAP_FREQ', 1)
+        self.recon_freq = kwargs.get('RECON_FREQ', 1)
+        self.cov_freq = kwargs.get('COV_FREQ', 1)
 
-    
+        # self.save_hyperparameters(ignore=['criterion', 'verbose', 'ENABLE_UMAP', ])
+
     def forward(self, x):
         return self.model(x)
     
@@ -382,97 +379,72 @@ class VAE2(pl.LightningModule):
         #self.log_dict(res['losses_scaled'], prog_bar=True)
         self.log_dict(res['losses_unscaled'], prog_bar=True)
 
-        if batch_idx <10:
-            self.train_step_outputs['x_hat'].append(res['x_hat'])
-            self.train_step_outputs['z'].append(res['z'])
-            self.train_step_outputs['y'].append(res['y'])
-
         return res['loss']
     
     def on_train_epoch_end(self):
-        # show images at the end of the epoch
-        recs = torch.cat(self.train_step_outputs['x_hat'], dim=0)[:32]
-        grid = torchvision.utils.make_grid(recs, nrow=8, normalize=True)
-        self.logger.experiment.add_image('reconstruction_train', grid, self.current_epoch)
-        self.train_step_outputs['x_hat'] = []
+        pass
+        
+    def validation_step(self, batch, batch_idx):
+        res = self._common_step(batch, 'val')
+        self.log('val_loss', res['loss'])
+        # self.log_dict(res['losses_scaled'], prog_bar=True)
+        # self.log_dict(res['losses_unscaled'], prog_bar=False)
 
-        z = torch.cat(self.train_step_outputs['z'], dim=0).view(-1, 16)
-        # self.logger.experiment.add_histogram('z', z, self.current_epoch)
-        y = torch.cat(self.train_step_outputs['y'], dim=0)
-        if self.enable_UMAP:
-            fig = plotUMAP(z, y, latent_dim=16, 
+        self.validation_step_outputs['x_hat'].append(res['x_hat'])
+        self.validation_step_outputs['z'].append(res['z'])
+        self.validation_step_outputs['y'].append(res['y'])
+
+    def reconstruction_plot_log(self, stage='val'):
+        if stage=='val':
+            recs = torch.cat(self.validation_step_outputs['x_hat'], dim=0)[:32]
+            grid = torchvision.utils.make_grid(recs, nrow=8, normalize=True)
+            self.logger.experiment.add_image('reconstruction_val', grid, self.current_epoch)
+
+    def umap_plot_log(self, stage='val'):
+        if stage=='val':
+            z = torch.cat(self.validation_step_outputs['z'], dim=0).view(-1, self.latent_dim)
+            y = torch.cat(self.validation_step_outputs['y'], dim=0)
+            fig = plotUMAP(z, y, latent_dim=self.latent_dim , 
                         KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
                         save_path=None, show=False, max_points=10000)
             self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)
             plt.close(fig)
 
-        # make covariance matrix of latent space and plot
-        cov = torch.cov(z.T)
-        cov_fig = plt.figure()
-        plt.imshow(cov.cpu().detach().numpy())
-        plt.colorbar()
-        plt.title('Covariance matrix of latent space')
-        self.logger.experiment.add_figure('Covariance matrix', cov_fig, self.current_epoch)
+    def covariance_plot_log(self, stage='val'):
+        if stage=='val':
+            z = torch.cat(self.validation_step_outputs['z'], dim=0).view(-1, 16)
+            cov = torch.cov(z.T)
+            cov_fig = plt.figure()
+            plt.imshow(cov.cpu().detach().numpy())
+            plt.colorbar()
+            plt.title('Covariance matrix of latent space')
+            self.logger.experiment.add_figure('Covariance matrix', cov_fig, self.current_epoch)
+            plt.close(cov_fig)
 
-        self.train_step_outputs['y'] = []
-        self.train_step_outputs['z'] = []
 
-        # increase KL
-        
-    def validation_step(self, batch, batch_idx):
-        res = self._common_step(batch, 'val')
-        self.log('val_loss', res['loss'])
-        #self.log_dict(res['losses_scaled'], prog_bar=True)
-        self.log_dict(res['losses_unscaled'], prog_bar=False)
-        self.validation_step_outputs['x_hat'].append(res['x_hat'])
-        self.validation_step_outputs['z'].append(res['z'])
-        self.validation_step_outputs['y'].append(res['y'])
+    def clear_buffer(self):
+        self.validation_step_outputs['x_hat'] = []
+        self.validation_step_outputs['z'] = []
+        self.validation_step_outputs['y'] = []
 
     def on_validation_epoch_end(self):
         # show images at the end of the epoch
-        
-        recs = torch.cat(self.validation_step_outputs['x_hat'], dim=0)[:32]
-        grid = torchvision.utils.make_grid(recs, nrow=8, normalize=True)
-        self.logger.experiment.add_image('reconstruction_val', grid, self.current_epoch)
-        self.validation_step_outputs['x_hat'] = []
-
-        z = torch.cat(self.validation_step_outputs['z'], dim=0).view(-1, 16)
-        # self.logger.experiment.add_histogram('z', z, self.current_epoch)
-        y = torch.cat(self.validation_step_outputs['y'], dim=0)
-        if self.enable_UMAP:
-            # print('z shape:', z.shape, 'y shape:', y.shape)
-            fig = plotUMAP(z, y, latent_dim=16, 
-                        KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
-                            save_path=None, show=False, max_points=10000)
-            self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)
-            plt.close(fig)
-
-        # make covariance matrix of latent space and plot
-        cov = torch.cov(z.T)
-        cov_fig = plt.figure()
-        plt.imshow(cov.cpu().detach().numpy())
-        plt.colorbar()
-        plt.title('Covariance matrix of latent space')
-        self.logger.experiment.add_figure('Covariance matrix', cov_fig, self.current_epoch)
-
-        
-        self.validation_step_outputs['y'] = []
-        self.validation_step_outputs['z'] = []
+        if (self.recon_freq != -1) and (self.current_epoch % self.recon_freq == 0):
+            self.reconstruction_plot_log(stage='val')
+        if (self.cov_freq != -1) and (self.current_epoch % self.cov_freq == 0):
+            self.covariance_plot_log(stage='val')
+        if (self.umap_freq != -1) and (self.current_epoch % self.umap_freq == 0):
+            self.umap_plot_log(stage='val')
+        self.clear_buffer()
 
         # increase KL
-        self.criterion.loss_weights['DIVERGENCE_KL'] *= self.mul_KL_per_epoch
+        # self.criterion.loss_weights['DIVERGENCE_KL'] *= self.mul_KL_per_epoch
 
     def test_step(self, batch, batch_idx):
         res = self._common_step(batch, 'test')
-        self.log('test_loss', res['loss'])
-        #self.log_dict(res['losses_scaled'], prog_bar=True)
-        self.log_dict(res['losses_unscaled'], prog_bar=False)
         self.test_step_outputs.append(res['losses_unscaled']['test_unscaled_RECONSTRUCTION_L2'])
-
-        latents = res['z']
-        labels = res['y']
-        self.test_latents.append(latents)
-        self.test_labels.append(labels)
+        self.test_latents.append(res['z'])
+        self.test_labels.append(res['y'])
 
     def on_test_epoch_end(self):
         # run metrics on test latents

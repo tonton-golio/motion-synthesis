@@ -1,36 +1,40 @@
 # Description: Configuration file for the project
 BASE:
   DATA:
-    BATCH_SIZE: 1024
-    ROTAION: 0
-    SCALE: .0
-    TRANSLATE_X: 0.0
-    TRANSLATE_Y: 0.0
-    SHEAR: 0.0
-    NORMALIZE_MEAN: 0.5
-    NORMALIZE_STD: 1
-    BOOL: False
+    BATCH_SIZE: 512
+    ROTAION: 30
+    SCALE: .4
+    TRANSLATE_X: 0.1
+    TRANSLATE_Y: 0.1
+    SHEAR: 0.1
+    NORMALIZE_MEAN: 0.0
+    NORMALIZE_STD: 1.0
+    BOOL: false
     NO_NORMALIZE: False
   MODEL:
-    ACTIVATION: swish
-    OUT_ACTIVATION: None
-    LEARNING_RATE: 0.001
-    USE_LABEL_FOR_DECODER: False
-    MUL_KL_PER_EPOCH: 1
-    LATENT_DROP_OUT_RATE: 0.0
-    DROPOUT: 0.1
+    ACTIVATION: leaky_relu
+    OUT_ACTIVATION: sigmoid
+    LEARNING_RATE: 0.0005
+    LATENT_DIM: 64
+    # MUL_KL_PER_EPOCH: 1
+    LATENT_DROP_OUT_RATE: 0.5
+    DROPOUT: 0.3
+    UMAP_FREQ: 50  # if -1 disable
+    RECON_FREQ: 10  # if -1 disable
+    COV_FREQ: 50  # if -1 disable
   LOSS:
     RECONSTRUCTION_L2: 1.
-    DIVERGENCE_KL: 0.000_0001
+    DIVERGENCE_KL: 0.000_000_01
 
 BUILD:
   DATA:
-    BATCH_SIZE: 1
+    BATCH_SIZE: 4
     SHUFFLE: false
   MODEL:
     ENABLE_UMAP: False
+    verbose: true  
   TRAINER:
-    max_epochs: 600
+    max_epochs: 1
     log_every_n_steps: 40
     overfit_batches: 1
     check_val_every_n_epoch: 100
@@ -41,8 +45,8 @@ BUILD:
 
 TRAIN:
   TRAINER:
-    max_epochs: 10
-    log_every_n_steps: 40
+    max_epochs: 1000
+    log_every_n_steps: 100
     # CONTINUE_TRAINING: False
 
 OPTUNA:

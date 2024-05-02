@@ -29,7 +29,7 @@ class MotionDataset(Dataset):
         # self.enc = tiktoken.encoding_for_model("gpt-4")
         # self.max_text_len = 100
 
-        self.path_text_enc = "data/HumanML3D/HumanML3D/texts_enc/simple/"
+        self.path_text_enc = "../stranger_repos/HumanML3D/HumanML3D/texts_enc/simple/"
         self.idx2word = np.load(f"{self.path_text_enc}idx2word.npz", allow_pickle=True)[ "arr_0"]
         self.word2idx = np.load(f"{self.path_text_enc}word2idx.npz", allow_pickle=True)["arr_0"]
 

@@ -1,8 +1,27 @@
 import yaml, os, shutil
 import matplotlib.pyplot as plt
+import torch.nn as nn
 import torch
 
-def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/'):
+
+activation_dict = {
+    # soft step
+    'tanh': nn.Tanh(),
+    'sigmoid': nn.Sigmoid(),
+    'softsign': nn.Softsign(),
+
+    # rectifiers
+    'leaky_relu': nn.LeakyReLU(),
+    'ReLU': nn.ReLU(),
+    'elu': nn.ELU(),
+    'swish': nn.SiLU(),
+
+    # identity
+    'None': nn.Identity(),
+    None: nn.Identity(),
+}
+
+def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/', config_name='config_VAE.yaml', return_all=False):
     # find available checkpoints
     
     checkpoints = {}
@@ -10,10 +29,20 @@ def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/'):
         for file in files:
             if file.endswith(".ckpt"):
                 cp_name = file.split('_')[0]
+                version_num = root.split('/')[-2].split('_')[-1]
 
-                checkpoints[cp_name] = os.path.join(root, file)
+                ckpt_path = os.path.join(root, file)
+                config_path = os.path.join('/'.join(root.split('/')[:-1]), config_name)
+
+                checkpoints[version_num] = {
+                    'ckpt_path': ckpt_path,
+                    'config_path': config_path
+                }
+                
 
     print(checkpoints)
+    if return_all:
+        return checkpoints
 
     checkpoint = checkpoints[input('Enter checkpoint name: ')]
     return checkpoint
@@ -31,8 +60,12 @@ def dict_merge(dct, merge_dct):
 
 def load_config(name):
     
+    if '.yaml' in name:
+        full_name = name
+    else:
+        full_name = f'configs/config_{name}.yaml'
 
-    with open(f'configs/config_{name}.yaml', 'r') as file:
+    with open(full_name, 'r') as file:
         cfg =  yaml.safe_load(file)
     
     # check if BASE in cfg, if so, append the BASE config to other configs
@@ -53,8 +86,14 @@ def manual_config_log(log_dir, cp_file='configs/config_VAE.yaml'):
 def print_scientific(x):
     return "{:.2e}".format(x)
 
-def plotUMAP(latent, labels, latent_dim, KL_weight,  save_path, show=False):
+def plotUMAP(latent, labels, latent_dim, KL_weight,  save_path, show=False, max_points=5000):
     import umap
+    
+    if latent.shape[0] > max_points:
+        idx = torch.randperm(latent.shape[0])[:max_points]
+        latent = latent[idx]
+        labels = labels[idx]
+
     reducer = umap.UMAP()
     projection = reducer.fit_transform(latent.cpu().detach().numpy())
     

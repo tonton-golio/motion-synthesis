@@ -4,7 +4,7 @@ import torch
 from utils import plotUMAP, prep_save, save_for_diffusion
 
 
-def train(dm , criteria, config, logger, MODEL, save_latent=False):
+def train(dm , criteria, config, logger, MODEL):
     # instantiate model
     model = MODEL(criteria, **config['TRAIN']['MODEL'])
     
@@ -12,10 +12,15 @@ def train(dm , criteria, config, logger, MODEL, save_latent=False):
     trainer = Trainer(logger=logger, **config['TRAIN']['TRAINER'])
     trainer.fit(model, dm)
 
+    return model, trainer
+
+    
+
+def test(dm , trainer, model, logger, config, save_latent=False):
     # test
     trainer.test(model, datamodule=dm)
     res = model.on_test_epoch_end()
-    logger.log_hyperparams(model.hparams, {'unscaled mse test loss' : res[0]} )
+    logger.log_hyperparams(model.hparams, {'MSE (test, unscaled)' : res[0]} )
 
     # save_latent
     if save_latent:
