@@ -56,12 +56,13 @@ def train(model_name='VAE1'):
         devices=cfg['TRAINING']['devices'],
         precision=cfg['TRAINING']['precision'],
         fast_dev_run=cfg['TRAINING']['fast_dev_run'],
+        enable_checkpointing=False,
         # log_every_n_steps = 60,
     )
     epochs_trained = trainer.callback_metrics.get("epoch", 0)
     trainer.fit(model, datamodule)
     res = trainer.test(model, datamodule)
-    logger.log_hyperparams(model.hparams, {"final test": res[0]})
+    # logger.log_hyperparams(model.hparams, {"final test": res[0]})
     import yaml
 
     # cfg.MODEL.metrics = res[0]

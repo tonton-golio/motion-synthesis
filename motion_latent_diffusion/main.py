@@ -18,5 +18,5 @@ if __name__ == "__main__":
         from scripts.VAE_train import train
         train(model_name='VAE4')
 
-    elif args.model == 'imageDiffusion':
+    elif args.model == 'LD':
         pass

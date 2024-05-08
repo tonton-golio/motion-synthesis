@@ -4,6 +4,18 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import tiktoken
 import torch
+import pytorch_lightning as pl
+from torch.utils.data import DataLoader, Dataset
+import numpy as np
+
+
+import pytorch_lightning as pl
+from torch.utils.data import DataLoader, Dataset
+import numpy as np
+import glob
+import torch
+
+
 
 def pad(data, length=420):
     # Use numpy to handle padding and truncating efficiently
@@ -124,13 +136,6 @@ class MotionDataModule1(pl.LightningDataModule):
 
 
 
-import pytorch_lightning as pl
-from torch.utils.data import DataLoader, Dataset
-import numpy as np
-import glob
-import torch
-
-
 # DATASETS
 class HumanML3D(Dataset):
     def __init__(self, t, max_text_len=100):
@@ -227,9 +232,6 @@ class MotionDataModule2(pl.LightningDataModule):
 
 
 # POSE
-import pytorch_lightning as pl
-from torch.utils.data import DataLoader, Dataset
-import numpy as np
 
 # DATASETS
 class PoseDataset(Dataset):
