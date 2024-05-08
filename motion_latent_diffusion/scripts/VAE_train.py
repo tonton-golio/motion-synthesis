@@ -23,6 +23,10 @@ def model_selector(model_name='VAE1'):
         from modules.motion_VAE_4 import TransformerMotionVAE as VAE
         config = load_config('motion_VAE4')
         from modules.data_modules import MotionDataModule1 as DM
+    elif model_name == 'VAE5':
+        from modules.motion_VAE_5 import TransformerMotionVAE as VAE
+        config = load_config('motion_VAE5')
+        from modules.data_modules import MotionDataModule1 as DM
 
     return config, VAE, DM
 

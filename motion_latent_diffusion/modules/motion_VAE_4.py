@@ -17,7 +17,8 @@ import numpy as np
 from modules.loss import VAE_Loss
 
 from torch import Tensor
-from typing import List
+from typing import List, Optional
+import copy
 
 def lengths_to_mask(lengths: List[int],
                     device: torch.device,
@@ -57,8 +58,6 @@ class PositionalEncoding(nn.Module):
             x = x + self.pe[: x.shape[0], :]
         return self.dropout(x)
 
-from typing import List, Optional
-import copy
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])

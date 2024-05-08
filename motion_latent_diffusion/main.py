@@ -16,7 +16,7 @@ if __name__ == "__main__":
     
     if args.model == 'VAE':
         from scripts.VAE_train import train
-        train(model_name='VAE4')
+        train(model_name='VAE5')
 
     elif args.model == 'LD':
         pass
