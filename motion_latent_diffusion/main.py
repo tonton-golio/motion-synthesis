@@ -15,6 +15,9 @@ if __name__ == "__main__":
 
     
     if args.model == 'VAE':
+        if args.mode == 'train':
+            from scripts.VAE_train import train
+            train(model_name='VAE5')
         from scripts.VAE_train import train
         train(model_name='VAE5')
 

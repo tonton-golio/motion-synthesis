@@ -39,7 +39,6 @@ def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/', config_name='config_
                     'config_path': config_path
                 }
                 
-
     print(checkpoints)
     if return_all:
         return checkpoints

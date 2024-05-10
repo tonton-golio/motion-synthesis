@@ -26,8 +26,8 @@ def lengths_to_mask(lengths: List[int],
     """
     Provides a mask, of length max_len or the longest element in lengths. With True for the elements less than the length for each length in lengths.
     """
-    lengths = torch.tensor(lengths, device=device)
-    max_len = max_len if max_len else max(lengths)
+    # lengths = torch.tensor(lengths, device=device)
+    max_len = max_len if max_len else lengths.max()
     mask = torch.arange(max_len, device=device).expand(len(lengths), max_len) < lengths.unsqueeze(1)
     return mask
 
@@ -93,17 +93,18 @@ class CascadingTransformerAutoEncoder(nn.Module):
         self.latent_dim = d_model # 256
         self.seq_len = seq_len
         self.verbose = verbose
-        self.conv1_out_channels = 8
+        self.conv1_out_channels = 32
+        self.activation = nn.LeakyReLU()
         
         # ENCODER
         self.skel_enc = nn.Linear(66, d_model)
     
         self.skip_trans_enc = SkipTransformerEncoder(
             encoder_layer= nn.TransformerEncoderLayer(
-                d_model=256, nhead=8, dim_feedforward=1024, 
-                dropout=0.1, activation='relu', 
+                d_model=256, nhead=64, dim_feedforward=1024, 
+                dropout=0.1, activation='gelu', 
                 norm_first=False, batch_first=True),
-            num_layers=3,
+            num_layers=7,
             norm=nn.LayerNorm(256),
             d_model=256
         )
@@ -111,76 +112,72 @@ class CascadingTransformerAutoEncoder(nn.Module):
         self.conv2d_enc = nn.Conv2d(
                             in_channels=1,
                             out_channels=self.conv1_out_channels,
-                            kernel_size=(3, 256),
-                            stride=(2, 1),
+                            kernel_size=(8, 256),
+                            stride=(6, 1),
                             padding=(0, 0))
         
-        self.skip_trans_enc2 = SkipTransformerEncoder(
-            encoder_layer= nn.TransformerEncoderLayer(
-                d_model=self.conv1_out_channels, nhead=8, dim_feedforward=64,
-                dropout=0.1, activation='relu',
-                norm_first=False, batch_first=True),
-            num_layers=3,
-            norm=nn.LayerNorm(self.conv1_out_channels),
-            d_model=self.conv1_out_channels
+        self.enc_final_linear = nn.Sequential(
+            nn.Linear(2208, 512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 512),
+        )
+        # DECODER
+        self.linear_dec = nn.Sequential(
+            nn.Linear(256, 512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 1024),
+            nn.LeakyReLU(),
+            nn.Linear(1024, 2208),
+            nn.LeakyReLU(),
         )
 
-        self.conv2d_enc2 = nn.Conv2d(
-                            in_channels=1,
-                            out_channels=1,
-                            kernel_size=(4, 1),
-                            stride=(3, 1),
-                            padding=(0, 0))
-        
-        # DECODER
         self.transconv2d_dec = nn.ConvTranspose2d(
                             in_channels=1,
-                            out_channels=8,
-                            kernel_size=(4, 1),
-                            stride=(3, 2),
-                            padding=(0, 0), 
-                            output_padding=(1, 1))
-        
-        self.skip_trans_dec = SkipTransformerEncoder(
-            encoder_layer= nn.TransformerEncoderLayer(
-                d_model=64, nhead=4, dim_feedforward=256,
-                dropout=dropout, activation=activation,
-                norm_first=False, batch_first=True),
-            num_layers=3,
-            norm=nn.LayerNorm(64),
-            d_model=64
-        )
+                            out_channels=7,
+                            kernel_size=8,
+                            stride=(6,1),
+                            padding=(0,0), 
+                            output_padding=(4,0))
 
-        self.transconv2d_dec2 = nn.ConvTranspose2d(
-                            in_channels=1,
-                            out_channels=1,
-                            kernel_size=(3, 64),
-                            stride=(2, 3),
-                            padding=(0, 0), 
-                            output_padding=(1, 2))
-        
+        self.linear_dec2 = nn.Sequential(
+            nn.Linear(273, 256),
+            nn.LeakyReLU(),
+            nn.Linear(256, 256),
+            nn.LeakyReLU(),
+            nn.Linear(256, 256),
+        )
+        #nn.Linear(220, 256)
+
         self.skip_trans_dec2 = SkipTransformerEncoder(
             encoder_layer= nn.TransformerEncoderLayer(
-                d_model=255, nhead=15, dim_feedforward=1024,
-                dropout=0.1, activation='relu',
+                d_model=256, nhead=64, dim_feedforward=1024,
+                dropout=0.1, activation='gelu',
                 norm_first=False, batch_first=True),
-            num_layers=3,
-            norm=nn.LayerNorm(255),
-            d_model=255
+            num_layers=7,
+            norm=nn.LayerNorm(256),
+            d_model=256
         )
         
-        self.final_layer = nn.Linear(255, 66)
+        self.final_layer = nn.Linear(256, 66)
         
     def forward(self, src: Tensor):
         z, lengths, mu, logvar = self.encode(src)
         # mu, logvar = dist[:1], dist[1:]
         # z = self.reparameterize(mu, logvar)
-        output, mask = self.decode(z, lengths)
-        return output, mu, logvar
+        output = self.decode(z, lengths)
+        return output, mu, logvar, lengths  
 
     def encode(self, src):
         # get lengths
-        lengths = [len(feature) for feature in src]
+        lengths = torch.tensor([len(feature) for feature in src], dtype=torch.float32).to(src.device)
 
 
         if self.verbose: print('ENCODING')
@@ -199,19 +196,18 @@ class CascadingTransformerAutoEncoder(nn.Module):
         # make small with conv2d
         x = x.unsqueeze(1)
         x = self.conv2d_enc(x)
+        x = self.activation(x)
         if self.verbose: print('conv2d:', x.shape)
 
-        # pass through transformerencoder with skip connections
-        x = x.squeeze(-1).permute(0, 2, 1)
-        # x = self.skip_trans_enc2(x)
-        if self.verbose: print('skip trans enc2:', x.shape)
+        # map linear
+        x = torch.flatten(x, start_dim=1)
+        if self.verbose: print('flattened:', x.shape)
 
-        # make small with conv2d
-        x = x.unsqueeze(1)
-        x = self.conv2d_enc2(x).squeeze(1)
-        if self.verbose: print('conv2d2:', x.shape)
+        # map linear
+        x = self.enc_final_linear(x)
+        if self.verbose: print('final linear:', x.shape)
 
-        mu, logvar = x[:, :, :4], x[:, :, 4:]
+        mu, logvar = x[:, :256], x[:, 256:]
         # resample
         std = logvar.exp().pow(0.5)
         dist = torch.distributions.Normal(mu, std)
@@ -227,27 +223,27 @@ class CascadingTransformerAutoEncoder(nn.Module):
         if self.verbose: print('DECODING')
         mask = lengths_to_mask(lengths, z.device, self.seq_len)
         bs, nframes = mask.shape
-        if self.verbose: print('batch size:', bs, 'nframes:', nframes)
+        if self.verbose: print('batch size:', bs, 'nframes:', nframes, 'z shape:', z.shape)
 
+        # map linear
+        z = self.linear_dec(z)
+        if self.verbose: print('linear:', z.shape)
+        z = z.view(bs, 1, 69, 32)
+
+        if self.verbose: print('linear:', z.shape)
         # expand with convtranspose2d
-        if self.verbose: print('transconv2d:', z.shape)
-        z = z.unsqueeze(1)
         z = self.transconv2d_dec(z)
-        if self.verbose: print('transconv2d:', z.shape)
+        z = self.activation(z)
+        if self.verbose: print('transconv1d:', z.shape)
+
+  
+        # map linear
+        z = z.permute(0, 2, 1, 3).flatten(start_dim=2)
+        z = self.linear_dec2(z)
+        z = self.activation(z)
+        if self.verbose: print('linear:', z.shape)
 
         # apply transformer
-        z = z.permute(0, 2, 1, 3)
-        z = z.reshape(z.shape[0], z.shape[1], -1)
-        # z = self.skip_trans_dec(z)
-        if self.verbose: print('skip trans dec:', z.shape)
-
-        # expand with convtranspose2d
-        z = z.unsqueeze(1)
-        z = self.transconv2d_dec2(z)
-        if self.verbose: print('transconv2d2:', z.shape)
-
-        # apply transformer
-        z = z.squeeze(1)
         z = self.skip_trans_dec2(z)
         if self.verbose: print('skip trans dec2:', z.shape)
         
@@ -258,8 +254,7 @@ class CascadingTransformerAutoEncoder(nn.Module):
         feats = output#.permute(1, 0, 2)
         if self.verbose: print('feats:', feats.shape)
 
-        return feats, mask
-
+        return feats
 class TransformerMotionVAE(pl.LightningModule):
     def __init__(self, **kwargs):
         super(TransformerMotionVAE, self).__init__()
@@ -281,8 +276,9 @@ class TransformerMotionVAE(pl.LightningModule):
         self.val_outputs = {}
 
     def forward(self, x):
-        out, mu, logvar = self.model(x)
-        return out, mu, logvar
+
+        out, mu, logvar, lengths = self.model(x)
+        return out, mu, logvar, lengths
     
     def motion_seq_decomposition(self, motion_seq_batched):
         bs = motion_seq_batched.shape[0]
@@ -319,15 +315,16 @@ class TransformerMotionVAE(pl.LightningModule):
         else:
             in_ = motion_seq
 
-        out, mu, logvar = self(in_)
+        out, mu, logvar, lengths = self(in_)
 
 
         # if predicting velocity
         if pred_velocity:
             pose_0_pred = out[:, 0].view(bs, 1, -1)
+            motion_seq_pred = torch.cumsum(out, dim=1)
             vel_pred = out[:, 1:]  # [B, S-1, 66]
             # print('vel_pred.shape', vel_pred.shape)
-            motion_seq_pred = torch.cumsum(vel_pred, dim=1)
+            
             # print('motion_seq_pred.shape', motion_seq_pred.shape)
             # print('motion_seq.shape', motion_seq.shape)
             root_pred, motion_relative_pred, _, _ = self.motion_seq_decomposition(motion_seq_pred)
@@ -336,8 +333,6 @@ class TransformerMotionVAE(pl.LightningModule):
             root_pred, motion_relative_pred, vel_pred, pose_0_pred = self.motion_seq_decomposition(out)
             motion_seq_pred = out
         
-
-
         loss_dict = {
                 "MOTION_L2": {"rec": out, "true": motion_seq},
                 "DIVERGENCE_KL": {"mu": mu, "logvar": logvar},
@@ -350,7 +345,7 @@ class TransformerMotionVAE(pl.LightningModule):
         #     for kk, vv in v.items():
         #         print(k, kk, vv.shape)
 
-        loss, losses_scaled, losses_unscaled = self.criterion(loss_dict)
+        loss, losses_scaled, losses_unscaled = self.criterion(loss_dict, lengths=lengths)
 
         return dict(
             loss=loss,
@@ -433,4 +428,6 @@ class TransformerMotionVAE(pl.LightningModule):
     
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.lr)
+        # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        # return [optimizer], [scheduler]
         return optimizer

@@ -30,8 +30,9 @@ activation_dict = {
 }
 
 def get_ckpts(log_dir):
-    folders = glob.glob(f"{log_dir}*") # like: version_0, ...
-    # print(folders)
+    print('log_dir:', log_dir)
+    folders = glob.glob(f"{log_dir}/*") # like: version_0, ...
+    print(folders)
     ckpts = {}
     count = {'success': 0, 'fail': 0}
     for folder in folders:
@@ -55,9 +56,13 @@ def get_ckpts(log_dir):
         except:
             count['fail'] += 1
             # print(f"Failed to get checkpoint for {folder}")
-    # print(count)
 
-    # ckpts['latest'] = ckpts[max(ckpts.keys(), key=lambda x: int(x.split('_')[-1]))
+    print(ckpts)
+    print(count)
+    if count['success'] == 0:
+        ckpts['latest'] = {'path': None, 'cfg_path': None, 'epoch': 0, 'step': 0}
+    else:
+        ckpts['latest'] = ckpts[max(ckpts.keys(), key=int)]
     
 
     return ckpts
@@ -65,6 +70,37 @@ def get_ckpts(log_dir):
 def load_config(name):
     with open(f'configs/config_{name}.yaml', 'r') as file:
         return yaml.safe_load(file)
+    
+def dict_merge(dct, merge_dct):
+    """Recursively merge two dictionaries, dct takes precedence over merge_dct."""
+    for k, v in merge_dct.items():
+        if k in dct and isinstance(dct[k], dict):
+            dict_merge(dct[k], v)  # merge dicts recursively
+        elif k in dct:
+            pass  # skip, same key already in dct
+        else:
+            dct[k] = v
+    return dct
+
+def load_config(name):
+    
+    if '.yaml' in name:
+        full_name = name
+    else:
+        full_name = f'configs/config_{name}.yaml'
+
+    with open(full_name, 'r') as file:
+        cfg =  yaml.safe_load(file)
+    
+    # check if BASE in cfg, if so, append the BASE config to other configs
+    if 'BASE' in cfg:
+        base_cfg = cfg['BASE']
+        cfg.pop('BASE')
+
+        for key in cfg:
+            cfg[key] = dict_merge(cfg[key], base_cfg)
+
+    return cfg
 
 def plot_3d_pose(data, index, ax=None):
     """Plot a 3D pose."""

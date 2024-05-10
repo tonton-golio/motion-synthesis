@@ -1,21 +1,21 @@
 
 BASE:
   MODEL:
-    learning_rate: 0.000001
+    learning_rate: 0.0000001
     latent_dim: 256
     nhead: 8
     num_layers: 5
     dim_feedforward: 1024
     dropout: 0.10
     transformer_activation: relu
-    _save_animations_freq: 1  # -1 to disable
-    load: false
+    _save_animations_freq: 2  # -1 to disable
+    load: true
     _checkpoint_path: latest
     activation: leaky_relu
     clip_grad_norm: 1.0
     batch_norm: true
     loss_weights:
-      DIVERGENCE_KL: 0.0000000001
+      DIVERGENCE_KL: 0.000000001
       ROOT_L2: 0.0
       MOTIONRELATIVE_L2: 0.0
       MOTION_L2: 1.
@@ -24,24 +24,25 @@ BASE:
   DATA:
     seq_len: 420
     tiny: true
-    batch_size: 64
+    batch_size: 4
     file_list_paths:
       _train: ../stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
       _val: ../stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt
       _test: ../stranger_repos/HumanML3D/HumanML3D/test_cleaned.txt
     _motion_path: ../stranger_repos/HumanML3D/HumanML3D/new_joints
 
-  TRAINING:
+  TRAINER:
     max_epochs: 100
     accelerator: mps
     devices: 1
     precision: "32-true"
     n_gpus: 1
     fast_dev_run: False
+    enable_checkpointing: true
 
 BUILD:
   DATA:
-    BATCH_SIZE: 4
+    BATCH_SIZE: 2
     SHUFFLE: false
   MODEL:
     verbose: true  
@@ -58,6 +59,6 @@ BUILD:
 TRAIN:
   TRAINER:
     max_epochs: 1000
-    log_every_n_steps: 100
+    log_every_n_steps: 6
     # CONTINUE_TRAINING: False
 

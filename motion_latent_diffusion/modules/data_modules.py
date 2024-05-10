@@ -51,8 +51,12 @@ class MotionDataset(Dataset):
         self.filenames_text_enc = [f"{self.path_text_enc}encodings/{f}.npy" for f in filenames]
 
         if self.tiny:
-            self.filenames = self.filenames[:1000]
-            self.filenames_text_enc = self.filenames_text_enc[:1000]
+            n_tiny = 512
+            # pick random
+            idxs = np.random.choice(len(self.filenames), n_tiny, replace=False)
+            self.filenames = [self.filenames[i] for i in idxs]
+            self.filenames_text_enc = [self.filenames_text_enc[i] for i in idxs]
+            
 
         # load motion seqs
         motion_seqs = [np.load(f) for f in self.filenames]

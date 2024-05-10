@@ -37,12 +37,15 @@ def train(model_name='VAE1'):
     #     on_trace_ready=torch.profiler.tensorboard_trace_handler("tb_logs/profiler0"),
     #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),
     # )
+    
+    cfg = cfg['TRAIN']
     print(cfg)
     # check if config.MODEL._checkpoint_path is latest if so look it up
     if cfg['MODEL']['load']:
-        checkpoints = get_ckpts(logger.log_dir)
+        checkpoints = get_ckpts('/'.join(logger.log_dir.split('/')[:-1]))
         checkpoint = checkpoints[cfg['MODEL']['_checkpoint_path']]
         cfg['MODEL']['_checkpoint_path'] = checkpoint['path']
+        print(f"Loading checkpoint from {cfg['MODEL']['_checkpoint_path']}")
       
     datamodule = DM(**cfg['DATA'])
 
@@ -55,16 +58,17 @@ def train(model_name='VAE1'):
     trainer = Trainer(
         # profiler=profiler,
         logger=logger,
-        accelerator=cfg['TRAINING']['accelerator'],
-        max_epochs=cfg['TRAINING']['max_epochs'],
-        devices=cfg['TRAINING']['devices'],
-        precision=cfg['TRAINING']['precision'],
-        fast_dev_run=cfg['TRAINING']['fast_dev_run'],
-        enable_checkpointing=False,
-        # log_every_n_steps = 60,
+        accelerator=cfg['TRAINER']['accelerator'],
+        max_epochs=cfg['TRAINER']['max_epochs'],
+        devices=cfg['TRAINER']['devices'],
+        precision=cfg['TRAINER']['precision'],
+        fast_dev_run=cfg['TRAINER']['fast_dev_run'],
+        enable_checkpointing=cfg['TRAINER']['enable_checkpointing'],
+        log_every_n_steps = cfg['TRAINER']['log_every_n_steps'],
     )
     epochs_trained = trainer.callback_metrics.get("epoch", 0)
-    trainer.fit(model, datamodule)
+    trainer.fit(model, datamodule, 
+                ckpt_path=cfg['MODEL']['_checkpoint_path'] if cfg['MODEL']['load'] else None)
     res = trainer.test(model, datamodule)
     # logger.log_hyperparams(model.hparams, {"final test": res[0]})
     import yaml
