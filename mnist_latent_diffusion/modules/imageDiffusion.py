@@ -189,7 +189,6 @@ class TargetMLP(nn.Module):
         # print('y_emb shape', y_emb.shape, 'x.shape', x.shape, 'out_dim', self.out_dim, 'hidden_dim', self.hidden_dim, 'embedding_dim', self.embedding_dim)
         return y_emb
         
-
 class EncoderBlock(nn.Module):
     def __init__(self,in_channels,out_channels,time_embedding_dim, target_embedding_dim, verbose=False):
         super().__init__()
@@ -614,31 +613,34 @@ class ImageDiffusionModule(pl.LightningModule):
             self.logger.experiment.add_figure(f'hist', fig,  global_step=self.global_step)
             plt.close()
 
+            try:
+                with torch.no_grad():
+                    # calculate FID
+                    # self.fid.update(torch.clip(sample.repeat(1, 3, 1, 1), 0,1),
+                    #                 is_real=False)
 
-        with torch.no_grad():
-            # calculate FID
-            # self.fid.update(torch.clip(sample.repeat(1, 3, 1, 1), 0,1),
-            #                 is_real=False)
+                    # fid_score = self.fid.compute()
+                    self.synthetic_samples.append(sample.repeat(1, 3, 1, 1))
 
-            # fid_score = self.fid.compute()
-            self.synthetic_samples.append(sample.repeat(1, 3, 1, 1))
+                    # cut to same length
+                    if len(self.real_samples) > len(self.synthetic_samples):
+                        self.real_samples = self.real_samples[:len(self.synthetic_samples)]
+                    elif len(self.synthetic_samples) > len(self.real_samples):
+                        self.synthetic_samples = self.synthetic_samples[:len(self.real_samples)]
 
-            # cut to same length
-            if len(self.real_samples) > len(self.synthetic_samples):
-                self.real_samples = self.real_samples[:len(self.synthetic_samples)]
-            elif len(self.synthetic_samples) > len(self.real_samples):
-                self.synthetic_samples = self.synthetic_samples[:len(self.real_samples)]
+                    # calculate FID score
+                    fid_score = _calculate_FID_SCORE(torch.cat(self.real_samples, dim=0).detach().cpu(), torch.cat(self.synthetic_samples, dim=0).detach().cpu())
 
-            # calculate FID score
-            fid_score = _calculate_FID_SCORE(torch.cat(self.real_samples, dim=0).detach().cpu(), torch.cat(self.synthetic_samples, dim=0).detach().cpu())
+                    # empty the samples
+                    self.real_samples = []
+                    self.synthetic_samples = []
 
-            # empty the samples
-            self.real_samples = []
-            self.synthetic_samples = []
+                    self.log('fid', fid_score, prog_bar=True, on_step=False, on_epoch=True,)
 
-            self.log('fid', fid_score, prog_bar=True, on_step=False, on_epoch=True,)
-
-    
+            except Exception as e:
+                print(e)
+                print('FID score calculation failed')
+        
     def test_step(self, batch, batch_idx):
         loss = self._common_step(batch, stage="test")
         self.log('test_loss', loss, prog_bar=True, on_step=True, on_epoch=False,)
@@ -667,6 +669,6 @@ class ImageDiffusionModule(pl.LightningModule):
         # return torch.optim.AdamW(self.parameters(), lr=self.lr)
         # decrease lr by 0.1 every 10 epochs
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1, verbose=False)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=.1, verbose=False)
         return [optimizer], [scheduler]
 

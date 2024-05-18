@@ -1,24 +1,24 @@
 # Description: Configuration file for the project
 BASE:
   DATA:
-    BATCH_SIZE: 256
-    ROTAION: 20
-    SCALE: .2
-    TRANSLATE_X: 0.1
-    TRANSLATE_Y: 0.1
-    SHEAR: 0.1
-    NORMALIZE_MEAN: 0.
-    NORMALIZE_STD: 1
+    BATCH_SIZE: 512
+    ROTAION: 0
+    SCALE: 0
+    TRANSLATE_X: 0
+    TRANSLATE_Y: 0
+    SHEAR: 0
+    NORMALIZE_MEAN: 0.5
+    NORMALIZE_STD: 0.5
     BOOL: False
     NO_NORMALIZE: False
   MODEL:
-    CLIPPED_REVERSE_DIFFUSION: false
+    CLIPPED_REVERSE_DIFFUSION: true
     LEARNING_RATE: 0.001
-    SAMPLE_EVERY: 1
-    TIMESTEPS: 100
+    SAMPLE_EVERY: 5
+    TIMESTEPS: 1000
     TIME_EMBEDDING_DIM: 24
     NOISE_SCHEDULE_METHOD: 'cosine'
-    EPSILON: 0.008
+    EPSILON: 0.0008
     BETA_START: 0.00001
     BETA_END: 0.005
     BASE_DIM: 32
@@ -39,9 +39,9 @@ BUILD:
 
 TRAIN:
   TRAINER:
-    max_epochs: 10
-    log_every_n_steps: 40
-    # CONTINUE_TRAINING: False
+    max_epochs: 100
+    log_every_n_steps: 4
+    continue_training: true
     fast_dev_run: true
 
 OPTUNA:

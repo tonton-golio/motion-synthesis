@@ -2,7 +2,7 @@
 DIFFUSE:
   DATA:
     BATCH_SIZE: 512
-    V: 5
+    V: 25
     SCALE: True
   MODEL:
     LATENT_DIM: 16

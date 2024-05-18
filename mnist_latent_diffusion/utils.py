@@ -36,14 +36,18 @@ def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/', config_name='config_
 
                 checkpoints[version_num] = {
                     'ckpt_path': ckpt_path,
-                    'config_path': config_path
+                    'config_path': config_path,
+                    'version_num': version_num,
                 }
-                
-    print(checkpoints)
+    
+    # sort by version number
+    checkpoints = dict(sorted(checkpoints.items(), key=lambda item: int(item[0])))
+    for k, v in checkpoints.items():
+        print(f"{k}: {v['ckpt_path']}")
     if return_all:
         return checkpoints
 
-    checkpoint = checkpoints[input('Enter checkpoint name: ')]
+    checkpoint = checkpoints[input('Enter checkpoint idx/key: ')]
     return checkpoint
 
 def dict_merge(dct, merge_dct):

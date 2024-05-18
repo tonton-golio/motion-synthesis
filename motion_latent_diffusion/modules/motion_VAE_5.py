@@ -208,6 +208,7 @@ class CascadingTransformerAutoEncoder(nn.Module):
         if self.verbose: print('final linear:', x.shape)
 
         mu, logvar = x[:, :256], x[:, 256:]
+        
         # resample
         std = logvar.exp().pow(0.5)
         dist = torch.distributions.Normal(mu, std)
@@ -334,18 +335,18 @@ class TransformerMotionVAE(pl.LightningModule):
             motion_seq_pred = out
         
         loss_dict = {
-                "MOTION_L2": {"rec": out, "true": motion_seq},
+                "MOTION_L2": {"rec": out, "true": motion_seq, "lengths": lengths},
                 "DIVERGENCE_KL": {"mu": mu, "logvar": logvar},
-                "ROOT_L2": {"rec": root_pred, "true": root_gt},
-                "MOTIONRELATIVE_L2": {"rec": motion_relative_pred, "true": motion_relative_gt},
-                "VELOCITY_L2": {"rec": vel_pred, "true": vel_gt},
+                "ROOT_L2": {"rec": root_pred, "true": root_gt,},# "lengths": lengths},
+                "MOTIONRELATIVE_L2": {"rec": motion_relative_pred, "true": motion_relative_gt,},# "lengths": lengths},
+                "VELOCITY_L2": {"rec": vel_pred, "true": vel_gt, "lengths": lengths},
                 "POSE0_L2": {"rec": pose_0_pred, "true": pose_0},
             }
         # for k, v in loss_dict.items():
         #     for kk, vv in v.items():
         #         print(k, kk, vv.shape)
 
-        loss, losses_scaled, losses_unscaled = self.criterion(loss_dict, lengths=lengths)
+        loss, losses_scaled, losses_unscaled = self.criterion(loss_dict)
 
         return dict(
             loss=loss,

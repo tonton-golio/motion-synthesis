@@ -1,7 +1,7 @@
 
 BASE:
   MODEL:
-    learning_rate: 0.0000001
+    learning_rate: 0.00001
     latent_dim: 256
     nhead: 8
     num_layers: 5
@@ -12,12 +12,12 @@ BASE:
     load: true
     _checkpoint_path: latest
     activation: leaky_relu
-    clip_grad_norm: 1.0
+    clip_grad_norm: .1
     batch_norm: true
     loss_weights:
       DIVERGENCE_KL: 0.000000001
-      ROOT_L2: 0.0
-      MOTIONRELATIVE_L2: 0.0
+      ROOT_L2: 1.0
+      MOTIONRELATIVE_L2: 100.0
       MOTION_L2: 1.
       VELOCITY_L2: 0.0
 

@@ -27,12 +27,13 @@ class VAE_Loss(nn.Module):
         self.loss_weights = loss_weights
         self.sequence_mse_loss = BatchSequenceMSELoss()  # integrate the sequence MSE loss here
 
-    def forward(self, loss_data, lengths=None):
+    def forward(self, loss_data):
         total_loss = 0.0
         losses_unscaled = {}
         losses_scaled = {}
         for k, v in loss_data.items():
             name, method = k.split('_')
+            lengths = v['lengths'] if 'lengths' in v else None
             weight = self.loss_weights.get(k, 0)
             if weight == 0:
                 continue

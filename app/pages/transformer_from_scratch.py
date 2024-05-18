@@ -2,9 +2,11 @@ import streamlit as st
 
 
 # Title and intro
-st.write("""
-# Transformer from Scratch
+"""# Transformer from Scratch
 *In this page, we will implement a transformer from scratch. And use it to generate Shakespearean text.*
+"""
+with st.expander("Transformer from Scratch"):
+    st.write("""
 
 
 Based on the paper [Attention is All You Need](https://arxiv.org/abs/1706.03762) by Vaswani et al., the Transformer model is a novel neural network architecture that has been proven to be more efficient than the traditional RNNs and LSTMs in sequence-to-sequence tasks. The Transformer model is based on the self-attention mechanism, which allows the model to focus on different parts of the input sequence when predicting each part of the output sequence.
@@ -250,7 +252,7 @@ def train():
 
     # training
     optimizer = optim.AdamW(m.parameters(), lr=0.001)
-    n_iter = 500
+    n_iter = 5000
     print('training...')
     for i in range(n_iter):
         m.train()
@@ -285,7 +287,7 @@ n_embed = 64
 n_head = 4
 n_layer = 4
 
-# train()
+train()
 m, decode, encode = load_model()
 
 out = m.generate(torch.tensor(encode('To be or not to be, that is the question:')).unsqueeze(0), 100)

@@ -10,7 +10,7 @@ if __name__ == "__main__":
     parser.add_argument('--mode', type=str, default='train', help='Mode to run')
     args = parser.parse_args()
     print(args.model, args.mode)
-    assert args.model in ['VAE', 'imageDiffusion', 'latentDiffusion']  # assert valid
+    assert args.model in ['VAE', 'latentDiffusion']  # assert valid
     assert args.mode in ['train', 'build', 'inference', 'optuna']
 
     

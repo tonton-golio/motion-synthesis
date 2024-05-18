@@ -190,6 +190,14 @@ def plot_3d_motion_animation(
     #     matplotlib.use('Agg')
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
+    # cut tail, if equal
+    print(data.shape)
+    for i in range(data.shape[0]-1):
+        if (data[i] == data[i+1]).all():
+            data = data[:i]
+            break
+    print(data.shape)
+
     if velocity:
         data = np.cumsum(data, axis=0)
 
@@ -242,6 +250,14 @@ def plot_3d_motion_animation(
 
 def plot_3d_motion_frames_single(data, title, axes, nframes=5, radius=2):
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
+
+    # cut tail, if equal
+    print(data.shape)
+    for i in range(data.shape[0]-1):
+        if (data[i] == data[i+1]).all():
+            data = data[:i]
+            break
+    print(data.shape)
 
     # init(ax, fig, title, radius)
     MINS, MAXS = data.min(axis=0).min(axis=0), data.max(axis=0).max(axis=0)

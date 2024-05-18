@@ -10,7 +10,7 @@ import torchvision
 
 class TimeMLP(nn.Module):
     '''
-    naive introduce timestep information to feature maps with mlp and add shortcut
+    naive introduce timestep information to feature maps with mlp
     '''
     def __init__(self,in_dim,hidden_dim,out_dim):
         super().__init__()
@@ -28,7 +28,7 @@ class TimeMLP(nn.Module):
     
 class TargetMLP(nn.Module):
     '''
-
+    naive introduce timestep information to feature maps with mlp
     '''
     def __init__(self,embedding_dim,hidden_dim,out_dim, nhidden=5, act=nn.LeakyReLU() ):
         super().__init__()
@@ -40,8 +40,6 @@ class TargetMLP(nn.Module):
 
         layers.append(nn.Linear(hidden_dim,out_dim))
         layers.append(act)
-
-
         self.mlp=nn.Sequential(*layers)
 
     def forward(self,t):
@@ -97,11 +95,12 @@ class SimpleModel(nn.Module):
         # print('y', y.shape)
 
         cat = torch.cat([x, y, t], dim=-1)
+        # print('cat', cat.shape)
         # print('x', x.shape)
         pred_x = self.fc_noise(cat)
-        pred_noise = pred_x - x
-        # print('fc_noise success, x', x.shape)
-        return pred_noise
+        # pred_noise = pred_x - x
+        # print('fc_noise success, pred_x', pred_x.shape)
+        return pred_x
     
 class LatentDiffusion(nn.Module):
     def __init__(
@@ -149,8 +148,7 @@ class LatentDiffusion(nn.Module):
         t = torch.randint(10, self.timesteps, (x.shape[0],)).to(x.device)
 
         x_t = self._forward_diffusion(x, t, noise)
-        
-        # print('x_t?', x_t.shape)
+        print('x_t?', x_t.shape)
         pred_noise = self.model(x_t, y, t)
         noise_added = x_t - x
         return pred_noise, noise, x_t, t
@@ -260,7 +258,7 @@ class LatentDiffusionModel(pl.LightningModule):
         self.projection = projection
         self.labels = labels
 
-        self.recon_loss = True if 'RECON_L2' in self.criteria.loss_weights.keys() else False
+        # self.recon_loss = True if 'RECON_L2' in self.criteria.loss_weights.keys() else False
         
         self.use_label_for_decoder = kwargs.get("USE_LABEL_FOR_DECODER", False)
     
@@ -272,33 +270,35 @@ class LatentDiffusionModel(pl.LightningModule):
         return self.model(x, y, noise)
 
     def training_step(self, batch, batch_idx):
+        # print('starting training step')
         res = self._common_step(batch, stage="train")
         # clip gradients
         torch.nn.utils.clip_grad_norm_(self.parameters(), .01)
+        # print('done training step')
         return res["loss"]
 
     def _common_step(self, batch, stage='train'):
-        pred_noise, noise, x_t, t = self.forward(batch)
         x, y = batch
+        pred_noise, noise, x_t, t = self.forward(batch)
         
-    
-        if self.recon_loss:
-            x_hat = x + noise - pred_noise
+        
+        # if self.recon_loss:
+        #     x_hat = x + noise - pred_noise
 
-            # send through decoder
-            if self.scaler is not None:
-                x_hat = self.apply_scaler(x_hat, inverse=True, return_tensor_type=True)
-                x = self.apply_scaler(x, inverse=True, return_tensor_type=True)
-            with torch.no_grad():
-                recon = self.decoder(x_hat)
-                recon_gt = self.decoder(x)
+        #     # send through decoder
+        #     if self.scaler is not None:
+        #         x_hat = self.apply_scaler(x_hat, inverse=True, return_tensor_type=True)
+        #         x = self.apply_scaler(x, inverse=True, return_tensor_type=True)
+        #     with torch.no_grad():
+        #         recon = self.decoder(x_hat)
+        #         recon_gt = self.decoder(x)
 
-            fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-            ax[0].imshow(recon[0].squeeze().detach().cpu().numpy(), cmap='gray')
-            ax[0].set_title('recon')
-            ax[1].imshow(recon_gt[0].squeeze().detach().cpu().numpy(), cmap='gray')
-            ax[1].set_title('recon_gt')
-            self.logger.experiment.add_figure(f'{stage}_recon', fig, global_step=self.global_step)
+        #     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+        #     ax[0].imshow(recon[0].squeeze().detach().cpu().numpy(), cmap='gray')
+        #     ax[0].set_title('recon')
+        #     ax[1].imshow(recon_gt[0].squeeze().detach().cpu().numpy(), cmap='gray')
+        #     ax[1].set_title('recon_gt')
+        #     self.logger.experiment.add_figure(f'{stage}_recon', fig, global_step=self.global_step)
 
         # recon = self.decoder(torch.tensor(self.scaler.inverse_transform(x_hat.detach().cpu())).float().to("mps"))
         # recon_gt = self.decoder(torch.tensor(self.scaler.inverse_transform(x.detach().cpu())).float().to("mps"))
@@ -312,8 +312,8 @@ class LatentDiffusionModel(pl.LightningModule):
             'NOISE_L2': {'rec': pred_noise, 'true': noise},
             #'CLASS_BCE': {'rec': class_pred, 'true': y}
         }
-        if self.recon_loss:
-            loss_data['RECON_L2'] = {'rec': recon, 'true': recon_gt}
+        # if self.recon_loss:
+        #     loss_data['RECON_L2'] = {'rec': recon, 'true': recon_gt}
 
 
         loss, lss_scaled, lss_unscaled = self.criteria(loss_data)
@@ -325,18 +325,19 @@ class LatentDiffusionModel(pl.LightningModule):
             losses_scaled=lss_scaled,
             losses_unscaled=lss_unscaled,
             x=x,
-            x_hat=x_hat,
+            # x_hat=x_hat,
             y=y,
             # recon=recon,
             # recon_gt=recon_gt,
         )
 
     def validation_step(self, batch, batch_idx):
+        # print('starting validation step')
         res = self._common_step(batch, stage="val")
-        
-        if batch_idx == 0 and self.current_epoch == 0:
-            self.check_noise_level(batch)
-
+        # print('Finish common step part of validation step')
+        # if batch_idx == 0 and self.current_epoch == 0:
+        #     self.check_noise_level(batch)
+        # print('done validation step')
         return res["loss"]
 
     def apply_scaler(self, x, inverse=False, return_tensor_type=False):
@@ -367,6 +368,7 @@ class LatentDiffusionModel(pl.LightningModule):
             return scaled.reshape(*org_shape[:-1], scaled.shape[-1])
 
     def on_validation_epoch_end(self):
+        print('starting validation epoch end')
         with torch.no_grad():
             # Simplify y value assignment            
             # Sample from model
@@ -387,6 +389,13 @@ class LatentDiffusionModel(pl.LightningModule):
                 hist_prj = self.apply_projector(hist)
                 print('hist_prj', hist_prj.shape)
                 # plot the latent space
+                # make sure lengths are the same
+                if len(self.projection) < len(self.labels):
+                    self.labels = self.labels[:len(self.projection)]
+                elif len(self.projection) > len(self.labels):
+                    self.projection = self.projection[:len(self.labels)]
+
+
                 ax_prj.scatter(self.projection[:, 0], self.projection[:, 1], c=self.labels, s=2, alpha=0.5)
                 for i in range(hist_prj.shape[1]):
                     ax_prj.plot(hist_prj[:, i, 0], hist_prj[:,i, 1], c='r', alpha=1, ls='--')
@@ -403,54 +412,56 @@ class LatentDiffusionModel(pl.LightningModule):
             hist = hist[::len(hist) // n_time_steps_show]#.squeeze().cpu()
             
             # decode
-            if self.decoder is not None:
-                # reshape
-                ## current shapes: hist: (timesteps, n_samples, latent_dim), y_flags: (n_samples)
-                ## desired shapes: hist: (n_samples* timesteps, latent_dim), y_flags: (n_samples*timesteps)
-                # y_flags_rep = y_flags.repeat(hist.shape[0])
-                # hist = hist.view(-1, hist.shape[-1]).to('mps')
+            # if self.decoder is not None:
+            #     # reshape
+            #     ## current shapes: hist: (timesteps, n_samples, latent_dim), y_flags: (n_samples)
+            #     ## desired shapes: hist: (n_samples* timesteps, latent_dim), y_flags: (n_samples*timesteps)
+            #     # y_flags_rep = y_flags.repeat(hist.shape[0])
+            #     # hist = hist.view(-1, hist.shape[-1]).to('mps')
 
-                # print('hist', hist.shape)
-                hist_expanded = []
-                # sample = self.decoder(sample)
-                for i in range(len(hist)):
-                    if self.use_label_for_decoder:
-                        hist_expanded.append(self.decoder(torch.tensor(hist[i]).to('mps'), y_flags))
-                    else:
+            #     # print('hist', hist.shape)
+            #     hist_expanded = []
+            #     # sample = self.decoder(sample)
+            #     for i in range(len(hist)):
+            #         if self.use_label_for_decoder:
+            #             hist_expanded.append(self.decoder(torch.tensor(hist[i]).to('mps'), y_flags))
+            #         else:
 
-                        hist_expanded.append(self.decoder(torch.tensor(hist[i]).to('mps')))
+            #             hist_expanded.append(self.decoder(torch.tensor(hist[i]).to('mps')))
 
-                hist = torch.stack(hist_expanded, dim=0).squeeze().cpu()
+            #     hist = torch.stack(hist_expanded, dim=0).squeeze().cpu()
 
                 # print('hist', hist.shape)
 
 
             # Create a figure with subplots
-            rows, cols = hist.shape[:2]
-            fig, axes = plt.subplots(rows, cols, figsize=(10, 10 * rows / cols))
+            # rows, cols = hist.shape[:2]
+            # fig, axes = plt.subplots(rows, cols, figsize=(10, 10 * rows / cols))
             
+            # # for i in range(rows):
+            # #     for j in range(cols):
+            # #         ax[i, j].imshow(hist[i, j], cmap='gray')
+            # #         ax[i, j].axis('off')
             # for i in range(rows):
             #     for j in range(cols):
-            #         ax[i, j].imshow(hist[i, j], cmap='gray')
-            #         ax[i, j].axis('off')
-            for i in range(rows):
-                for j in range(cols):
-                    axes[i, j].imshow(hist[i, j], cmap='gray')
-                    axes[i, j].axis('off')
-                    axes[i, j].set_title(f'y={y_flags[j].item()}')
+            #         axes[i, j].imshow(hist[i, j].detach().cpu().numpy(), cmap='gray')
+            #         axes[i, j].axis('off')
+            #         axes[i, j].set_title(f'y={y_flags[j].item()}')
                     
             
-            # # Set top row titles to y_flags
-            # if y_flags is not None and len(y_flags) == cols:
-            #     for i, flag in enumerate(y_flags):
-                    # axes[0, i].set_title(f'y={flag.item()}')
+            # # # Set top row titles to y_flags
+            # # if y_flags is not None and len(y_flags) == cols:
+            # #     for i, flag in enumerate(y_flags):
+            #         # axes[0, i].set_title(f'y={flag.item()}')
                     
-            self.logger.experiment.add_figure(f'hist latent', fig,  global_step=self.global_step)
-            plt.close()
+            # self.logger.experiment.add_figure(f'hist latent', fig,  global_step=self.global_step)
+            # plt.close()
+
+        print('done validation epoch end')
 
 
     def test_step(self, batch, batch_idx):
-        pred_noise, noise = self.forward(batch)
+        pred_noise, noise, x_t, t = self.forward(batch)
         loss = nn.functional.mse_loss(pred_noise, noise) / self.noise_multiplier
         self.log(
             "test_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True

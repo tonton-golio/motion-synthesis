@@ -68,6 +68,8 @@ def train():
     print('z max', z.max(axis=0))
     print('z shape', z.shape)
     autoencoder = torch.load(path + 'model.pth').to(torch.device('mps'))
+
+    print('Autoencoder loaded')
     y = torch.load(path + 'y.pt')
     projector = torch.load(path + 'projector.pt')
     projection = torch.load(path + 'projection.pt')
@@ -85,49 +87,49 @@ def train():
     print('Initializing classifier')
     # z y classifier
     
-
-    
-    criterion_classifier = nn.BCELoss()
-    classifier = Classifier().to('mps')
+    # criterion_classifier = nn.BCELoss()
+    # classifier = Classifier().to('mps')
     # try load
-    try:
-        classifier = torch.load(f'classifier.pth')
-        print('loaded classifier')
-    except:
-        print('failed to load classifier, training')
+    # try:
+    #     classifier = torch.load(f'classifier.pth')
+    #     print('loaded classifier')
+    # except:
+    #     print('failed to load classifier, training')
 
-        optimizer = optim.AdamW(classifier.parameters(), lr=1e-3)
+    #     optimizer = optim.AdamW(classifier.parameters(), lr=1e-3)
 
-        if scaler is None:
-            z_scaled = z
-        else:
-            z_scaled = torch.tensor(scaler.transform(z.detach().cpu())).float()
-        dataset = ClassifierDataset(dm.X, dm.y)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=256, shuffle=True)
+    #     if scaler is None:
+    #         z_scaled = z
+    #     else:
+    #         z_scaled = torch.tensor(scaler.transform(z.detach().cpu())).float()
+    #     dataset = ClassifierDataset(dm.X, dm.y)
+    #     dataloader = torch.utils.data.DataLoader(dataset, batch_size=256, shuffle=True)
 
-        for epoch in range(2):
-            running_loss = 0
-            for z_batch, y_batch in dataloader:
-                # z_batch = z_batch.to(device)
-                # y_batch = y_batch.to(device)
-                optimizer.zero_grad()
-                y_pred = classifier(z_batch)
-                loss = criterion_classifier(y_pred, y_batch)
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
-                print(f'Epoch {epoch} Loss: {loss.item()}', end='\r')
-            print(f'Epoch {epoch} Loss: {running_loss/len(dataloader)}')
+    #     for epoch in range(2):
+    #         running_loss = 0
+    #         for z_batch, y_batch in dataloader:
+    #             # z_batch = z_batch.to(device)
+    #             # y_batch = y_batch.to(device)
+    #             optimizer.zero_grad()
+    #             y_pred = classifier(z_batch)
+    #             loss = criterion_classifier(y_pred, y_batch)
+    #             loss.backward()
+    #             optimizer.step()
+    #             running_loss += loss.item()
+    #             print(f'Epoch {epoch} Loss: {loss.item()}', end='\r')
+    #         print(f'Epoch {epoch} Loss: {running_loss/len(dataloader)}')
 
-        torch.save(classifier, f'classifier.pth')
-        print('done training classifier')
-    # set up model
+    #     torch.save(classifier, f'classifier.pth')
+    #     print('done training classifier')
+    # 
     
-
+    
+    # set up model
+    print('Initializing model')
     model = LatentDiffusionModel(autoencoder=autoencoder, 
                                  scaler=scaler,
                                 criteria=criteria,
-                                classifier=classifier,
+                                classifier=None,
                                 projector=projector,
                                 projection=projection,
                                 labels=y,
@@ -140,8 +142,6 @@ def train():
         name, num = logger.log_dir.split('/')[-1].split('_')
         log_dir = '/'.join(logger.log_dir.split('/')[:-1])
 
-
-
         model = LatentDiffusionModel.load_from_checkpoint(
             # logger.log_dir + '/' 
             log_dir + '/version_' + str(int(num)-1) + '/checkpoints/' +
@@ -149,6 +149,7 @@ def train():
         print("LOADed model")
 
     # train
+    print('Training model')
     trainer = pl.Trainer(logger=logger, **config['DIFFUSE']['TRAINER'])
     trainer.fit(model, dm)
     epochs_trained = trainer.current_epoch
@@ -161,7 +162,7 @@ def train():
     print("done")
 
     # save model
-    del model.classifier
+    #del model.classifier
     torch.save(model, f'{"/".join(logger.log_dir.split("/")[:-1])}//model.pth')
 
     print("model saved")
