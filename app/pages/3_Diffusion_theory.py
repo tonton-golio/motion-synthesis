@@ -100,9 +100,13 @@ def vector_entropy_demo(vector_length = 10):
     st.pyplot(fig)
 
 def image_entropy_demo(ims):
-    st.write("""
+    st.write(r"""
     ### Image Entropy
     Given an image, we can calculate the entropy of the distribution of values in the image.
+             
+    $$
+        H(\nabla f)  = -\sum_{j=1}^J\sum_{i=1}^I p_{i,j} \log_2(p_{i,j})
+    $$
 
     The entropy of an image is calculated by taking the spatial derivative of the image, and calculating the entropy of the distribution of values in the derivative image.
     """)
@@ -150,16 +154,17 @@ with tabs['Vector/image entropy']:
     image_entropy_demo([im_4, im_cat, im_noise])
 
     
-    widths = np.linspace(10, 1000, 100, dtype=int)
-    heights = np.linspace(10, 1000, 10, dtype=int)
+    widths = (2**np.arange(4, 10)).astype(int)
+    heights = (2**np.arange(4, 10)).astype(int)
     entropies = np.zeros((len(widths), len(heights)))
     area_entropy = []
     for i, w in enumerate(widths):
         for j, h in enumerate(heights):
-            im = np.random.rand(h, w)
-            entropies[i, j] = shannon_entropy_2d(im)
-            area = w*h
-            area_entropy.append((area, entropies[i, j]))
+            if abs(i-j) < 200:    
+                im = np.random.rand(h, w)
+                entropies[i, j] = shannon_entropy_2d(im)
+                area = w*h
+                area_entropy.append((area, entropies[i, j]))
     area_entropy = np.array(area_entropy)   
     fig, ax = plt.subplots(1, 1, figsize=(6, 6))
     ax.imshow(entropies, cmap='viridis')
@@ -184,7 +189,7 @@ with tabs['Vector/image entropy']:
 
         Fitting log(area) to entropy, we get:
         $$
-            H = a\log(b\cdot (area-c))
+            H = \log_2(a\cdot area)
         $$
         """
 
@@ -192,31 +197,33 @@ with tabs['Vector/image entropy']:
         ax.scatter(area_entropy[:,0], area_entropy[:,1])
         
         # fit a line
-        func = lambda x, a, b,c: a*np.log(x) -c
+        func = lambda x, a, b,c: np.log2((x)*a) + c
         x = np.linspace(area_entropy[:,0].min(), area_entropy[:,0].max(), 100)
-        # y = func(x, a, b)
         from scipy.optimize import curve_fit
         popt, pcov = curve_fit(func, area_entropy[:,0], area_entropy[:,1])
         y = func(x, *popt)
-        a, b,c = popt
+        a, b, c = popt
+        a, b, c
         f"""
         $$
-        H = {a:.2f}\log({b:.2f}x)-{c:.2f}
+        H = \log_2({a:.2f}\cdot area * {b:.2f})
         $$
         """
         ax.plot(x, y, color='red', linestyle='--', )#label=f'log({a}x)+{b}')
         R_squared = 1 - np.sum((area_entropy[:,1] - func(area_entropy[:,0], *popt))**2) / np.sum((area_entropy[:,1] - np.mean(area_entropy[:,1]))**2)
-        ax.text(0.5, 0.1, f'$R^2$={R_squared:.2f}', transform=ax.transAxes)
+        ax.text(0.5, 0.1, f'$R^2$={R_squared:.6f}', transform=ax.transAxes)
         ax.set_xscale('log')    
         ax.set_xlabel('Area')
         ax.set_ylabel('Entropy')
         ax.set_title('Entropy vs Area')
         st.pyplot(fig)
-
+    with cols[0]:
         r"""
         We will approximate this as:
         $$
-        H = \frac{3}{2}\log(area)
+        H \sim \log_2\left(
+            \frac{2}{3}\cdot area
+            \right)
         $$
 
 
@@ -224,10 +231,66 @@ with tabs['Vector/image entropy']:
         """
         r"""
         $$
-            \tilde{H} = H / 
+            \tilde{H} = H / \log_2\left(
+            \frac{2}{3}\cdot area
+            \right)
         $$
         
         """
+        area  = area_entropy[:,0]
+        H = area_entropy[:,1]
+        H_tilde = H / np.log2(2/3 * area)
+
+
+        fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+        ax.scatter(area_entropy[:,0], H_tilde, alpha=0.5)
+        # ax.set_xscale('log')
+        ax.set_xlabel('Area')
+        ax.set_ylabel('Entropy / $\log(area)$')
+        ax.set_title('Entropy normalized by area')
+        st.pyplot(fig)
+
+
+        """
+        It looks like there is still an exponential relationship
+
+        """
+        exp_func = lambda x, a, b, c, k: a*np.exp(k*(-x-b))+c
+        p0 = [
+            10, # a
+            .1, # b
+            .99, # c
+            0.000001 # k
+        ]
+        # popt, pcov = curve_fit(exp_func, area, H_tilde, p0=p0)
+        # y = exp_func(x, *popt)
+        # y_p0 = exp_func(x, *p0)
+        # a, b, c, k= popt
+        # popt
+        
+        # # fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+        # # ax.scatter(area, H_tilde)
+        # # ax.plot(x, y, color='red', linestyle='--', )#label=f'log({a}x)+{b}')
+        # # # ax.plot(x, y_p0, color='green', linestyle='--', )#label=f'log({a}x)+{b}')
+        # # R_squared = 1 - np.sum((H_tilde - exp_func(area, *popt))**2) / np.sum((H_tilde - np.mean(H_tilde))**2)
+        # # ax.text(0.5, 0.1, f'$R^2$={R_squared:.6f}', transform=ax.transAxes)
+        # # ax.set_xlabel('Area')
+        # # ax.set_ylabel('Entropy / $\log(area)$')
+        # # ax.set_title('Entropy normalized by area')
+        # # st.pyplot(fig)
+        
+
+    r"""
+    We obtain a final approximation of the entropy scaling, and can thus express our image-entropy as:
+    $$
+        \tilde{H}  =
+        \frac{-1}{\log_2\left(
+            \frac{2}{3}\cdot area
+            \right)}
+        \cdot
+        \sum_{j=1}^J\sum_{i=1}^I p_{i,j} \log_2(p_{i,j}) 
+    $$
+    """
 
 # Noise Schedule
 with tabs['Noise Schedule']:
@@ -340,6 +403,9 @@ with tabs['Noise Schedule']:
         
         H = -np.sum(im_derivative[im_derivative > 0] * np.log2(im_derivative[im_derivative > 0]))
 
+        # H tilde
+        H_tilde = H / np.log2(2/3 * im_arr.size)
+        H = H_tilde
         if plot:
             fig, ax = plt.subplots(1, 3, figsize=(12, 4))
             fig.suptitle(f"Shannon entropy: {H:.2f}")
@@ -410,20 +476,10 @@ with tabs['Noise Schedule']:
             params_schedule['beta_end'] = st.select_slider('beta_end', options=np.logspace(-4, -2, 11))
 
     # title and intro
+    
     """
-    # MNIST Diffusion: Data and noise schedule
-
-    Source: https://stats.stackexchange.com/questions/235270/entropy-of-an-image
-
-    ---
-    ### Transformations
-    Here you see our MNIST dataset with applied transformations. So what are good transformations. We want to introduce greater variation in our dataset, such that it learns to subtract noise regardsless of sclaing, rotation, translation, and shear.
-
-    To set good values for these parameters, we try to set them as high as possible, without obfuscating the original image excessively.
-
-
+    ### Noise schedule
     """
-
     dm = MNISTDataModule(verbose=False, **params_data)
     dm.setup()
     VS = VarianceSchedule(**params_schedule)
