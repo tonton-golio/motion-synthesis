@@ -159,7 +159,7 @@ with tabs['Transformer']:
 
     def load(verbose=False):
         # load data from file
-        with open('assets/tinyShakespear.txt') as f: text = f.read()
+        with open('assets/1_NN_fundamentals_and_architectures/tinyShakespear.txt') as f: text = f.read()
         if verbose:
             print("length of text:", len(text))
             print('First 100 characters:', text[:100]+'...')
@@ -389,7 +389,7 @@ with tabs['Transformer']:
         vocab_size, encode, decode = lang_setup(text)
         # load model
         m = LanguageModel(vocab_size, n_embed=n_embed, n_head=n_head, n_layer=n_layer).to(device)
-        m.load_state_dict(torch.load('assets/shakespear_model.pth'))
+        m.load_state_dict(torch.load('assets/1_NN_fundamentals_and_architectures/shakespear_model.pth'))
         return m,  decode, encode
 
     torch.manual_seed(1337)
@@ -424,7 +424,7 @@ with tabs['U-Net']:
     What is unet: Unet is neural network based around the convolution and pooling operations in a encoder-decoder architecture \cite{https://arxiv.org/pdf/1505.04597.pdf}. Through the use of skip connections, the model is able to retain exact spatial information, while also being able to learn high level features. In the original purpose of the model, they used it to segment electron microscopy images of neuronal structures. The iterative downsampling, allow the model to identify a region of interest, while the skipped connections allow the model to understand exactly where the identified region is located.
 
     """
-    st.image('assets/unet.png', caption='Unet architecture', use_column_width=True)
+    st.image('assets/1_NN_fundamentals_and_architectures/unet.png', caption='Unet architecture', use_column_width=True)
 
 
 

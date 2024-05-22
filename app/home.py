@@ -24,14 +24,14 @@ with cols[0]:  # Introduction
     The approach I will be employing, is diffusion on a latent representation. This is a powerful technique demonstrated in the literature. I work with the publicly available HumanML3D dataset, which contains 3D motion capture data with descriptive text strings from KIT.
     """
 
-cols[1].image('assets/flow2.png', caption='Schematic of the architecture/flow employed.', width=180)  # Flow
+cols[1].image('assets/0_home/flow_pipeline/flow2.png', caption='Schematic of the architecture/flow employed.', width=180)  # Flow
 
 # model interface
 ## text prompt
 cols[0].text_area('Text prompt', 'A person turns on the spot.')
 
 ## centering the video.
-st.columns([1, 2, 1])[1].video('assets/recon_0.mp4')
+st.columns([1, 2, 1])[1].video('assets/0_home/recon_fake.mp4')
 
 # include thesis
 embed_pdf('assets/papers/Thesis_compressed_compressed.pdf')

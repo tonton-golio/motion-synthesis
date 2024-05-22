@@ -147,8 +147,8 @@ def image_entropy_demo(ims):
 with tabs['Vector/image entropy']:
     vector_entropy_demo(10)
     st.divider()
-    im_4 = grayscale(plt.imread('assets/example_img_2.png'))
-    im_cat = grayscale(plt.imread('assets/example_img.png'))
+    im_4 = grayscale(plt.imread('assets/example_images/4.png'))
+    im_cat = grayscale(plt.imread('assets/example_images/cat.png'))
     im_cat = resize(im_cat, (im_4.shape[0], im_4.shape[1]))
     im_noise = np.random.rand(im_4.shape[0], im_4.shape[1])
     image_entropy_demo([im_4, im_cat, im_noise])
@@ -167,7 +167,8 @@ with tabs['Vector/image entropy']:
                 area_entropy.append((area, entropies[i, j]))
     area_entropy = np.array(area_entropy)   
     fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-    ax.imshow(entropies, cmap='viridis')
+    imshow1 = ax.imshow(entropies, cmap='viridis')
+    plt.colorbar(imshow1, ax=ax)
     ax.set_xticks(np.arange(len(widths)))
     ax.set_xticklabels(widths)
     ax.set_yticks(np.arange(len(heights)))
@@ -189,7 +190,7 @@ with tabs['Vector/image entropy']:
 
         Fitting log(area) to entropy, we get:
         $$
-            H = \log_2(a\cdot area)
+            H \sim \log_2(a\cdot area)
         $$
         """
 
@@ -197,16 +198,16 @@ with tabs['Vector/image entropy']:
         ax.scatter(area_entropy[:,0], area_entropy[:,1])
         
         # fit a line
-        func = lambda x, a, b,c: np.log2((x)*a) + c
+        func = lambda x, a: np.log2(a*x)
         x = np.linspace(area_entropy[:,0].min(), area_entropy[:,0].max(), 100)
         from scipy.optimize import curve_fit
         popt, pcov = curve_fit(func, area_entropy[:,0], area_entropy[:,1])
         y = func(x, *popt)
-        a, b, c = popt
-        a, b, c
+        a = popt[0]
+        a
         f"""
         $$
-        H = \log_2({a:.2f}\cdot area * {b:.2f})
+        H \sim \log_2({a:.3f}\cdot area)
         $$
         """
         ax.plot(x, y, color='red', linestyle='--', )#label=f'log({a}x)+{b}')
@@ -217,6 +218,10 @@ with tabs['Vector/image entropy']:
         ax.set_ylabel('Entropy')
         ax.set_title('Entropy vs Area')
         st.pyplot(fig)
+
+
+
+
     with cols[0]:
         r"""
         We will approximate this as:
@@ -291,6 +296,47 @@ with tabs['Vector/image entropy']:
         \sum_{j=1}^J\sum_{i=1}^I p_{i,j} \log_2(p_{i,j}) 
     $$
     """
+
+    st.divider()
+
+    r"""
+    Applying this to our example image, resized to 512x512, 256x256, and 128x128, with 0, 50, and 100% noise, we get the following results:
+    """
+
+    im_cat = grayscale(plt.imread('assets/example_images/cat.png'))
+    st.write('im cat size:', im_cat.shape)
+    im_cat_512 = resize(im_cat, (512, 512))
+    im_cat_256 = resize(im_cat, (256, 256))
+    im_cat_128 = resize(im_cat, (128, 128))
+    st.write('im cat 512 size:', im_cat_512.shape)
+    st.write('im cat 256 size:', im_cat_256.shape)
+    st.write('im cat 128 size:', im_cat_128.shape)
+
+    def mix_with_noise(im, noise_fraction):
+        min_im = 0#im.min()
+        max_im = 1#im.max()
+        noisy_im = im * (1-noise_fraction) + np.random.randn(*im.shape) * noise_fraction
+        noisy_im = np.clip(noisy_im, min_im, max_im)
+        return noisy_im
+    
+    fig, ax = plt.subplots(3, 3, figsize=(8, 8))
+    fig.suptitle('Entropy of images with noise')
+    for i, im in enumerate([im_cat_512, im_cat_256, im_cat_128]):
+
+        for j, noise_fraction in enumerate([0, 0.5, 1]):
+            noisy_im = mix_with_noise(im, noise_fraction)
+            H = shannon_entropy_2d(noisy_im)
+            ax[i,j].imshow(noisy_im, cmap='gray_r')
+            ax[i,j].set_title(f'H={H:.2f}')
+            ax[i,j].set_xticks([])
+            ax[i,j].set_yticks([])
+            if j ==0:
+                ax[i,j].set_ylabel(f'{im.shape[0]}x{im.shape[1]}')
+    plt.tight_layout()
+    st.pyplot(fig)
+    
+
+
 
 # Noise Schedule
 with tabs['Noise Schedule']:
@@ -522,7 +568,7 @@ with tabs['Noise Schedule']:
     ax_coor[0].grid()
     ax_coor[1].grid()
 
-    example_img = plt.imread("assets/example_img.png")
+    example_img = plt.imread("assets/example_images/cat.png")
     example_img = torch.tensor(example_img).permute(2, 0, 1).unsqueeze(0).float()
     noise = torch.randn_like(example_img)
 
@@ -829,7 +875,7 @@ with tabs['Metrics']:
         No, because the FID is a measure of similarity between two sets of images. It is not a differentiable function.
         """
 
-        cat = plt.imread('assets/example_img.png')[:,:,:3]
+        cat = plt.imread('assets/example_images/cat.png')[:,:,:3]
         cat_noisy = cat + np.random.rand(*cat.shape)*0.1
         cat_NOISY = cat + np.random.rand(*cat.shape)*1
 

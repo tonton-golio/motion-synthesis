@@ -19,12 +19,15 @@ from matplotlib import gridspec
 
 tab_names = [
     'Noise schedule',
+    'Network',
+    'Losses & Metrics',
+    'Inference',
 ]
 
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
+
 # setting up the data module and the variance schedule
-    
 with st.sidebar:  # parameters for the data module
         'Data module parameters:'
         params_preset = True
@@ -61,8 +64,6 @@ with st.sidebar:  # parameters for the data module
             )
 
         '---'
-
-      
 
 class VarianceSchedule(nn.Module):
 
@@ -125,7 +126,6 @@ class VarianceSchedule(nn.Module):
             x_t = torch.clip(x_t, 0.0, 1.0)
         return x_t
     
-
 def get_images():
     dm = MNISTDataModule(verbose=False, **params_data)
     dm.setup()
@@ -329,3 +329,17 @@ with tabs['Noise schedule']:
         metadata
     
     cols[1].pyplot(fig)
+
+# Network
+with tabs['Network']:
+    """
+    We employ a U-Net architecture, with sequential convolution \& down-sampling blocks, with skipped connections.
+    """
+
+# Losses
+with tabs['Losses & Metrics']:
+    pass
+
+# Inference
+with tabs['Inference']:
+    pass
