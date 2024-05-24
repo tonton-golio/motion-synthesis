@@ -65,26 +65,31 @@ def shannon_entropy_2d(im, return_all=False):
         return H, im_derivative
     return H
 
-def vector_entropy_demo(vector_length = 10):
+def vector_entropy_demo(vector_length = 8):
     vl = vector_length 
     A = normalize(np.random.rand(vl))
-    B = normalize(np.random.rand(vl)**99)
-
+    B = normalize(np.random.rand(vl)**20)
+    # max(A), max(B)
     def make_plot():
 
-        fig, ax = plt.subplots(1, 2, figsize=(8, 1))
-        ax[0].imshow(A.reshape(1, -1), aspect='auto', vmin=0, vmax=1, cmap='RdBu_r')
-        rightplot = ax[1].imshow(B.reshape(1, -1), aspect='auto', vmin=0, vmax=1, cmap='RdBu_r')
+        fig, ax = plt.subplots(1, 2, figsize=(12, 1), gridspec_kw={'width_ratios': [1, 1.2]})
+        vmin = 0
+        ax[0].imshow(A.reshape(1, -1), aspect='auto', vmin=vmin, vmax=1, cmap='Greys')
+        rightplot = ax[1].imshow(B.reshape(1, -1), aspect='auto', vmin=vmin, vmax=1, cmap='Greys')
         plt.colorbar(rightplot, ax=ax[1])
 
         ax[0].set_title(r'$H(\bar{a})$='+f'{shannon_entropy_1d(A):.2f}')
         ax[1].set_title(r'$H(\bar{b})$='+f'{shannon_entropy_1d(B):.2f}')
 
-        for a in ax:
+        for a, V in zip(ax, [A, B]):
             #a.set_xticks([])
             a.set_yticks([])
             a.set_xlabel('Vector component')
 
+            # annotate the vector components with values
+            for i, val in enumerate(V):
+                a.text(i, 0, f'{val:.2f}', ha='center', va='center', color='white' if val > .5 else 'black')
+                
         # plt.tight_layout()
         plt.close()
         return fig
@@ -218,9 +223,6 @@ with tabs['Vector/image entropy']:
         ax.set_ylabel('Entropy')
         ax.set_title('Entropy vs Area')
         st.pyplot(fig)
-
-
-
 
     with cols[0]:
         r"""
@@ -1073,3 +1075,5 @@ with tabs['Time Embedding']:
         if epoch % 10 == 0:
             print(f'Epoch {epoch}, Loss: {loss.item()}')
     """
+
+

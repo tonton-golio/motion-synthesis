@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
         elif args.mode == 'inference':
             parent_log_dir = 'logs/imageDiffusion/train/'
-            checkpoint = get_ckpt(parent_log_dir)
+            checkpoint = get_ckpt(parent_log_dir, config_name='hparams.yaml')
             print(checkpoint)
             # import sys
             # sys.exit(0)

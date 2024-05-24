@@ -21,7 +21,8 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import mpl_toolkits.mplot3d.axes3d as p3
 
 
-
+import seaborn as sns
+iris = sns.load_dataset("iris")
 import os
 import glob
 import subprocess

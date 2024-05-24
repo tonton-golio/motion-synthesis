@@ -7,11 +7,19 @@ import streamlit as st
 """
 
 tab_names = [
+	'Results summary',
     'Latent Space',
 	'VAE weights',
 ]
 
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
+
+with tabs['Results summary']:
+	"""
+	We have trained A conv-based VAE on the MNIST dataset, using a range of KL divergence weights. We obtain latent spaces of varying size. The larger latent spaces admit island formation, whereas a smaller latent space sees continent, of pangea formation.
+	"""
+
+	
 
 with tabs['Latent Space']:
 	# title and introduction
@@ -50,8 +58,6 @@ with tabs['Latent Space']:
 
 	plt.colorbar()
 	st.pyplot(fig)
-
-
 
 with tabs['VAE weights']:
 	import streamlit as st

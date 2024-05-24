@@ -16,6 +16,8 @@ tab_names = [
     'PCA demo',
     'hparams viewer',
     'Determine joint connectivity',
+    'Download data',
+    'links for later'
 ]
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
@@ -750,3 +752,14 @@ with tabs['Determine joint connectivity']:
             run = False
         else:
             canvas.plotly_chart(make_plotly(df_gen, frame_number, joint_connections), use_container_width=True)
+
+
+
+# Download data
+with tabs['Download data']:
+    from subpages.downloading_data import download_data_instruction
+    download_data_instruction()
+
+with tabs['links for later']:
+    from subpages.links_for_later import links_for_later
+    links_for_later()

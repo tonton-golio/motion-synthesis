@@ -1,38 +1,54 @@
 import streamlit as st
-from streamlit_pdf_viewer import pdf_viewer
 import base64
 
-# from st_pages import show_pages_from_config
-# show_pages_from_config(".streamlit/pages_sections.toml")
+title = "# Motion Synthesized from a Text Prompt"
+abstract = """
+    Motion synthesis is a fast evolving field, with groundbreaking research being published every year. The task is to synthesise humanoid motion from a text prompt. I am implementing such a model, and will demonstrate/explain it here.
 
-def embed_pdf(pdf_file, st=st, height=700, width=700):
+    The approach I will be employing, is diffusion on a latent representation. This is a powerful technique demonstrated in the literature. I work with the publicly available HumanML3D dataset, which contains 3D motion capture data with descriptive text strings from KIT.
+    """
+
+def home():
+    # introduction and flow
+    cols = st.columns([6, 1])
+    with cols[0]:  # Introduction
+        st.markdown(abstract)
+
+    cols[1].image('assets/0_home/flow_pipeline/flow2.png', caption='Schematic of the architecture/flow employed.', width=180)  # Flow
+
+    # model interface
+    ## text prompt
+    cols[0].text_area('Text prompt', 'A person turns on the spot.')
+
+    ## centering the video.
+    st.columns([1, 2, 1])[1].video('assets/0_home/recon_fake.mp4')
+
+def learning_goals():
+    st.write("""
+    My goals in this project we the following:
+    * Acquire deep knowledge of the transformer architecture, and diffusion model.
+    * Learn how to build a large AI project from scratch. How to manage the codebase, and the project as a whole. And which modern tools to use (e.g. PyTorch Lightning, Tensorboard, Hydra).
+    * Implement a model that can generate motion from a text prompt.
+    """)
+
+def embed_pdf(pdf_file='assets/papers/Thesis_compressed_compressed.pdf', st=st, height=700, width=700):
     with open(pdf_file, 'rb') as f:
         pdf = f.read()#).decode()
     base64_pdf = base64.b64encode(pdf).decode()
     pdf_display = F'<iframe src="data:application/pdf;base64,{base64_pdf}" width="{width}" height="{height}" type="application/pdf"></iframe>'
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# title
-"""# Motion Synthesis from Text Prompt"""
+if __name__ == '__main__':
+    st.set_page_config(page_title='Motion Synthesis from a Text Prompt', page_icon='🕺')
+    st.markdown(title)
 
-# introduction and flow
-cols = st.columns([6, 1])
-with cols[0]:  # Introduction
-    """
-    Motion synthesis is a fast evolving field, with groundbreaking research being published every year. The task is to synthesise humanoid motion from a text prompt. I am implementing such a model, and will demonstrate/explain it here.
+    tab_names = ['Home', 'Learning Goals', 'Thesis']
 
-    The approach I will be employing, is diffusion on a latent representation. This is a powerful technique demonstrated in the literature. I work with the publicly available HumanML3D dataset, which contains 3D motion capture data with descriptive text strings from KIT.
-    """
+    tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
-cols[1].image('assets/0_home/flow_pipeline/flow2.png', caption='Schematic of the architecture/flow employed.', width=180)  # Flow
-
-# model interface
-## text prompt
-cols[0].text_area('Text prompt', 'A person turns on the spot.')
-
-## centering the video.
-st.columns([1, 2, 1])[1].video('assets/0_home/recon_fake.mp4')
-
-# include thesis
-embed_pdf('assets/papers/Thesis_compressed_compressed.pdf')
-
+    with tabs['Home']:
+        home()
+    with tabs['Learning Goals']:
+        learning_goals()
+    with tabs['Thesis']:
+        embed_pdf()
