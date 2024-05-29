@@ -2,7 +2,7 @@ import yaml, os, shutil
 import matplotlib.pyplot as plt
 import torch.nn as nn
 import torch
-
+import streamlit as st
 
 activation_dict = {
     # soft step
@@ -21,7 +21,7 @@ activation_dict = {
     None: nn.Identity(),
 }
 
-def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/', config_name='config_VAE.yaml', return_all=False):
+def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/', config_name='config_VAE.yaml', return_all=False, with_streamlit=False):
     # find available checkpoints
     
     checkpoints = {}
@@ -43,11 +43,16 @@ def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/', config_name='config_
     # sort by version number
     checkpoints = dict(sorted(checkpoints.items(), key=lambda item: int(item[0])))
     for k, v in checkpoints.items():
-        print(f"{k}: {v['ckpt_path']}")
+        if with_streamlit:
+            pass#st.write(f"{k}: {v['ckpt_path']}")
+        else:
+            print(f"{k}: {v['ckpt_path']}")
     if return_all:
         return checkpoints
-
-    checkpoint = checkpoints[input('Enter checkpoint idx/key: ')]
+    if with_streamlit:
+        checkpoint = checkpoints[st.selectbox('Select checkpoint', list(checkpoints.keys()))]
+    else:
+        checkpoint = checkpoints[input('Enter checkpoint idx/key: ')]
     return checkpoint
 
 def dict_merge(dct, merge_dct):
@@ -151,6 +156,133 @@ def save_for_diffusion(save_path, model, **kwargs):
 
     torch.save(model, f'{save_path}/model.pth')
 
+    num_params = sum(p.numel() for p in model.parameters())
+    with open(f'{save_path}/num_params.txt', 'w') as file:
+        file.write(f'Number of parameters: {num_params}')
+
     for k, v in kwargs.items():
         torch.save(v, f'{save_path}/{k}.pt')
 
+
+
+# load latent space from VAE
+# find saved latent vectors
+
+import os
+import matplotlib.pyplot as plt
+import glob
+import torch
+
+def find_saved_latent(path = f"logs/VAE/train/"):
+    """
+    Find saved latent vectors from VAE training
+    """
+
+    VAE_data = {}
+    for version in os.listdir(path):
+        version_num = version.split('_')[-1]
+        contents = os.listdir(f"{path}{version}")
+        base_path = os.path.join(path, version, )
+
+        if 'saved_latent' in contents:
+            cfg_file = None  # get config file
+            for file in contents:
+                if 'config' in file and file.endswith('.yaml'):
+                    cfg_file = file
+                    break
+            
+            projection = None  # get projection image
+            for file in contents:
+                if 'projection' in file and file.endswith('.png'):
+                    projection = file
+                    break
+
+            checkpoints = glob.glob(f"{base_path}/checkpoints/*")  # check for checkpoints
+            saved_latent = os.listdir(os.path.join(base_path, 'saved_latent'))  # open saved_latent and check whats inside
+
+            VAE_data[version_num] = {
+                'saved_latent' : saved_latent,
+                'paths' : {
+                    'config' : os.path.join(base_path, cfg_file),
+                    'saved_latent' : os.path.join(base_path, 'saved_latent'),
+                    'projection' : os.path.join(base_path, projection),
+                    'checkpoints' : checkpoints,
+                    'log' : base_path,
+                },
+                'contents' : contents
+            }
+
+    return VAE_data
+
+def show_saved_latent_info(data, return_fig=False):
+
+    saved_latent_info = {}
+
+    for version, info in data.items():
+        saved_latent = info['saved_latent']
+        saved_latent_info[version] = {
+            'num_files' : len(saved_latent),
+            'size' : None,
+            'min' : None,
+            'max' : None,
+            'std_dev' : None,
+            'projection' : None
+        }
+
+        for file in saved_latent:
+            # get size of file
+            # get min and max values
+            # get std dev
+            pass
+
+        # projection_image = plt.imread(info['paths']['projection'])
+        saved_latent_info[version]['projection'] = info['paths']['projection']
+
+    fig, ax = plt.subplots(2, len(data), figsize=(20, 10))
+    if len(data) == 1:
+        ax = ax.reshape(2, 1)
+    for i, (version, info) in enumerate(data.items()):
+        ax[0, i].imshow(plt.imread(info['paths']['projection']))
+        ax[0, i].set_title(f"Version {version}")
+        ax[0, i].axis('off')
+
+        ax[1, i].text(0.5, 0.5, f"Num Files: {saved_latent_info[version]['num_files']}", ha='center', va='center')
+        ax[1, i].axis('off')
+    if return_fig:
+        return fig
+
+    plt.show()
+
+def latent_picker():
+    data = find_saved_latent()
+    # print(data)
+
+    # if the user has difficulty picking a version, show info
+    ## info to show: projection image, config file, saved_latent vectors (how many?, how big?, min/max values?, std dev?, etc.)
+    ## also show the checkpoint files
+
+    show_saved_latent_info(data)
+
+    # ask user for input of version number
+    print("Please enter the version number you would like to use: ")
+    for version in data.keys():
+        print(f"\t{version}")
+    version = input('Version: ')
+
+    return data[version]
+
+def load_latent(data_version):
+    path = data_version['paths']['saved_latent']
+    z = torch.load(path + '/z.pt')#.to(torch.device('mps'))
+    y = torch.load(path + '/y.pt')#.to(torch.device('mps'))
+    autoencoder = torch.load(path + '/model.pth').to(torch.device('mps'))
+    projector = torch.load(path + '/projector.pt')
+    projection = torch.load(path + '/projection.pt')
+
+    # load checkpoint
+    # checkpoint = torch.load(data_version['paths']['checkpoints'][0])
+    # autoencoder.load_state_dict(checkpoint['autoencoder_state_dict'])
+
+    return z, y , autoencoder, projector, projection
+
+ 

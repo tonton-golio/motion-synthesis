@@ -339,7 +339,6 @@ with tabs['Vector/image entropy']:
     
 
 
-
 # Noise Schedule
 with tabs['Noise Schedule']:
     import torch
@@ -694,6 +693,9 @@ with tabs['Noise Schedule']:
     plt.grid()
     st.pyplot(fig)
 
+with tabs['Noise Schedule']:
+    from subpages.noise_schedule import NoiseScheduleDemo
+    NoiseScheduleDemo()
 
 # Metrics
 with tabs['Metrics']:

@@ -34,74 +34,84 @@ with tabs['Latent Space']:
 
 	"""
 
-	# try loading it back
-	import torch
+	# # try loading it back
+	# import torch
 	import matplotlib.pyplot as plt
 
-	path = 'logs/MNIST_VAE/version_105/saved_latent/'
-	device = torch.device('mps')
-	z = torch.load(path + 'z.pt').to(device)
-	autoencoder = torch.load(path + 'model.pth').to(device)
-	# x = torch.load(path + 'x.pt').to(device)
-	y = torch.load(path + 'y.pt').to(device)
-	projector = torch.load(path + 'projector.pt')
-	projection = torch.load(path + 'projection.pt')
+	# path = 'logs/MNIST_VAE/version_105/saved_latent/'
+	# device = torch.device('mps')
+	# z = torch.load(path + 'z.pt').to(device)
+	# autoencoder = torch.load(path + 'model.pth').to(device)
+	# # x = torch.load(path + 'x.pt').to(device)
+	# y = torch.load(path + 'y.pt').to(device)
+	# projector = torch.load(path + 'projector.pt')
+	# projection = torch.load(path + 'projection.pt')
 
-	z.shape, y.shape
-	# plot the latent space
-	fig = plt.figure()
-	plt.scatter(projection[:, 0], #.detach().cpu().numpy(),
-				projection[:, 1], #.detach().cpu().numpy(),
-				c=y.detach().cpu().numpy(),
-				cmap='tab10',
-				alpha=0.5)
+	# z.shape, y.shape
+	# # plot the latent space
+	# fig = plt.figure()
+	# plt.scatter(projection[:, 0], #.detach().cpu().numpy(),
+	# 			projection[:, 1], #.detach().cpu().numpy(),
+	# 			c=y.detach().cpu().numpy(),
+	# 			cmap='tab10',
+	# 			alpha=0.5)
 
-	plt.colorbar()
-	st.pyplot(fig)
+	# plt.colorbar()
+	# st.pyplot(fig)
 
-with tabs['VAE weights']:
-	import streamlit as st
-	import sys
-	sys.path.append('..')
-	from mnist_latent_diffusion.utils import get_ckpt, load_config
-	import torch
-	from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
+	from mnist_latent_diffusion.utils import find_saved_latent
+	VAE_data = find_saved_latent(path = f"../mnist_latent_diffusion/logs/VAE/train/")
+	
+	for entry in VAE_data:
+		VAE_data[entry]['image'] = plt.imread(VAE_data[entry]['paths']['projection'])
 
-
-	# What we need to do?
-	## Load a model (select it in the sidebar)
-	## get sample inputs (scaled in the correct way)
-	## Choose an input
-	## View graph of network, with given input
+		st.image(VAE_data[entry]['paths']['projection'])
 
 
-	# Title and introductionc
-	"""
-	# MNIST VAE Weights
 
-	This page allows you to load a pre-trained VAE model and view the weights of the model.
-	"""
+# with tabs['VAE weights']:
+# 	import streamlit as st
+# 	import sys
+# 	sys.path.append('..')
+# 	from mnist_latent_diffusion.utils import get_ckpt, load_config
+# 	import torch
+# 	from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 
-	# checkpoint paths
 
-	with st.sidebar:
+# 	# What we need to do?
+# 	## Load a model (select it in the sidebar)
+# 	## get sample inputs (scaled in the correct way)
+# 	## Choose an input
+# 	## View graph of network, with given input
+
+
+# 	# Title and introductionc
+# 	"""
+# 	# MNIST VAE Weights
+
+# 	This page allows you to load a pre-trained VAE model and view the weights of the model.
+# 	"""
+
+# 	# checkpoint paths
+
+# 	with st.sidebar:
 		
-		checkpoints = get_ckpt(parent_log_dir='../mnist_latent_diffusion/logs/VAE/train/', return_all=True)
-		checkpoint = st.selectbox('Select a checkpoint', list(checkpoints.keys()))
+# 		checkpoints = get_ckpt(parent_log_dir='../mnist_latent_diffusion/logs/VAE/train/', return_all=True)
+# 		checkpoint = st.selectbox('Select a checkpoint', list(checkpoints.keys()))
 
-	# Load model
-	model = torch.load(checkpoints[checkpoint]['ckpt_path'])
-	'model loaded'
-	config = load_config(checkpoints[checkpoint]['config_path'])
-	'config loaded'
-	# Get sample inputs
-	dm = MNISTDataModule(**config['TRAIN']['DATA'], verbose=False)
-	dm.setup()
-	'mnist data module setup'
+# 	# Load model
+# 	model = torch.load(checkpoints[checkpoint]['ckpt_path'])
+# 	'model loaded'
+# 	config = load_config(checkpoints[checkpoint]['config_path'])
+# 	'config loaded'
+# 	# Get sample inputs
+# 	dm = MNISTDataModule(**config['TRAIN']['DATA'], verbose=False)
+# 	dm.setup()
+# 	'mnist data module setup'
 
-	batch = next(iter(dm.train_dataloader()))
+# 	batch = next(iter(dm.train_dataloader()))
 
-	batch
+# 	batch
 
 
-	model
+# 	model

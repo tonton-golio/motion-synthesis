@@ -122,6 +122,7 @@ class LatentSpaceDataModule(pl.LightningDataModule):
     def __init__(self, X, y, batch_size=64, scale=False):
         super().__init__()
         self.batch_size = batch_size
+        # self.batch_size_val_test = max(32, self.batch_size)
 
         self.X = X  # (N, D)
         # y = y.unsqueeze(1)  # (N, 1)
@@ -132,7 +133,7 @@ class LatentSpaceDataModule(pl.LightningDataModule):
         # normalize X
         if scale:
             self.scaler = StandardScaler()
-            self.X = self.scaler.fit_transform(self.X.detach().numpy())
+            self.X = self.scaler.fit_transform(self.X.detach().cpu().numpy())
             self.X = torch.tensor(self.X).float()
         else:
             self.X = self.X.float()

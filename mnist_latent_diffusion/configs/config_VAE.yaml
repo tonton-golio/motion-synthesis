@@ -1,12 +1,12 @@
 # Description: Configuration file for the project
 BASE:
   DATA:
-    BATCH_SIZE: 512
-    ROTAION: 30
-    SCALE: .4
-    TRANSLATE_X: 0.1
-    TRANSLATE_Y: 0.1
-    SHEAR: 0.1
+    BATCH_SIZE: 128
+    ROTAION: 0
+    SCALE: .0
+    TRANSLATE_X: 0.0
+    TRANSLATE_Y: 0.0
+    SHEAR: 0.0
     NORMALIZE_MEAN: 0.0
     NORMALIZE_STD: 1.0
     BOOL: false
@@ -15,16 +15,16 @@ BASE:
     ACTIVATION: leaky_relu
     OUT_ACTIVATION: sigmoid
     LEARNING_RATE: 0.0005
-    LATENT_DIM: 64
+    LATENT_DIM: 8
     # MUL_KL_PER_EPOCH: 1
-    LATENT_DROP_OUT_RATE: 0.5
-    DROPOUT: 0.3
-    UMAP_FREQ: 50  # if -1 disable
-    RECON_FREQ: 10  # if -1 disable
+    LATENT_DROP_OUT_RATE: 0.0
+    DROPOUT: 0.2
+    UMAP_FREQ: 10  # if -1 disable
+    RECON_FREQ: 2  # if -1 disable
     COV_FREQ: 50  # if -1 disable
   LOSS:
     RECONSTRUCTION_L2: 1.
-    DIVERGENCE_KL: 0.000_000_01
+    DIVERGENCE_KL: 0.000_000_1
 
 BUILD:
   DATA:
@@ -41,12 +41,13 @@ BUILD:
     enable_checkpointing: false
     # detect_anomaly: true
     # CONTINUE_TRAINING: False
+    # resume_from_checkpoint: null
     fast_dev_run: False
 
 TRAIN:
   TRAINER:
     max_epochs: 1000
-    log_every_n_steps: 100
+    log_every_n_steps: 94
     # CONTINUE_TRAINING: False
 
 OPTUNA:

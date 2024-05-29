@@ -55,19 +55,30 @@ class SimpleModel(nn.Module):
         timesteps=10,
         time_embedding_dim=64,
         dp_rate=0.1,
+        verbose=False,
     ):
         super(SimpleModel, self).__init__()
-        self.time_embedding_dim = time_embedding_dim
-        self.target_embedding_dim = 10
+        self.verbose = verbose
+        time_ed = self.time_embedding_dim = time_embedding_dim
+        targ_ed = self.target_embedding_dim = 10
         self.time_embedding = nn.Embedding(timesteps, time_embedding_dim)
 
 
-        self.time_mlp=TimeMLP(time_embedding_dim, time_embedding_dim*2,time_embedding_dim)
-        self.target_mlp=TargetMLP(embedding_dim=10,hidden_dim=hidden_dim,out_dim=latent_dim*4, nhidden=nhidden)
+        self.time_mlp=TimeMLP(
+            in_dim=time_ed, 
+            hidden_dim=time_ed*2,
+            out_dim=time_ed)
+        self.target_mlp=TargetMLP(
+            embedding_dim=targ_ed,
+            hidden_dim=targ_ed*2,
+            out_dim=targ_ed,
+            nhidden=3
+        )
 
-
+        in_dim = latent_dim + time_ed + targ_ed
+        print('in_dim', in_dim, 'hidden_dim', hidden_dim, 'latent_dim', latent_dim, 'time_ed', time_ed, 'targ_ed', targ_ed)
         self.fc_noise = nn.Sequential(
-            nn.Linear(4*latent_dim + latent_dim + time_embedding_dim, hidden_dim),
+            nn.Linear(in_dim, hidden_dim),
             nn.LeakyReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.LeakyReLU(),
@@ -80,10 +91,13 @@ class SimpleModel(nn.Module):
         
 
     def forward(self, x, y, t):
-        # print('x', x.shape)
-        # print('SimpleModel: y', y.shape)
-        # print('SimpleModel: t', t.shape)
-        # print('SimpleModel: x', x.shape)
+
+
+        if self.verbose:
+            print('x', x.shape)
+            print('y', y.shape)
+            print('t', t.shape)
+
         t = self.time_embedding(t)  # embed time
         # print('time embedding success')
         t = self.time_mlp(t)  # dim is hidden_dim
@@ -91,16 +105,16 @@ class SimpleModel(nn.Module):
         y = self.target_mlp(y)  # dim is hidden_dim
         # print('target mlp success')
 
-        # print('x', x.shape)
-        # print('y', y.shape)
+        if self.verbose:
+            print('t', t.shape)
+            print('y', y.shape)
 
         cat = torch.cat([x, y, t], dim=-1)
-        # print('cat', cat.shape)
-        # print('x', x.shape)
-        pred_x = self.fc_noise(cat)
-        # pred_noise = pred_x - x
-        # print('fc_noise success, pred_x', pred_x.shape)
-        return pred_x
+
+        if self.verbose:
+            print('cat', cat.shape)
+                
+        return self.fc_noise(cat)
     
 class LatentDiffusion(nn.Module):
     def __init__(
@@ -112,6 +126,7 @@ class LatentDiffusion(nn.Module):
         time_embedding_dim=64,
         target_embedding_dim=5,
         epsilon=0.008,
+        verbose=False,
     ):
         super().__init__()
         self.timesteps = timesteps
@@ -139,16 +154,16 @@ class LatentDiffusion(nn.Module):
             timesteps=timesteps,
             time_embedding_dim=time_embedding_dim,
             # target_embedding_dim=target_embedding_dim,
+            verbose=verbose,
         )
 
         self.target_embedding = nn.Embedding(10, 10)
 
     def forward(self, x, y, noise):
         # x:NCHW
-        t = torch.randint(10, self.timesteps, (x.shape[0],)).to(x.device)
+        t = torch.randint(0, self.timesteps, (x.shape[0],)).to(x.device)
 
         x_t = self._forward_diffusion(x, t, noise)
-        print('x_t?', x_t.shape)
         pred_noise = self.model(x_t, y, t)
         noise_added = x_t - x
         return pred_noise, noise, x_t, t
@@ -163,7 +178,7 @@ class LatentDiffusion(nn.Module):
         y = torch.randint(0, 10, (n_samples,), device=device, dtype=torch.long)
         y_emb = self.target_embedding(y)
 
-        for ti in tqdm(reversed(range(1, self.timesteps)),desc="Sampling", disable=tqdm_disable):
+        for ti in tqdm(reversed(range(0, self.timesteps)),desc="Sampling", disable=tqdm_disable):
             noise=torch.randn_like(x_t).to(device) * .3
             t = torch.ones(n_samples, device=device, dtype=torch.long) * ti
             x_t=self._reverse_diffusion(x_t, y_emb, t, noise)
@@ -223,7 +238,7 @@ class LatentDiffusion(nn.Module):
 
 
 # make pl model
-class LatentDiffusionModel(pl.LightningModule):
+class LatentDiffusionModule(pl.LightningModule):
     def __init__(
         self,
         autoencoder=None,
@@ -233,6 +248,7 @@ class LatentDiffusionModel(pl.LightningModule):
         projector=None,
         projection=None,
         labels=None,
+        verbose=False,
         **kwargs,
     ):
         super().__init__()
@@ -245,18 +261,21 @@ class LatentDiffusionModel(pl.LightningModule):
             time_embedding_dim=kwargs.get("TIME_EMBEDDING", 8),
             epsilon=kwargs.get("EPSILON", 0.008),
             target_embedding_dim=kwargs.get("TARGET_EMBEDDING", 8),
+            verbose=verbose,
         )
         # self.device = torch.device("mps")
         self.noise_multiplier = kwargs.get("NOISE", 1.0)
         self.model.noise_multiplier = self.noise_multiplier
+        autoencoder.model.eval()
         self.decoder = autoencoder.model.decode if autoencoder is not None else None
+
         self.scaler = scaler
 
         self.criteria = criteria
         self.classifier = classifier
         self.projector = projector
         self.projection = projection
-        self.labels = labels
+        self.labels = labels[:5000]
 
         # self.recon_loss = True if 'RECON_L2' in self.criteria.loss_weights.keys() else False
         
@@ -368,26 +387,26 @@ class LatentDiffusionModel(pl.LightningModule):
             return scaled.reshape(*org_shape[:-1], scaled.shape[-1])
 
     def on_validation_epoch_end(self):
-        print('starting validation epoch end')
+        # print('starting validation epoch end')
         with torch.no_grad():
             # Simplify y value assignment            
             # Sample from model
-            print('starting sampling')
+            # print('starting sampling')
             n_samples = 6
             n_time_steps_show = 8
             sample, hist, y_flags = self.model.sampling(n_samples, device='mps', tqdm_disable=True)
-            print('done sampling')
+            # print('done sampling')    
 
             # lets make the other image.
             # a plot of the latent space, through the projector. with the history projected and shown as a line
 
             # project the latent space
-            print('projecting, hist.shape', hist.shape)
+            # print('projecting, hist.shape', hist.shape)
             if self.projector is not None:
                 fig_prj, ax_prj = plt.subplots(1, 1, figsize=(10, 10))
                 hist = self.apply_scaler(hist, inverse=True, return_tensor_type=True)
                 hist_prj = self.apply_projector(hist)
-                print('hist_prj', hist_prj.shape)
+                # print('hist_prj', hist_prj.shape)
                 # plot the latent space
                 # make sure lengths are the same
                 if len(self.projection) < len(self.labels):
@@ -396,7 +415,8 @@ class LatentDiffusionModel(pl.LightningModule):
                     self.projection = self.projection[:len(self.labels)]
 
 
-                ax_prj.scatter(self.projection[:, 0], self.projection[:, 1], c=self.labels, s=2, alpha=0.5)
+                scat = ax_prj.scatter(self.projection[:, 0], self.projection[:, 1], c=self.labels, s=10, alpha=0.5, cmap='tab10')
+                plt.colorbar(scat)
                 for i in range(hist_prj.shape[1]):
                     ax_prj.plot(hist_prj[:, i, 0], hist_prj[:,i, 1], c='r', alpha=1, ls='--')
 
@@ -412,52 +432,56 @@ class LatentDiffusionModel(pl.LightningModule):
             hist = hist[::len(hist) // n_time_steps_show]#.squeeze().cpu()
             
             # decode
-            # if self.decoder is not None:
-            #     # reshape
-            #     ## current shapes: hist: (timesteps, n_samples, latent_dim), y_flags: (n_samples)
-            #     ## desired shapes: hist: (n_samples* timesteps, latent_dim), y_flags: (n_samples*timesteps)
-            #     # y_flags_rep = y_flags.repeat(hist.shape[0])
-            #     # hist = hist.view(-1, hist.shape[-1]).to('mps')
+            if self.decoder is not None:
+                # reshape
+                ## current shapes: hist: (timesteps, n_samples, latent_dim), y_flags: (n_samples)
+                ## desired shapes: hist: (n_samples* timesteps, latent_dim), y_flags: (n_samples*timesteps)
+                # y_flags_rep = y_flags.repeat(hist.shape[0])
+                # hist = hist.view(-1, hist.shape[-1]).to('mps')
 
-            #     # print('hist', hist.shape)
-            #     hist_expanded = []
-            #     # sample = self.decoder(sample)
-            #     for i in range(len(hist)):
-            #         if self.use_label_for_decoder:
-            #             hist_expanded.append(self.decoder(torch.tensor(hist[i]).to('mps'), y_flags))
-            #         else:
+                # print('hist', hist.shape)
+                hist_expanded = []
+                # sample = self.decoder(sample)
+                for i in range(len(hist)):
+                    # if self.use_label_for_decoder:
+                    #     hist_expanded.append(self.decoder(torch.tensor(hist[i]).to('mps'), y_flags))
+                    # else:
 
-            #             hist_expanded.append(self.decoder(torch.tensor(hist[i]).to('mps')))
+                    hist_expanded.append(self.decoder(hist[i].to('mps')))
 
-            #     hist = torch.stack(hist_expanded, dim=0).squeeze().cpu()
+                hist = torch.stack(hist_expanded, dim=0).squeeze().cpu()
 
                 # print('hist', hist.shape)
 
 
             # Create a figure with subplots
-            # rows, cols = hist.shape[:2]
-            # fig, axes = plt.subplots(rows, cols, figsize=(10, 10 * rows / cols))
-            
-            # # for i in range(rows):
-            # #     for j in range(cols):
-            # #         ax[i, j].imshow(hist[i, j], cmap='gray')
-            # #         ax[i, j].axis('off')
+            if len(hist.shape) == 3:
+                hist = hist.unsqueeze(0)
+            print('hist', hist.shape)
+            rows, cols = hist.shape[:2]
+            fig, axes = plt.subplots(rows, cols, figsize=(10, 10 * rows / cols))
+            if rows == 1:
+                axes = axes.reshape(1, axes.shape[0])
             # for i in range(rows):
             #     for j in range(cols):
-            #         axes[i, j].imshow(hist[i, j].detach().cpu().numpy(), cmap='gray')
-            #         axes[i, j].axis('off')
-            #         axes[i, j].set_title(f'y={y_flags[j].item()}')
+            #         ax[i, j].imshow(hist[i, j], cmap='gray')
+            #         ax[i, j].axis('off')
+            for i in range(rows):
+                for j in range(cols):
+                    axes[i, j].imshow(hist[i, j].detach().cpu().numpy(), cmap='gray')
+                    axes[i, j].axis('off')
+                    axes[i, j].set_title(f'y={y_flags[j].item()}')
                     
             
-            # # # Set top row titles to y_flags
-            # # if y_flags is not None and len(y_flags) == cols:
-            # #     for i, flag in enumerate(y_flags):
-            #         # axes[0, i].set_title(f'y={flag.item()}')
+            # # Set top row titles to y_flags
+            # if y_flags is not None and len(y_flags) == cols:
+            #     for i, flag in enumerate(y_flags):
+                    # axes[0, i].set_title(f'y={flag.item()}')
                     
-            # self.logger.experiment.add_figure(f'hist latent', fig,  global_step=self.global_step)
-            # plt.close()
+            self.logger.experiment.add_figure(f'hist latent', fig,  global_step=self.global_step)
+            plt.close()
 
-        print('done validation epoch end')
+        # print('done validation epoch end')
 
 
     def test_step(self, batch, batch_idx):
@@ -472,7 +496,7 @@ class LatentDiffusionModel(pl.LightningModule):
         # return torch.optim.AdamW(self.parameters(), lr=self.lr)
         # decrease lr by 0.1 every 10 epochs
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5, verbose=False)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.5, verbose=True)
         return [optimizer], [scheduler]
 
 

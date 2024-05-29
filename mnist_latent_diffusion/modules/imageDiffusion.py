@@ -270,7 +270,7 @@ class Unet(nn.Module):
     '''
     unet design with target input
     '''
-    def __init__(self,timesteps,time_embedding_dim, in_channels=1,out_channels=1,base_dim=32,dim_mults=[2,4,8,16], verbose=False):
+    def __init__(self,timesteps,time_embedding_dim, in_channels=1,out_channels=1,base_dim=32,dim_mults=[2,4], verbose=False):
         super().__init__()
         assert isinstance(dim_mults,(list,tuple))
         assert base_dim%2==0 

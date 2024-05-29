@@ -210,7 +210,7 @@ class VAE_cnn(pl.LightningModule):
             LinearLayer(64*4*4, 512, dropout=self.dropout, act=self.act, verbose=self.verbose),
             LinearLayer(512, 256, dropout=self.dropout, act=self.act, verbose=self.verbose),
             LinearLayer(256, 128, dropout=self.dropout, act=self.act, verbose=self.verbose),
-            LinearLayer(128, 2*self.latent_dim, dropout=self.dropout, act=nn.Identity(), verbose=self.verbose)
+            LinearLayer(128, 2*self.latent_dim, dropout=0, act=nn.Identity(), verbose=self.verbose)
         )
 
         # we could look at the latent covariance matrix as a function of the dropout rate
@@ -252,7 +252,11 @@ class VAE_cnn(pl.LightningModule):
                 LinearLayer(32, 16, dropout=self.dropout, act=self.act, verbose=self.verbose),
                 LinearLayer(16, 8, dropout=self.dropout, act=self.act, verbose=self.verbose),
                 LinearLayer(8, 4, dropout=self.dropout, act=self.act, verbose=self.verbose),
-                LinearLayer(4, 1, dropout=self.dropout, act=self.out_act, verbose=self.verbose),
+                LinearLayer(4, 1, dropout=self.dropout, act=self.act, verbose=self.verbose),
+        )
+
+        self.final_conv3 = nn.Sequential(
+            ConvLayer(1,1 , kernel_size=3, dropout=0, batch_norm=True, act=self.out_act, pool=False, verbose=self.verbose, padding=1),
         )
 
         # initialize weights as xavier
@@ -298,6 +302,7 @@ class VAE_cnn(pl.LightningModule):
         x = torch.cat([x,z], dim=-1)
         x = self.linear_final_out(x)
         x = x.permute(0, 3, 1, 2).contiguous()
+        x = self.final_conv3(x)
         return x
     
     def forward(self, x):
@@ -314,7 +319,7 @@ class VAE_cnn(pl.LightningModule):
         x_tilde = self.decode(z)
         return x_tilde, z,  mu, logvar
 
-class VAE2(pl.LightningModule):
+class VAE2(pl.LightningModule):  # this is one currently used
     def __init__(self,criterion, **kwargs):
         
         super().__init__()
@@ -406,7 +411,7 @@ class VAE2(pl.LightningModule):
             y = torch.cat(self.validation_step_outputs['y'], dim=0)
             fig = plotUMAP(z, y, latent_dim=self.latent_dim , 
                         KL_weight=self.criterion.loss_weights['DIVERGENCE_KL'],
-                        save_path=None, show=False, max_points=10000)
+                        save_path=None, show=False, max_points=6000)
             self.logger.experiment.add_figure('UMAP', fig, self.current_epoch)
             plt.close(fig)
 
@@ -465,7 +470,7 @@ class VAE2(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
-        scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=.9)
+        scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=.5)
         # increase lr by 2x
         # scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=1.)
 

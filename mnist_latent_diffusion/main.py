@@ -45,7 +45,7 @@ if __name__ == "__main__":
         elif args.mode == 'train':
             manual_config_log(logger.log_dir, cp_file='configs/config_VAE.yaml')
             model, trainer = train(dm, criteria, config, logger, VAE)
-            test(dm, trainer, model, logger, config, save_latent=False)
+            test(dm, trainer, model, logger, config, save_latent=True)
 
         elif args.mode == 'optuna': optuna_VAE(VAE, dm, config)
         
@@ -139,7 +139,7 @@ if __name__ == "__main__":
             config = load_config('LatentDiffusion')
             print(config)
             model = LatentDiffusionModel(autoencoder=autoencoder, 
-                                 scaler=None,
+                                 scaler=None,   # TODO,
                                 criteria=None,
                                 classifier=None,
                                 projector=projector,
@@ -188,5 +188,8 @@ if __name__ == "__main__":
                     break
 
 
-            
+        elif args.mode == 'build':
+            from scripts.latentDiffusion.train import train as train_LatentDiffusion
+            train_LatentDiffusion(build_mode=True)
+
     else: raise NotImplementedError

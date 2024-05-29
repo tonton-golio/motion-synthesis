@@ -1,20 +1,18 @@
 # Description: Configuration file for the project
-DIFFUSE:
+BASE:
   DATA:
-    BATCH_SIZE: 512
-    V: 25
+    BATCH_SIZE: 128
     SCALE: True
   MODEL:
-    LATENT_DIM: 16
     HIDDEN_DIM: 256
-    N_HIDDEN: 12
-    TIMESTEPS: 64  # 1 for navigate to cluster, 1 for close range correction
-    TIME_EMBEDDING: 20
-    EPSILON: 0.0001
+    N_HIDDEN: 5
+    TIMESTEPS: 5  # 1 for navigate to cluster, 1 for close range correction
+    TIME_EMBEDDING: 5
+    EPSILON: 0.001
     ACTIVATION: leaky_relu
     OUT_ACTIVATION: None
-    LEARNING_RATE: 0.001
-    NOISE: .3
+    LEARNING_RATE: 0.0001
+    NOISE: 1
     LOAD: False  #"epoch=9-step=140.ckpt"  TODO: load doesn't work
     USE_LABEL_FOR_DECODER: False
   LOSS:
@@ -25,7 +23,11 @@ DIFFUSE:
     max_epochs: 200
     log_every_n_steps: 100
     # overfit_batches: 0
-    # CONTINUE_TRAINING: False
+    # CONTINUE_TRAINING: True
+
+TRAIN:
+  TRAINER:
+    max_epochs: 200
 
 
 # hvad jeg er i tvivl om:
@@ -33,3 +35,10 @@ DIFFUSE:
 # include outlook
 # Include words: torque, momentum, gravity.
 # 40 - 100 pages
+
+
+BUILD:
+  TRAINER:
+    max_epochs: 1
+    fast_dev_run: True
+
