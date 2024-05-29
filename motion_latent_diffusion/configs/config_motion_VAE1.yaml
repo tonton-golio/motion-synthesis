@@ -1,39 +1,55 @@
-MODEL:
-  hidden_dim: 256
-  hidden_dim_trans: 256
-  n_layers: 3
-  n_heads: 3
-  dropout: 0.10
-  latent_dim: 256
-  learning_rate: 0.000001
-  optimizer: AdamW
-  _save_animations: true
-  load: false
-  _checkpoint_path: latest
-  output_layer: linear
-  activation: relu
-  transformer_activation: relu
-  clip_grad_norm: 1.0
-  batch_norm: true
-  loss_weights:
-    kl_div: 0.000001
-    velocity_relative: 1.0
-    root: 0.0
-    pose0: 0.0
-    motion: 0.0
-    motion_relative: 1.0
-DATA:
-  seq_len: 420
-  batch_size: 32
-  file_list_paths:
-    _train: ../stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
-    _val: ../stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt
-    _test: ../stranger_repos/HumanML3D/HumanML3D/test_cleaned.txt
-  _motion_path: ../stranger_repos/HumanML3D/HumanML3D/new_joints
-TRAINING:
-  max_epochs: 1
-  accelerator: mps
-  devices: 1
-  precision: "32-true"
-  n_gpus: 1
-  fast_dev_run: True
+TRAIN:
+  MODEL:
+    hidden_dim: 256
+  TRAINER:
+    enable_checkpointing: True
+    log_every_n_steps: 10
+    
+
+BUILD:
+  MODEL:
+    hidden_dim: 256
+  TRAINER:
+    fast_dev_run: True
+
+BASE:
+  MODEL:
+    hidden_dim: 256
+    hidden_dim_trans: 256
+    n_layers: 3
+    n_heads: 3
+    dropout: 0.10
+    latent_dim: 256
+    learning_rate: 0.000001
+    optimizer: AdamW
+    _save_animations: true
+    load: false
+    _checkpoint_path: latest
+    output_layer: linear
+    activation: relu
+    transformer_activation: relu
+    clip_grad_norm: 1.0
+    batch_norm: true
+    loss_weights:
+      kl_div: 0.000001
+      velocity_relative: 1.0
+      root: 0.0
+      pose0: 0.0
+      motion: 0.0
+      motion_relative: 1.0
+  DATA:
+    seq_len: 420
+    batch_size: 32
+    file_list_paths:
+      _train: ../stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
+      _val: ../stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt
+      _test: ../stranger_repos/HumanML3D/HumanML3D/test_cleaned.txt
+    _motion_path: ../stranger_repos/HumanML3D/HumanML3D/new_joints
+  TRAINER:
+    max_epochs: 10
+    accelerator: mps
+    devices: 1
+    precision: "32-true"
+  
+
+

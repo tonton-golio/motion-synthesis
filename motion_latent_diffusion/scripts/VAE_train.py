@@ -30,15 +30,15 @@ def model_selector(model_name='VAE1'):
 
     return config, VAE, DM
 
-def train(model_name='VAE1'):
+def train(model_name='VAE1', build=False):
     cfg, VAE, DM = model_selector(model_name)
-    logger = TensorBoardLogger("logs/VAE/", name="train")
+    logger = TensorBoardLogger(f"logs/{model_name}/", name="train" if not build else "build")
     # profiler = PyTorchProfiler(
     #     on_trace_ready=torch.profiler.tensorboard_trace_handler("tb_logs/profiler0"),
     #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),
     # )
     
-    cfg = cfg['TRAIN']
+    cfg = cfg['TRAIN'] if not build else cfg['BUILD']
     print(cfg)
     # check if config.MODEL._checkpoint_path is latest if so look it up
     if cfg['MODEL']['load']:
@@ -49,8 +49,6 @@ def train(model_name='VAE1'):
       
     datamodule = DM(**cfg['DATA'])
 
-
-
     # make dict of hyperparameters
     cfg['MODEL']['seq_len'] = cfg['DATA']['seq_len']
     model = VAE(**cfg['MODEL'])
@@ -58,13 +56,7 @@ def train(model_name='VAE1'):
     trainer = Trainer(
         # profiler=profiler,
         logger=logger,
-        accelerator=cfg['TRAINER']['accelerator'],
-        max_epochs=cfg['TRAINER']['max_epochs'],
-        devices=cfg['TRAINER']['devices'],
-        precision=cfg['TRAINER']['precision'],
-        fast_dev_run=cfg['TRAINER']['fast_dev_run'],
-        enable_checkpointing=cfg['TRAINER']['enable_checkpointing'],
-        log_every_n_steps = cfg['TRAINER']['log_every_n_steps'],
+        **cfg['TRAINER']
     )
     epochs_trained = trainer.callback_metrics.get("epoch", 0)
     trainer.fit(model, datamodule, 
@@ -79,5 +71,6 @@ def train(model_name='VAE1'):
     cfg["MODEL"]["metrics"] = res[0]
     cfg["MODEL"]["epochs_trained"] = epochs_trained
 
-    with open(logger.log_dir + "/hparams.yaml", "w") as file:
-        yaml.dump(cfg, file)
+    if not build:
+        with open(logger.log_dir + "/hparams.yaml", "w") as file:
+            yaml.dump(cfg, file)

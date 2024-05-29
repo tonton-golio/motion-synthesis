@@ -9,7 +9,7 @@ BASE:
     dropout: 0.10
     transformer_activation: relu
     _save_animations_freq: 2  # -1 to disable
-    load: true
+    load: false
     _checkpoint_path: latest
     activation: leaky_relu
     clip_grad_norm: .1
@@ -36,7 +36,7 @@ BASE:
     accelerator: mps
     devices: 1
     precision: "32-true"
-    n_gpus: 1
+    # n_gpus: 1
     fast_dev_run: False
     enable_checkpointing: true
 

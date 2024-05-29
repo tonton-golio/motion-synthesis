@@ -101,7 +101,7 @@ class TransformerMotionAutoencoder_Chunked(pl.LightningModule):
 
     def __init__(
         self,
-        cfg,
+        **cfg,
     ):
         super(TransformerMotionAutoencoder_Chunked, self).__init__()
 

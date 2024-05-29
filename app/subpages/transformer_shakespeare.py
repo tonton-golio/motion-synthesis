@@ -249,7 +249,7 @@ def load_model(n_embed, n_head, n_layer, device, block_size, small=False):
 
 def render():
     torch.manual_seed(1337)
-    small = True
+    small = False
     
     if small:
         block_size = 64
@@ -259,36 +259,16 @@ def render():
         n_layer = 4
         device = torch.device('mps')
     else:
-        block_size = 64  # even though we have a block size of 8, the model will take context of 1-8 tokens when predicting the next token
-        batch_size = 64
-        n_embed = 288
-        n_head = 6
-        n_layer = 6
+        block_size = 128  # even though we have a block size of 8, the model will take context of 1-8 tokens when predicting the next token
+        batch_size = 256
+        n_embed = 256
+        n_head = 4
+        n_layer = 3
         device = torch.device('mps')
 
 
     cols = st.columns((2, 1))
-    with cols[1]:
-        train_ = True
-        if train_:
-
-            st.session_state.m, st.session_state.decode, st.session_state.encode = train(n_embed, n_head, n_layer, device, block_size, batch_size, small)
-        if 'm' not in st.session_state:
-            st.session_state.m, st.session_state.decode, st.session_state.encode = load_model(n_embed, n_head, n_layer, device, block_size, small)
-            
-        m, decode, encode = st.session_state.m, st.session_state.decode, st.session_state.encode
-
-        st.write('**Ready to generate Shakespearean text!**')
-        input_text = st.text_input('Enter text:', 'To be or not to be, that is the question:')
-
-        out = m.generate(torch.tensor(encode(input_text)).unsqueeze(0).to(device)
-                         , 1000)
-
-        out
-
-        # inference
-        context = torch.zeros((1,1), dtype=torch.long)
-        st.write(decode(out[0].tolist()))
+ 
 
     
     with cols[0]:
@@ -333,3 +313,26 @@ def render():
         * [UNET](https://arxiv.org/abs/1512.03385)
             
         """)
+
+
+    with cols[1]:
+        ss = st.session_state
+        train_ = False
+
+        if train_:
+            st.write('**Training the model**')
+            ss.m, ss.decode, ss.encode = train(n_embed, n_head, n_layer, device, block_size, batch_size, small)
+
+        if 'm' not in ss:
+            st.write('**Loading the model**')
+            ss.m, ss.decode, ss.encode = load_model(n_embed, n_head, n_layer, device, block_size, small)
+            
+        m, decode, encode = ss.m, ss.decode, ss.encode
+
+        # inference
+        st.write('**Ready to generate Shakespearean text!**')
+        input_text = st.text_input('Enter text:', 
+                                   'Muffin,')
+
+        out = m.generate(torch.tensor(encode(input_text)).unsqueeze(0).to(device) , 1000)
+        st.write(decode(out[0].tolist()))

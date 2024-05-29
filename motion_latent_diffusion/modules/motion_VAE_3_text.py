@@ -231,7 +231,7 @@ class Model(nn.Module):
 class TransformerMotionAutoencoder(pl.LightningModule):
     def __init__(
         self,
-        config,
+        **config,
     ):
         super(TransformerMotionAutoencoder, self).__init__()
         self.latent_dim = config.get("latent_dim", 512)

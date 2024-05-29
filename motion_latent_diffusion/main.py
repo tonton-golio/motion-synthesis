@@ -10,16 +10,18 @@ if __name__ == "__main__":
     parser.add_argument('--mode', type=str, default='train', help='Mode to run')
     args = parser.parse_args()
     print(args.model, args.mode)
-    assert args.model in ['VAE', 'latentDiffusion']  # assert valid
+    assert args.model in ['VAE1', 'VAE2', 'VAE3', 'VAE4', 'VAE5',
+                          'LD']  # assert valid
     assert args.mode in ['train', 'build', 'inference', 'optuna']
 
     
-    if args.model == 'VAE':
+    if args.model[:3] == 'VAE':
         if args.mode == 'train':
             from scripts.VAE_train import train
-            train(model_name='VAE5')
-        from scripts.VAE_train import train
-        train(model_name='VAE5')
+            train(model_name=args.model)
+        elif args.mode == 'build':
+            from scripts.VAE_train import train
+            train(model_name=args.model, build=True)
 
     elif args.model == 'LD':
         pass
