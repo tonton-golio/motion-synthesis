@@ -11,11 +11,6 @@ from home import embed_pdf
 
 from subpages.mnist.noise_schedule import mnist_noise_schedule_setup
 
-# make st.session_state available
-
-
-
-
 # Intro and title
 """
 # MNIST Diffusion (pixel space)

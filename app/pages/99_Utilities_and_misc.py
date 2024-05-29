@@ -1,7 +1,7 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
-
+import pandas as pd
 
 # Title and intro
 """
@@ -10,6 +10,7 @@ import numpy as np
 """
 
 tab_names = [
+    'How much code?',
     'Make GIF',
     'twitch chat',
     'storage usage',
@@ -20,6 +21,59 @@ tab_names = [
     'links for later'
 ]
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
+
+
+with tabs['How much code?']:
+    import os
+
+    # List of folders to search
+    folders = ["../app", "../mnist_latent_diffusion", 
+               "../motion_latent_diffusion"]
+    
+    exclude = 'logs'
+
+    def count_in_file(file_path):
+        with open(file_path, 'r') as file:
+            f = file.read()
+
+        return dict(
+            lines=f.count('\n'),
+            words=len(f.split()),
+            chars=len(f)
+        )
+
+    def count_lines_in_folder(folder):
+        total = {'lines': 0, 'words': 0, 'chars': 0}
+        for root, _, files in os.walk(folder):
+            
+            if exclude in root:
+                continue
+            
+            for file in files:
+                if file.endswith('.py'):
+                    # st.write(os.path.join(root, file))
+                    file_path = os.path.join(root, file)
+                    counts = count_in_file(file_path)
+                    total['lines'] += counts['lines']
+                    total['words'] += counts['words']
+                    total['chars'] += counts['chars']
+        return total
+
+    def main():
+        data = {}
+        for folder in folders:
+            if os.path.exists(folder):
+                count = count_lines_in_folder(folder)
+                # st.write(f"Folder: {folder}, Lines: {count['lines']}, Words: {count['words']}, Chars: {count['chars']}")
+                data[folder.split('../')[1]] = count
+            else:
+                print(f"Folder not found: {folder}")
+        df = pd.DataFrame(data)
+        df['Total'] = df.sum(axis=1)
+        df
+
+    if __name__ == "__main__":
+        main()
 
 # Make GIF
 with tabs['Make GIF']:
@@ -763,3 +817,4 @@ with tabs['Download data']:
 with tabs['links for later']:
     from subpages.links_for_later import links_for_later
     links_for_later()
+

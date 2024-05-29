@@ -6,7 +6,7 @@ import os
 import numpy as np
 import torch
 # from utils import latent_picker, load_latent
-from mnist_latent_diffusion.utils import load_latent
+from mnist_latent_diffusion.utils import load_latent, find_saved_latent
 # Intro and title
 """
 # MNIST latent diffusion
@@ -22,8 +22,6 @@ tab_names = [
 
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
-
-
 with tabs['Select Latent space']:
     from mnist_latent_diffusion.utils import find_saved_latent
     VAE_data = find_saved_latent(path = f"../mnist_latent_diffusion/logs/VAE/train/")
@@ -34,7 +32,6 @@ with tabs['Select Latent space']:
         selected_latent = st.selectbox("", list(VAE_data.keys()))
 
     outer_cols = st.columns(2)
-    
 
     for i, entry in enumerate(VAE_data):
         # im_idx = 0 if i % 2 == 0 else 2
@@ -88,7 +85,6 @@ with tabs['Select Latent space']:
                     st.write(config)
 
 
-
 with tabs['Noise schedule set-up']:
     pass
 
@@ -99,10 +95,84 @@ with tabs['Inference']:
     from mnist_latent_diffusion.modules.latentDiffusion import LatentDiffusionModule
     from mnist_latent_diffusion.utils import get_ckpt
     parent_log_dir = '../mnist_latent_diffusion/logs/latentDiffusion/train/'
-    checkpoint = get_ckpt(parent_log_dir, config_name='hparams.yaml', with_streamlit=True)
+    # checkpoint = get_ckpt(parent_log_dir, config_name='hparams.yaml', with_streamlit=True)
+    import sys
+    sys.path.append('../mnist_latent_diffusion/')
+
+    def find_latent_diffusion(path):
+        LD_data = {}
+        folders = [i for i in os.listdir(path) if i.startswith('version_')]
+        
+        folders = sorted(folders, key=lambda x: int(x.split('_')[-1]))
+        
+        for version in folders:
+            version_num = version.split('_')[-1]
+            contents = os.listdir(f"{path}{version}")
+            base_path = os.path.join(path, version, )
+            if len(contents) < 3:
+                
+                version_num, contents, base_path
+                continue
+            import glob
+            checkpoints = glob.glob(f"{base_path}/checkpoints/*.ckpt") 
+            
+            # contents
+
+            if 'version.txt' in contents:
+                    # Add an "else" statement here
+                    autoencoder_version = open(f"{base_path}/version.txt", 'r').read()
+            else:
+                autoencoder_version = None
+
+            if not autoencoder_version is None:
+                VAE_path = find_saved_latent(f"../mnist_latent_diffusion/logs/VAE/train/")
+                VAE_ckpt_path = VAE_path[autoencoder_version]['paths']['checkpoints'][0]
+            else:
+                VAE_ckpt_path = None
+            LD_data[version_num] = dict(
+                paths = {
+                    'log': base_path,
+                    'config' : os.path.join(base_path, 'hparams.yaml'),
+                    'checkpoints': checkpoints,
+                },
+                scalar = torch.load(f"{base_path}/scaler.pth") if 'scaler.pth' in contents else None,
+                version_num = version_num,
+                VAE_version = autoencoder_version,
+                VAE_ckpt_path = VAE_ckpt_path,
+
+    
+            )
+                # 'ckpt_path': checkpoint[0] if len(checkpoint) > 0 else None,
+                # 'config_path': os.path.join(base_path, 'hparams.yaml'),
+                # 'version_num': version_num,
+                # 'base_path': base_path,
+
+                
+
+        return LD_data
+    
 
 
-    z, y,  autoencoder, projector, projection = load_latent(43)
+    saved_latent_data = find_latent_diffusion('../mnist_latent_diffusion/logs/latentDiffusion/train/')
+    # 'saved_latent_data', saved_latent_data
+    idx = "79"
+
+    autoencoder = torch.load(saved_latent_data[idx]['VAE_ckpt_path'])
+    scalar = saved_latent_data[idx]['scalar']
+    
+    # autoencoder
+
+    
+
+    model = LatentDiffusionModule(autoencoder=autoencoder, 
+                                 scaler=scalar,
+                                criteria=criteria,
+                                classifier=None,
+                                projector=projector,
+                                projection=projection,
+                                labels=y,
+                                
+                                 **config['TRAIN']['MODEL'])
 
     def load_model_and_get_samples(checkpoint):
 

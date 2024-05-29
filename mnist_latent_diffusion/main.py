@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     elif args.model == 'latentDiffusion':
         
-        from modules.latentDiffusion import LatentDiffusionModel
+        from modules.latentDiffusion import LatentDiffusionModule
         if args.mode == 'train':
             from scripts.latentDiffusion.train import train as train_LatentDiffusion
             train_LatentDiffusion()
@@ -138,7 +138,7 @@ if __name__ == "__main__":
             projector = torch.load(path + 'projector.pt')
             config = load_config('LatentDiffusion')
             print(config)
-            model = LatentDiffusionModel(autoencoder=autoencoder, 
+            model = LatentDiffusionModule(autoencoder=autoencoder, 
                                  scaler=None,   # TODO,
                                 criteria=None,
                                 classifier=None,
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                                 labels=None,
                                  **config['DIFFUSE']['MODEL'])
             
-            model = LatentDiffusionModel.load_from_checkpoint(checkpoint['ckpt_path'])
+            model = LatentDiffusionModule.load_from_checkpoint(checkpoint['ckpt_path'])
             model.eval()
 
             # criteria = VAE_Loss(config['DIFFUSE']['LOSS'])

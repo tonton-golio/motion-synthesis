@@ -1,6 +1,6 @@
 
 from modules.dataModules import LatentSpaceDataModule
-from modules.latentDiffusion import LatentDiffusionModel
+from modules.latentDiffusion import LatentDiffusionModule
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 import shutil
@@ -97,7 +97,11 @@ def train(build_mode=False):
     config = load_config('LatentDiffusion')
 
     # load latent space
-    z, y,  autoencoder, projector, projection = load_latent(latent_picker())
+    data_version, version = latent_picker()
+    # save version number
+    with open(f'{logger.log_dir}/version.txt', 'w') as f:
+        f.write(str(version))
+    z, y,  autoencoder, projector, projection = load_latent(data_version)
     projection = projector.transform(z.detach().cpu().numpy())
 
     # set up data module
@@ -110,50 +114,13 @@ def train(build_mode=False):
     criteria = VAE_Loss(config['TRAIN' if not build_mode else 'BUILD']['LOSS'])
 
     # classifier
-    
-    # z y classifier
-    
-    # criterion_classifier = nn.BCELoss()
-    # classifier = Classifier().to('mps')
-    # try load
-    # try:
-    #     classifier = torch.load(f'classifier.pth')
-    #     print('loaded classifier')
-    # except:
-    #     print('failed to load classifier, training')
-
-    #     optimizer = optim.AdamW(classifier.parameters(), lr=1e-3)
-
-    #     if scaler is None:
-    #         z_scaled = z
-    #     else:
-    #         z_scaled = torch.tensor(scaler.transform(z.detach().cpu())).float()
-    #     dataset = ClassifierDataset(dm.X, dm.y)
-    #     dataloader = torch.utils.data.DataLoader(dataset, batch_size=256, shuffle=True)
-
-    #     for epoch in range(2):
-    #         running_loss = 0
-    #         for z_batch, y_batch in dataloader:
-    #             # z_batch = z_batch.to(device)
-    #             # y_batch = y_batch.to(device)
-    #             optimizer.zero_grad()
-    #             y_pred = classifier(z_batch)
-    #             loss = criterion_classifier(y_pred, y_batch)
-    #             loss.backward()
-    #             optimizer.step()
-    #             running_loss += loss.item()
-    #             print(f'Epoch {epoch} Loss: {loss.item()}', end='\r')
-    #         print(f'Epoch {epoch} Loss: {running_loss/len(dataloader)}')
-
-    #     torch.save(classifier, f'classifier.pth')
-    #     print('done training classifier')
-    # 
-    
+    # classifier = instatiate_classifier(scaler, z, dm)
+    classifier = None
     latent_dim = z.shape[1]
     config['TRAIN' if not build_mode else 'BUILD']['MODEL']['latent_dim'] = latent_dim
     # set up model
     print('Initializing model')
-    model = LatentDiffusionModel(autoencoder=autoencoder, 
+    model = LatentDiffusionModule(autoencoder=autoencoder, 
                                  scaler=scaler,
                                 criteria=criteria,
                                 classifier=None,
@@ -170,7 +137,7 @@ def train(build_mode=False):
         name, num = logger.log_dir.split('/')[-1].split('_')
         log_dir = '/'.join(logger.log_dir.split('/')[:-1])
 
-        model = LatentDiffusionModel.load_from_checkpoint(
+        model = LatentDiffusionModule.load_from_checkpoint(
             # logger.log_dir + '/' 
             log_dir + '/version_' + str(int(num)-1) + '/checkpoints/' +
             config['TRAIN' if not build_mode else 'BUILD']['MODEL']['LOAD'])

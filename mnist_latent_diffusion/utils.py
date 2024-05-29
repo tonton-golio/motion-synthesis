@@ -269,7 +269,7 @@ def latent_picker():
         print(f"\t{version}")
     version = input('Version: ')
 
-    return data[version]
+    return data[version], version
 
 def load_latent(data_version):
     path = data_version['paths']['saved_latent']
