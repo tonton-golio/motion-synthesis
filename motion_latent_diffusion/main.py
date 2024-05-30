@@ -17,8 +17,13 @@ if __name__ == "__main__":
     
     if args.model[:3] == 'VAE':
         if args.mode == 'train':
+            # train the model
             from scripts.VAE_train import train
-            train(model_name=args.model)
+            datamodule, trainer, model, logger, cfg = train(model_name=args.model)
+
+            # test the model
+            from scripts.VAE_train import test
+            test(datamodule, trainer, model, logger, cfg, save_latent=True)
         elif args.mode == 'build':
             from scripts.VAE_train import train
             train(model_name=args.model, build=True)

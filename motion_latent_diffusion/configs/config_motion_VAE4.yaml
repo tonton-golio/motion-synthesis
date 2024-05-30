@@ -4,8 +4,8 @@ BASE:
     learning_rate: 0.000001
     latent_dim: 256
     nhead: 8
-    num_layers: 5
-    dim_feedforward: 1024
+    nlayers_transformer: 5
+    ff_transformer: 1024
     dropout: 0.10
     transformer_activation: relu
     _save_animations_freq: 1  # -1 to disable
@@ -14,7 +14,7 @@ BASE:
     activation: leaky_relu
     clip_grad_norm: 1.0
     batch_norm: true
-    loss_weights:
+    LOSS:
       DIVERGENCE_KL: 0.0000000001
       ROOT_L2: 0.0
       MOTIONRELATIVE_L2: 0.0
@@ -23,7 +23,7 @@ BASE:
 
   DATA:
     seq_len: 420
-    tiny: false
+    tiny: true
     batch_size: 64
     file_list_paths:
       _train: ../stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt

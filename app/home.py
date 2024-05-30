@@ -1,12 +1,36 @@
 import streamlit as st
 import base64
 
-title = "# Motion Synthesized from a Text Prompt"
+title = "# Motion: synthesized from text"
 abstract = """
     Motion synthesis is a fast evolving field, with groundbreaking research being published every year. The task is to synthesise humanoid motion from a text prompt. I am implementing such a model, and will demonstrate/explain it here.
 
     The approach I will be employing, is diffusion on a latent representation. This is a powerful technique demonstrated in the literature. I work with the publicly available HumanML3D dataset, which contains 3D motion capture data with descriptive text strings from KIT.
     """
+
+def todo():
+    st.write("""
+    ## To do
+    - [] Renew thesis contract
+        - [x] Email supervisors
+        - [] Send contract (30 may 2024)
+    - [] Implement metrics for image space diffusion
+    - [] Motion latent diffusion
+        - [] make VAE save latent space at test end
+            - [x] VAE1
+            - [] VAE2
+            - [] VAE3
+            - [] VAE4
+            - [x] VAE5
+        - [x] Refactor latent diffusion notebook
+        - [] Implement latent diffusion in main.py
+    - [] Refactor motion VAEs such that they all have the same style.
+    - [] Compare pose VAEs
+        - [] implement CONV based VAE
+        - [] Add pose VAEs to main.py
+    - [] Add pauls notes to manuscript
+        
+    """)
 
 def home():
     # introduction and flow
@@ -42,10 +66,12 @@ if __name__ == '__main__':
     st.set_page_config(page_title='Motion Synthesis from a Text Prompt', page_icon='🕺')
     st.markdown(title)
 
-    tab_names = ['Home', 'Learning Goals', 'Thesis']
+    tab_names = ['TODO', 'Home', 'Learning Goals', 'Thesis']
 
     tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
+    with tabs['TODO']:
+        todo()
     with tabs['Home']:
         home()
     with tabs['Learning Goals']:

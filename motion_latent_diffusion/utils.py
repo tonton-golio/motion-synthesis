@@ -21,13 +21,18 @@ activation_dict = {
     "mish": nn.Mish(),
     "softplus": nn.Softplus(),
     "softsign": nn.Softsign(),
-    # 'bent_identity': nn.BentIdentity(),
-    # 'gaussian': nn.Gaussian(),
     "softmax": nn.Softmax(),
     "softmin": nn.Softmin(),
     "softshrink": nn.Softshrink(),
-    # 'sinc': nn.Sinc(),
 }
+
+# no activation class
+class Identity(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return x
 
 def get_ckpts(log_dir):
     print('log_dir:', log_dir)

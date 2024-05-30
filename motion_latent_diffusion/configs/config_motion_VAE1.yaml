@@ -1,7 +1,10 @@
 TRAIN:
+  DATA:
+    tiny: true
   MODEL:
     hidden_dim: 256
   TRAINER:
+    max_epochs: 1
     enable_checkpointing: True
     log_every_n_steps: 10
     
@@ -14,29 +17,36 @@ BUILD:
 
 BASE:
   MODEL:
-    hidden_dim: 256
-    hidden_dim_trans: 256
-    n_layers: 3
-    n_heads: 3
+    input_dim: 66
+    nhead: 3
+    hidden_dim_transformer: 256
     dropout: 0.10
-    latent_dim: 256
-    learning_rate: 0.000001
-    optimizer: AdamW
-    _save_animations: true
-    load: false
-    _checkpoint_path: latest
-    output_layer: linear
-    activation: relu
     transformer_activation: relu
+    hidden_dim: 256
+    nlayers_transformer: 3
+
+    seq_len: 420
+    activation: relu
+    hidden_dim_linear: 256
+    latent_dim: 256
+
+
+    learning_rate: 0.000001
     clip_grad_norm: 1.0
-    batch_norm: true
-    loss_weights:
-      kl_div: 0.000001
-      velocity_relative: 1.0
-      root: 0.0
-      pose0: 0.0
-      motion: 0.0
-      motion_relative: 1.0
+    save_animations_freq: 1
+
+    load: false
+
+    _checkpoint_path: latest
+    
+    
+    LOSS:
+      DIVERGENCE_KL: 0.00000001
+      VELOCITY_L2: 1.0
+      ROOT_L2: 0.0
+      POSE0_L2: 0.0
+      MOTION_L2: 0.0
+      MOTIONRELATIVE_L2: 1.0
   DATA:
     seq_len: 420
     batch_size: 32

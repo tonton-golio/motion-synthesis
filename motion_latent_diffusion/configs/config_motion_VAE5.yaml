@@ -14,7 +14,7 @@ BASE:
     activation: leaky_relu
     clip_grad_norm: .1
     batch_norm: true
-    loss_weights:
+    LOSS:
       DIVERGENCE_KL: 0.000000001
       ROOT_L2: 1.0
       MOTIONRELATIVE_L2: 100.0
@@ -24,7 +24,7 @@ BASE:
   DATA:
     seq_len: 420
     tiny: true
-    batch_size: 4
+    batch_size: 8
     file_list_paths:
       _train: ../stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
       _val: ../stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt
@@ -36,7 +36,6 @@ BASE:
     accelerator: mps
     devices: 1
     precision: "32-true"
-    # n_gpus: 1
     fast_dev_run: False
     enable_checkpointing: true
 
@@ -44,8 +43,6 @@ BUILD:
   DATA:
     BATCH_SIZE: 2
     SHUFFLE: false
-  MODEL:
-    verbose: true  
   TRAINER:
     max_epochs: 1
     log_every_n_steps: 40
@@ -58,7 +55,7 @@ BUILD:
 
 TRAIN:
   TRAINER:
-    max_epochs: 1000
+    max_epochs: 1
     log_every_n_steps: 6
     # CONTINUE_TRAINING: False
 
