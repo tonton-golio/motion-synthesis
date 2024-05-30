@@ -10,22 +10,9 @@ from tqdm import tqdm
 import yaml
 
 def model_selector(model_name='VAE1'):
-    if model_name in ['VAE1', 'VAE4', 'VAE5']:
-        from motion_latent_diffusion.modules.motion_VAE import MotionVAE as VAE
-        from modules.data_modules import MotionDataModule1 as DM
-        config = load_config(f'motion_{model_name}')
-        
-
-    elif model_name == 'VAE2':
-        from modules.motion_VAE_2 import TransformerMotionAutoencoder_Chunked as VAE
-        config = load_config('motion_VAE2')
-        from modules.data_modules import MotionDataModule1 as DM
-    elif model_name == 'VAE3':
-        from modules.motion_VAE_3_text import TransformerMotionAutoencoder as VAE
-        config = load_config('motion_VAE3')
-        from modules.data_modules import MotionDataModule2 as DM
-    
-
+    from motion_latent_diffusion.modules.motion_VAE import MotionVAE as VAE
+    from modules.data_modules import MotionDataModule1 as DM
+    config = load_config(f'motion_{model_name}')
     return config, VAE, DM
 
 def train(model_name='VAE1', build=False):

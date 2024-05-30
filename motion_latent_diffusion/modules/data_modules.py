@@ -239,7 +239,7 @@ class MotionDataModule2(pl.LightningDataModule):
 
 # DATASETS
 class PoseDataset(Dataset):
-    def __init__(self, file_list_path, motion_path, data_format='array', verbose=False):
+    def __init__(self, file_list_path, motion_path, verbose=False):
         filenames = np.loadtxt(file_list_path, delimiter=',', dtype=str)
         self.filenames = [f'{motion_path}/{f}.npy' for f in filenames]
         
@@ -251,7 +251,6 @@ class PoseDataset(Dataset):
 
         self.all_poses = np.concatenate(all_poses, axis=0)
         if verbose: print('len of all_poses:', len(self.all_poses))
-        self.data_format = data_format
         
     def __len__(self):
         return len(self.all_poses)
@@ -265,22 +264,22 @@ class PoseDataset(Dataset):
 
         
 class PoseDataModule(pl.LightningDataModule):
-    def __init__(self, file_list_paths, path, data_format='array', batch_size=128, num_workers=4):
+    def __init__(self, batch_size=128, num_workers=4, verbose=False):
         super().__init__()
-        self.file_list_paths = file_list_paths
-        self.path = path
-        self.data_format = data_format
+        self.file_list_paths = [
+            "data/HumanML3D/HumanML3D/train_cleaned.txt",
+            "data/HumanML3D/HumanML3D/val_cleaned.txt",
+            "data/HumanML3D/HumanML3D/test_cleaned.txt",
+        ]
+        self.path = "data/HumanML3D/HumanML3D/new_joints"
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.verbose = verbose
 
-    def prepare_data(self) -> None:
-        pass
 
     def setup(self, stage) -> None:
         self.train_ds, self.val_ds, self.test_ds = [
-            PoseDataset(
-                self.file_list_paths[i], self.path, self.data_format
-            )
+            PoseDataset(self.file_list_paths[i], self.path, self.verbose)
             for i in ["train", "val", "test"]
         ]
 

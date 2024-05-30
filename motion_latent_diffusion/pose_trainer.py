@@ -1,51 +1,41 @@
-from motion_latent_diffusion.utils_pose import *
-from motion_latent_diffusion.modules.pose_VAE import LinearPoseAutoencoder, NodeLevelGNNAutoencoder
+from utils_pose import *
+from modules.pose_VAE import LinearPoseAutoencoder, NodeLevelGNNAutoencoder
 from modules.data_modules import PoseDataModule
 
 from utils import load_config
-
-cfg = config = load_config('pose_VAE')
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.profilers import PyTorchProfiler
 
 from torch_geometric.loader import DataLoader as DataLoader_geometric
 
+
+cfg = config = load_config('pose_VAE')['TRAIN']
+
+print(cfg)
 if __name__ == "__main__":
     logger = TensorBoardLogger("../tb_logs2", name="TransformerMotionAutoencoder")
-    # profiler = PyTorchProfiler(
-    #     on_trace_ready=torch.profiler.tensorboard_trace_handler("tb_logs/profiler0"),
-    #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),
-    # )
-    # writer = SummaryWriter('tb_logs')
+    datamodule = PoseDataModule(**cfg['DATA'])
+    
+    # if config['checkpoint_path'] == "latest" and config['load']:
+    #     # SEE RUNS
+    #     print("looking for latest checkpoint in ", logger.log_dir)
+    #     num = logger.log_dir.split("_")[-1]
+    #     print("num: ", num)
+    #     folder = logger.log_dir.split("version_")[0] + "version_" + str(int(num) - 1)
+    #     print("folder: ", folder)
+    #     check_point_folder = folder + "/checkpoints"
+    #     print(check_point_folder)
 
-    datamodule = PoseDataModule(
-        config.__FILE_LIST_PATHS, 
-        config.__MOTION_PATH, 
-        data_format = config.MODEL_TYPE, 
-        batch_size = config.BATCH_SIZE,
-        num_workers = config.__N_WORKERS
-    )
-
-    if config['checkpoint_path'] == "latest" and config['load']:
-        # SEE RUNS
-        print("looking for latest checkpoint in ", logger.log_dir)
-        num = logger.log_dir.split("_")[-1]
-        print("num: ", num)
-        folder = logger.log_dir.split("version_")[0] + "version_" + str(int(num) - 1)
-        print("folder: ", folder)
-        check_point_folder = folder + "/checkpoints"
-        print(check_point_folder)
-
-        checkpoints = glob.glob(f"{check_point_folder}/*.ckpt")
-        if len(checkpoints) > 0:
-            config.checkpoint_path = max(
-                checkpoints, key=lambda x: int(x.split("=")[-1].split(".")[0])
-            )
-            print("checkpoint path: ", config['checkpoint_path'] )
+    #     checkpoints = glob.glob(f"{check_point_folder}/*.ckpt")
+    #     if len(checkpoints) > 0:
+    #         config.checkpoint_path = max(
+    #             checkpoints, key=lambda x: int(x.split("=")[-1].split(".")[0])
+    #         )
+    #         print("checkpoint path: ", config['checkpoint_path'] )
 
    
-    if config['MODEL_TYPE'] == "linear":
+    if config['MODEL']['MODEL_TYPE'] == "linear":
         model = LinearPoseAutoencoder(
             input_dim=66,
             hidden_dims=config.HIDDEN_DIMS,
@@ -56,7 +46,7 @@ if __name__ == "__main__":
             kl_weight=config.KL_WEIGHT,
         )
 
-    elif config['MODEL_TYPE'] == "graph":
+    elif config['MODEL']['MODEL_TYPE'] == "graph":
         model = NodeLevelGNNAutoencoder(
             model_name = 'graph',
             c_hidden = config.CHANNELS_HIDDEN,
@@ -74,6 +64,11 @@ if __name__ == "__main__":
             checkpoint = config.checkpoint_path,
             load=config.load
         )
+    elif config['MODEL']['MODEL_TYPE'] == "conv":
+        pass
+
+    else:
+        raise ValueError("MODEL_TYPE not recognized")
 
     trainer = Trainer(
         # profiler=profiler,

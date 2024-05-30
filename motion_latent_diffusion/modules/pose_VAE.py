@@ -9,7 +9,10 @@ from torch.utils.data import DataLoader
 
 # lightning module
 import pytorch_lightning as pl
-
+import torch.nn.functional as F
+import torch_geometric.nn as geom_nn
+import torchvision
+from utils_pose import plot_3d_motion_frames_multiple
 
 class linearblock(pl.LightningModule):
     def __init__(self, input_dim, output_dim, activation=F.relu, dropout=0.01, batch_norm=True):
@@ -140,15 +143,6 @@ class GraphPoseAutoencoder(nn.Module):
         z = self.reparametrize(mu, logvar)
         x = self.decode(z, edge_index)
         return x, mu, logvar
-
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import pytorch_lightning as L
-import torch_geometric.nn as geom_nn
-import torchvision
-from motion_latent_diffusion.utils_pose import plot_3d_motion_frames_multiple
 
 
 # inspired by: https://lightning.ai/docs/pytorch/stable/notebooks/course_UvA-DL/06-graph-neural-networks.html#
@@ -417,7 +411,7 @@ class MLPAutoencoder(nn.Module):
         """
         return self.layers(x)
 
-class NodeLevelGNNAutoencoder(L.LightningModule):
+class NodeLevelGNNAutoencoder(pl.LightningModule):
     def __init__(self, model_name, **model_kwargs):
         super().__init__()
         # Saving hyperparameters
