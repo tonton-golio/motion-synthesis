@@ -2,35 +2,35 @@ TRAIN:
   DATA:
     batch_size: 1024
     verbose: true
+    tiny: false  # or false
     
   MODEL_BASE:
-    MODEL_TYPE: "graph"
+    verbose: false
     dropout: 0.10
+    input_dim: 66
     latent_dim: 48
-    LEARNING_RATE: 1e-3
-
+    learning_rate: 0.0001
     LOSS:
-      DIVERGENCE_KL_WEIGHT: 0.00000001
-    KL_WEIGHT: 0.00000001
+      DIVERGENCE_KL: 0.00000001
+      MSE_L2: 1.
 
   MODEL_LINEAR:
-    hidden_dim: 256
+    hidden_dims: [66, 128, 256]
     
-
   MODEL_GRAPH:
+    c_in: 3
     c_hidden: 64
     c_out: 32
-    
     n_layers: 4
 
-
+  MODEL_CONV:
+    dim_mults: [1, 2, 1]
 
   TRAINER:
-    
-    __ACCERLATOR: "mps"
-    __DEVICES: 1
-    __PRECISION: "32-true"
-    __N_GPUS: 1
-    __N_WORKERS: 4
-    __FAST_DEV_RUN: False
-    load: false
+    accelerator: "mps"
+    precision: "32-true"
+    fast_dev_run: false
+    max_epochs: 50
+
+  FIT:
+    load_checkpoint: true

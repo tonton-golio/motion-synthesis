@@ -3,20 +3,19 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from torch.utils.data import Dataset
 from torch_geometric.nn import GCNConv
-from torch.utils.data import DataLoader
-
-# lightning module
 import pytorch_lightning as pl
 import torch.nn.functional as F
-import torch_geometric.nn as geom_nn
-import torchvision
 from utils_pose import plot_3d_motion_frames_multiple
+from modules.loss import VAE_Loss
 
-class linearblock(pl.LightningModule):
+# LINEAR VAE
+class LinearLayer(nn.Module):
+    """
+    Linear layer with batchnorm and dropout.
+    """
     def __init__(self, input_dim, output_dim, activation=F.relu, dropout=0.01, batch_norm=True):
-        super(linearblock, self).__init__()
+        super(LinearLayer, self).__init__()
         self.fc = nn.Linear(input_dim, output_dim)
         self.activation = activation
         self.dropout = dropout
@@ -31,37 +30,136 @@ class linearblock(pl.LightningModule):
             x = self.bn(x)
         return x
 
-class LinearPoseAutoencoder(pl.LightningModule):
-    def __init__(self, input_dim=66, hidden_dims=[66, 128, 256, 512, 1024],  dropout=0.01, latent_dim=32, activation=F.relu):
-        super(LinearPoseAutoencoder, self).__init__()
+class LinearVAE(nn.Module):
+    def __init__(self, 
+                 input_dim=66, hidden_dims=[128, 256, 128],  dropout=0.01, latent_dim=32, activation=F.relu, **kwargs):
+        super(LinearVAE, self).__init__()
         self.input_dim = input_dim
         self.dropout = dropout
 
         self.activation = activation
 
-        self.enc = nn.Sequential(
-            *(linearblock(in_, out_, dropout=dropout) for in_, out_ in zip([input_dim]+hidden_dims[:-1], hidden_dims)),
-        )
-        self.enc_final = nn.Linear(hidden_dims[-1], latent_dim)
+        self.enc = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout) 
+                                   for in_, out_ in zip([input_dim]+hidden_dims[:-1], hidden_dims)))
+        self.enc_final = nn.Linear(hidden_dims[-1], latent_dim*2)
 
-        self.dec = nn.Sequential(
-            *(linearblock(in_, out_, dropout=dropout) for in_, out_ in zip([latent_dim]+hidden_dims[::-1], hidden_dims[::-1]))
-        )
+        self.dec = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout) 
+                                   for in_, out_ in zip([latent_dim]+hidden_dims[::-1], hidden_dims[::-1])))
         self.dec_final = nn.Linear(hidden_dims[0], input_dim)
 
     def forward(self, x):
-        # print(x.shape)
-
         x = x.view(-1, self.input_dim)
-
         x = self.enc(x)
-        x = self.enc_final(x)
+        mu, logvar = self.enc_final(x).chunk(2, dim=1)
+        z = self.reparametrize(mu, logvar)
+        x = self.decode(z)
+        return x, z, mu, logvar
 
-        x = self.dec(x)
-        x = self.dec_final(x)
-
-        return x.view(-1, 22, 3)
+    def encode(self, x):
+        x = x.view(-1, self.input_dim)
+        x = self.enc(x)
+        mu, logvar = self.enc_final(x)
+        z = self.reparametrize(mu, logvar)
+        return z, mu, logvar
     
+    def reparametrize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+    
+    def decode(self, z):
+        x = self.dec(z)
+        x = self.dec_final(x)
+        return x.view(-1, 22, 3)
+
+# CONV VAE
+class ConvLayer(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, activation=F.relu, batch_norm=True):
+        super(ConvLayer, self).__init__()
+        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, stride, padding)
+        self.activation = activation
+        self.batch_norm = batch_norm
+        if batch_norm:
+            self.bn = nn.BatchNorm1d(out_channels)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.activation(x)
+        if self.batch_norm:
+            x = self.bn(x)
+        return x
+    
+class ConvVAE(nn.Module):
+    # this model should use linear layers to expand the input making a 2d field we can convolve
+
+    def __init__(self,
+                    input_dim=66, 
+                    dim_mults=[1, 2, 3], 
+                    latent_dim=32, 
+                    dropout=0.01,
+                    activation=F.relu,
+                    **kwargs):
+        super(ConvVAE, self).__init__()
+        self.verbose = kwargs.get("verbose")
+        self.input_dim = input_dim
+        self.activation = activation
+        
+        dims = [input_dim] + [input_dim * m for m in dim_mults]
+        self.linear_reorder = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout) 
+                                for in_, out_ in zip(dims[:-1], dims[1:])))
+
+        # encoder
+        self.conv1 = ConvLayer(1, 8, kernel_size=3, stride=1, padding=0)
+        self.conv2 = ConvLayer(8, 16, kernel_size=3, stride=2, padding=0)
+        self.conv3 = ConvLayer(16, 4, kernel_size=3, stride=2, padding=0)
+
+        # flatten
+        self.flatten = nn.Flatten()
+
+        self.fc_enc = nn.Linear(60, latent_dim*2)
+
+        # decoder
+        dims = [latent_dim] + [input_dim * m for m in dim_mults[::-1]] + [input_dim]
+        self.fc_dec = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout) 
+                                for in_, out_ in zip(dims[:-1], dims[1:])))
+        
+    def forward(self, x):
+        z, mu, logvar = self.encode(x)
+        x = self.decode(z)
+        return x, z, mu, logvar
+
+    def encode(self, x):
+        bs = x.size(0)
+        x = x.view(bs, self.input_dim)
+        if self.verbose: print('before linaer', x.shape)
+        x = self.linear_reorder(x)
+        x = x.view(bs, 1, -1)
+        if self.verbose: print('before conv1', x.shape)
+        x = self.conv1(x)
+        if self.verbose: print('before conv2', x.shape)
+        x = self.conv2(x)
+        if self.verbose: print('before conv3', x.shape)
+        x = self.conv3(x)
+        x = self.flatten(x)
+        if self.verbose: print('before', x.shape)
+        x = self.fc_enc(x)
+        if self.verbose: print('before', x.shape)
+        mu, logvar = torch.chunk(x, 2, dim=1)
+        z = self.reparametrize(mu, logvar)
+
+        return z, mu, logvar
+
+    def reparametrize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    def decode(self, z):
+        x = self.fc_dec(z)
+        x = x.view(-1, 22, 3)
+        return x
+
+# GRAPH VAE (graph data so not used)
 class GraphPoseAutoencoder(nn.Module):
     def __init__(self, 
                     shape=(22, 3), 
@@ -96,8 +194,6 @@ class GraphPoseAutoencoder(nn.Module):
         self.fc_dec_out = nn.Linear(hidden_dims[0], 32*shape[0])
 
     def encode(self, x, edge_index):
-
-
         x = self.conv_enc_1(x, edge_index)
 
         # x = self.conv_enc_2(x, edge_index)
@@ -114,7 +210,8 @@ class GraphPoseAutoencoder(nn.Module):
 
         mu = self.fc_enc_out_mu(x)
         logvar = self.fc_enc_out_logvar(x)
-        return mu, logvar
+        z = self.reparametrize(mu, logvar)
+        return z, mu, logvar
     
     def decode(self, x, edge_index):
         x = F.relu(self.fc_dec_1(x))
@@ -142,61 +239,10 @@ class GraphPoseAutoencoder(nn.Module):
         mu, logvar = self.encode(x, edge_index)
         z = self.reparametrize(mu, logvar)
         x = self.decode(z, edge_index)
-        return x, mu, logvar
-
+        return x, z,  mu, logvar
 
 # inspired by: https://lightning.ai/docs/pytorch/stable/notebooks/course_UvA-DL/06-graph-neural-networks.html#
-
-class CustomLoss(nn.Module):
-    def __init__(self, loss_weights):
-        super(CustomLoss, self).__init__()
-        self.loss_weights = loss_weights
-
-    def forward(self, loss_data, mu, logvar):
-        """
-        Should be called like this:
-        loss_data = {
-            'velocity' : {'true': vel, 'rec': vel_rec, 'weight': 1},
-            'root' : {'true': root, 'rec': root_rec, 'weight': 1},
-            'pose0' : {'true': pose0, 'rec': pose0_rec, 'weight': 1},
-        }
-        loss = self.loss_function(loss_data, mu, logvar)
-
-        return loss, with loss['total'] as the total loss
-        """
-        loss = {}
-        total_loss = 0
-        for key, data in loss_data.items():
-            if self.loss_weights[key] == 0:
-                continue
-            # l2
-            loss[key] = F.mse_loss(data["rec"], data["true"]) * self.loss_weights[key]
-            # l1
-            # loss[key] = F.l1_loss(data['rec'], data['true']) * self.loss_weights[key]
-            total_loss += loss[key]
-
-        kl_loss = self.kl_divergence(mu, logvar) * self.loss_weights["kl_div"]
-        total_loss += kl_loss
-        loss["kl_divergence"] = kl_loss
-        loss["total"] = total_loss
-        return loss
-
-    def kl_divergence(self, mu, logvar):
-        return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-
-def get_optimizer(model, optimizer_name, learning_rate):
-    if optimizer_name == 'Adam':
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    elif optimizer_name == 'SGD':
-        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-    elif optimizer_name == 'AdamW':
-        optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
-    elif optimizer_name == 'RMSprop':
-        optimizer = optim.RMSprop(model.parameters(), lr=learning_rate)
-    else:
-        raise ValueError('Invalid optimizer')
-    return optimizer
-
+# GRAPH VAE (matrix data)
 def get_adjacency_matrix():
     kinematic_chain = [[0, 2, 5, 8, 11], [0, 1, 4, 7, 10], [0, 3, 6, 9, 12, 15], [9, 14, 17, 19, 21], [9, 13, 16, 18, 20]]
 
@@ -215,7 +261,6 @@ def get_adjacency_matrix():
 
     adjacency_matrix = torch.tensor(adjacency_matrix, dtype=torch.float32).unsqueeze(0)
     return adjacency_matrix
-
 
 class GCNLayer(nn.Module):
     def __init__(self, c_in, c_out, **kwargs):
@@ -245,7 +290,7 @@ class GCNLayer(nn.Module):
         node_feats = node_feats / num_neighbours
         return node_feats
 
-class GnnAutoEncoder(nn.Module):
+class GnnVAE(nn.Module):
     def __init__(
         self,
         c_in,
@@ -344,156 +389,90 @@ class GnnAutoEncoder(nn.Module):
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def forward(self, x):
-        """Forward.
-
-        Args:
-            x: Input features per node
-            edge_index: List of vertex index pairs representing the edges in the graph (PyTorch geometric notation)
-        """
-        # print(x.shape)
+    def encode(self, x):
         for layer in self.layers_graphconv:
-            # For graph layers, we need to add the "edge_index" tensor as additional input
-            # All PyTorch Geometric graph layer inherit the class "MessagePassing", hence
-            # we can simply check the class type.
             x = layer(x)
-            # print(x.shape)
         x = x.view(x.size(0), -1)
-        # print('x:', x.shape)
         for layer in self.layers_lin_enc:
             x = layer(x)
-            # print(x.shape)
-        # mu = self.layers_mu(x)
-        # # print('mu:', mu.shape)
-        # logvar = self.layers_logvar(x)
-            
         mu, logvar = torch.chunk(x, 2, dim=1)
-        # print('logvar:', logvar.shape)
         z = self.reparameterize(mu, logvar)
-        
-        # print('Reparameterize done', z.shape)
+        return z, mu, logvar
+    
+    def decode(self, z):
         x = self.antiembed(z)
         x = x.view(x.size(0), 22, self.c_out)
-        # print('Reparameterize done')
         for layer in self.layers_dec:
-            # print('Layer:', layer, 'x:', x.shape)
             x = layer(x)
+        return x
 
-        return x , mu, logvar
+    def forward(self, x):
+        z, mu, logvar = self.encode(x)
+        x = self.decode(z)
+        return x, z, mu, logvar
 
-class MLPAutoencoder(nn.Module):
-    def __init__(self, c_in, c_hidden, c_out, num_layers=2, dp_rate=0.1):
-        """MLPAutoencoder.
 
-        Args:
-            c_in: Dimension of input features
-            c_hidden: Dimension of hidden features
-            c_out: Dimension of the output features. Usually number of classes in classification
-            num_layers: Number of hidden layers
-            dp_rate: Dropout rate to apply throughout the network
-        """
+# Lightning Module
+class PoseVAE(pl.LightningModule):
+    def __init__(self, model_name, **kwargs):
         super().__init__()
-        layers = []
-        in_channels, out_channels = c_in, c_hidden
-        for l_idx in range(num_layers - 1):
-            layers += [nn.Linear(in_channels, out_channels), nn.ReLU(inplace=True), nn.Dropout(dp_rate)]
-            in_channels = c_hidden
-        layers += [nn.Linear(in_channels, c_out)]
-        self.layers = nn.Sequential(*layers)
 
+        if model_name == "LINEAR":  self.model = LinearVAE(**kwargs)
+        elif model_name == "CONV":  self.model = ConvVAE(**kwargs)
+        elif model_name == "GRAPH": self.model = GnnVAE(**kwargs)
+            
+        self.loss = VAE_Loss(kwargs.get("LOSS"))
+        self.optimizer = kwargs.get("optimizer")
+        self.lr = kwargs.get("learning_rate")
 
+        self.test_losses = []
 
-    def forward(self, x, *args, **kwargs):
-        """Forward.
-
-        Args:
-            x: Input features per node
-        """
-        return self.layers(x)
-
-class NodeLevelGNNAutoencoder(pl.LightningModule):
-    def __init__(self, model_name, **model_kwargs):
-        super().__init__()
-        # Saving hyperparameters
-        # self.save_hyperparameters()
-
-        if model_name == "MLP":
-            self.model = MLPAutoencoder(**model_kwargs)
-        else:
-            self.model = GnnAutoEncoder(**model_kwargs)
-
-        # if load
-        if model_kwargs.get("load"):
-            self.load_state_dict(torch.load(model_kwargs.get("checkpoint"))['state_dict'])
-            print('Model loaded')
-
-
-        self.loss_function = CustomLoss(model_kwargs.get("loss_weights"))
-        self.optimizer = model_kwargs.get("optimizer")
-        self.lr = model_kwargs.get("lr")
-
-    def forward(self, batch):
-        # root_0 = batch[:, :1, :1]
-        # root_1 = batch[:, :1, 1:2]
-        # root_2 = torch.zeros_like(root_1)
-        # # print(root_0.shape, root_1.shape, root_2.shape)
-        # root = torch.cat([root_0, root_1, root_2], dim=2)
-        root = batch[:, :1, :]
-        # print(root.shape)
-        # print(batch.shape)
-        batch = batch - root
-        recon, mu, logvar = self.model(batch)
-
+    def forward(self, batch, stage='train'):
+        x = batch
+        recon, z, mu, logvar = self.model(x)
         loss_data = {
-            'mse' : {
-                'true': batch,
+            'MSE_L2' : {
+                'true': x,
                 'rec': recon,
-            }
+            },
+            'DIVERGENCE_KL': {'mu': mu, 'logvar': logvar}
         }
+        total_loss, losses_scaled, losses_unscaled = self.loss(loss_data)
+        losses_scaled = {f"{k}_{stage}": v for k, v in losses_unscaled.items()}
+        losses_unscaled = {f"{k}_{stage}": v for k, v in losses_unscaled.items()}
 
-        loss = self.loss_function(loss_data, mu, logvar)
-        return loss, recon + root
-
-    def configure_optimizers(self):
-        # this is also where we would put the scheduler
-        return get_optimizer(self, self.optimizer, self.lr)
-
-    def training_step(self, batch, batch_idx):
         
-        loss, recon = self.forward(batch)
-        loss = {k + "_train": v for k, v in loss.items()}
-        self.log_dict(loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        if batch_idx %1_000 == 0:
-            """
-            Here we're loggig a row of images. 
-            """
-            print('Logging images')
-            
-            # self.logger.experiment.add_graph(self.model, batch)
-            
-            # grid = torchvision.utils.make_grid(batch)
-            batch_select = batch[:6].detach().cpu().numpy()
+        return dict(total_loss=total_loss, losses_scaled=losses_scaled, losses_unscaled=losses_unscaled, recon=recon, x=x, z=z, mu=mu, logvar=logvar)
+    
+    def configure_optimizers(self):
+        return optim.AdamW(self.model.parameters(), lr=self.lr)
+    
+    def training_step(self, batch, batch_idx):
+        output = self(batch)
+        # loss = {k + "_train": v for k, v in output['losses_unscaled'].items()}
+        self.log_dict(output['losses_unscaled'], on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('total_train', output['total_loss'], on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return output['total_loss']
+    
+    def validation_step(self, batch, batch_idx):
+        output = self(batch, stage='val')
+        self.log('val_loss', output['total_loss'], on_step=True, on_epoch=False, prog_bar=True, logger=True)
+        
+        if batch_idx == 0:
+            recon = output['recon']
+            x = output['x']
+            z = output['z']
+            mu = output['mu']
+            logvar = output['logvar']
+
+            batch_select = x[:6].detach().cpu().numpy()
             recon_select = recon[:6].detach().cpu().numpy()
 
-            # subtract the mean
-            # batch_select -= batch_select[:,0:1]
-            # recon_select -= recon_select[:,0:1]
+            grid = plot_3d_motion_frames_multiple( [batch_select, recon_select],  ['gt', 'recon'], nframes=5, radius=2, figsize=(20, 8), return_array=True)
 
-            grid = plot_3d_motion_frames_multiple(
-                [batch_select, recon_select], 
-                ['gt', 'recon'], nframes=5, radius=2, figsize=(20, 8), return_array=True)
             self.logger.experiment.add_image("input", grid, global_step=self.global_step)
-            
-
-
-        return loss['total_train']
-
-    def validation_step(self, batch, batch_idx):
-        loss, recon = self.forward(batch,)
-        loss = {k + "_val": v for k, v in loss.items() if k == 'total'}
-        self.log_dict(loss, on_step=True, on_epoch=False, prog_bar=True, logger=True)
 
     def test_step(self, batch, batch_idx):
-        loss, recon = self.forward(batch,)
-        loss = {k + "_test": v for k, v in loss.items()}# if k == 'total'}
-        self.log_dict(loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        output = self(batch, stage='test')
+        self.log('test_loss', output['total_loss'], on_step=True, on_epoch=False, prog_bar=True, logger=True)
+        self.test_losses.append(output['total_loss'])

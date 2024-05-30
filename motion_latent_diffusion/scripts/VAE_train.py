@@ -9,61 +9,6 @@ import torch
 from tqdm import tqdm
 import yaml
 
-def model_selector(model_name='VAE1'):
-    from motion_latent_diffusion.modules.motion_VAE import MotionVAE as VAE
-    from modules.data_modules import MotionDataModule1 as DM
-    config = load_config(f'motion_{model_name}')
-    return config, VAE, DM
-
-def train(model_name='VAE1', build=False):
-    cfg, VAE, DM = model_selector(model_name)
-
-    logger = TensorBoardLogger(f"logs/{model_name}/", name="train" if not build else "build")
-    # profiler = PyTorchProfiler(
-    #     on_trace_ready=torch.profiler.tensorboard_trace_handler("tb_logs/profiler0"),
-    #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),
-    # )
-    
-    cfg = cfg['TRAIN'] if not build else cfg['BUILD']
-    print(cfg)
-    # check if config.MODEL._checkpoint_path is latest if so look it up
-    if cfg['MODEL']['load']:
-        checkpoints = get_ckpts('/'.join(logger.log_dir.split('/')[:-1]))
-        checkpoint = checkpoints[cfg['MODEL']['_checkpoint_path']]
-        cfg['MODEL']['_checkpoint_path'] = checkpoint['path']
-        print(f"Loading checkpoint from {cfg['MODEL']['_checkpoint_path']}")
-      
-    datamodule = DM(**cfg['DATA'])
-
-    # make dict of hyperparameters
-    cfg['MODEL']['seq_len'] = cfg['DATA']['seq_len']
-    model = VAE(model_name, verbose = False if not build else True, **cfg['MODEL'])
-
-    trainer = Trainer(
-        # profiler=profiler,
-        logger=logger,
-        **cfg['TRAINER']
-    )
-    epochs_trained = trainer.callback_metrics.get("epoch", 0)
-    trainer.fit(model, datamodule, 
-                ckpt_path=cfg['MODEL']['_checkpoint_path'] if cfg['MODEL']['load'] else None)
-    
-    print('i will test now, please wait (did we already test?)')
-    res = trainer.test(model, datamodule)
-    # logger.log_hyperparams(model.hparams, {"final test": res[0]})
-    
-
-    # cfg.MODEL.metrics = res[0]
-    # cfg.MODEL.epochs_trained = epochs_trained
-
-    cfg["MODEL"]["metrics"] = res[0]
-    cfg["MODEL"]["epochs_trained"] = epochs_trained
-
-    if not build:
-        with open(logger.log_dir + "/hparams.yaml", "w") as file:
-            yaml.dump(cfg, file)
-
-    return datamodule, trainer, model, logger, cfg
 
 def print_scientific(x):
     return "{:.2e}".format(x)
@@ -141,6 +86,64 @@ def save_for_diffusion(save_path, model, **kwargs):
 
     for k, v in kwargs.items():
         torch.save(v, f'{save_path}/{k}.pt')
+
+
+
+def model_selector(model_name='VAE1'):
+    from motion_latent_diffusion.modules.motion_VAE import MotionVAE as VAE
+    from modules.data_modules import MotionDataModule1 as DM
+    config = load_config(f'motion_{model_name}')
+    return config, VAE, DM
+
+def train(model_name='VAE1', build=False):
+    cfg, VAE, DM = model_selector(model_name)
+
+    logger = TensorBoardLogger(f"logs/{model_name}/", name="train" if not build else "build")
+    # profiler = PyTorchProfiler(
+    #     on_trace_ready=torch.profiler.tensorboard_trace_handler("tb_logs/profiler0"),
+    #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),
+    # )
+    
+    cfg = cfg['TRAIN'] if not build else cfg['BUILD']
+    print(cfg)
+    # check if config.MODEL._checkpoint_path is latest if so look it up
+    if cfg['MODEL']['load']:
+        checkpoints = get_ckpts('/'.join(logger.log_dir.split('/')[:-1]))
+        checkpoint = checkpoints[cfg['MODEL']['_checkpoint_path']]
+        cfg['MODEL']['_checkpoint_path'] = checkpoint['path']
+        print(f"Loading checkpoint from {cfg['MODEL']['_checkpoint_path']}")
+      
+    datamodule = DM(**cfg['DATA'])
+
+    # make dict of hyperparameters
+    cfg['MODEL']['seq_len'] = cfg['DATA']['seq_len']
+    model = VAE(model_name, verbose = False if not build else True, **cfg['MODEL'])
+
+    trainer = Trainer(
+        # profiler=profiler,
+        logger=logger,
+        **cfg['TRAINER']
+    )
+    epochs_trained = trainer.callback_metrics.get("epoch", 0)
+    trainer.fit(model, datamodule, 
+                ckpt_path=cfg['MODEL']['_checkpoint_path'] if cfg['MODEL']['load'] else None)
+    
+    print('i will test now, please wait (did we already test?)')
+    res = trainer.test(model, datamodule)
+    # logger.log_hyperparams(model.hparams, {"final test": res[0]})
+    
+
+    # cfg.MODEL.metrics = res[0]
+    # cfg.MODEL.epochs_trained = epochs_trained
+
+    cfg["MODEL"]["metrics"] = res[0]
+    cfg["MODEL"]["epochs_trained"] = epochs_trained
+
+    if not build:
+        with open(logger.log_dir + "/hparams.yaml", "w") as file:
+            yaml.dump(cfg, file)
+
+    return datamodule, trainer, model, logger, cfg
 
 def test(dm , trainer, model, logger, config, save_latent=False):
     # test

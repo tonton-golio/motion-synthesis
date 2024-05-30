@@ -87,8 +87,9 @@ def dict_merge(dct, merge_dct):
             dct[k] = v
     return dct
 
-def load_config(name):
+def load_config(name, mode=None, model_type=None):
     
+    # load
     if '.yaml' in name:
         full_name = name
     else:
@@ -96,6 +97,8 @@ def load_config(name):
 
     with open(full_name, 'r') as file:
         cfg =  yaml.safe_load(file)
+
+    
     
     # check if BASE in cfg, if so, append the BASE config to other configs
     if 'BASE' in cfg:
@@ -105,7 +108,44 @@ def load_config(name):
         for key in cfg:
             cfg[key] = dict_merge(cfg[key], base_cfg)
 
-    return cfg
+    if mode is not None:
+        cfg = cfg[mode]
+
+
+    if model_type is not None:
+        # delete other models except base and model_type
+        to_pop = []
+        for key in cfg:
+            if 'MODEL' in key and model_type not in key and 'BASE' not in key:
+                # cfg.pop(key)
+                to_pop.append(key)
+
+        for key in to_pop:
+            cfg.pop(key)
+
+        # merge with base
+        if 'MODEL_BASE' in cfg:
+            print('MODEL_BASE in cfg')
+            model_base_cfg = cfg['MODEL_BASE']
+            cfg.pop('MODEL_BASE')
+
+            to_pop = []
+            for key in cfg:
+                
+                if f'MODEL_{model_type}' in key:
+                    print('key:', key)
+                    temp = dict_merge(cfg[key], model_base_cfg)
+
+                if 'MODEL' in key:
+                    # cfg['TRAIN'].pop(key)
+                    to_pop.append(key)
+            
+            for key in to_pop:
+                cfg.pop(key)
+
+            cfg['MODEL'] = temp
+
+        return cfg
 
 def plot_3d_pose(data, index, ax=None):
     """Plot a 3D pose."""
@@ -146,6 +186,16 @@ def plot_3d_pose(data, index, ax=None):
 
     return ax
 
+def unpack_nested_dict(d, unpacked=None, prefix=''):
+    if unpacked is None:
+        unpacked = {}
+    for k, v in d.items():
+        # print(f"prefix: {prefix}")
+        if isinstance(v, dict):
+            unpacked = unpack_nested_dict(v, unpacked, prefix=f"{prefix}{k}_")
+        else:
+            unpacked[f"{prefix}{k}"] = v
+    return unpacked
 
 def plot_xzPlane(ax, minx, maxx, miny, minz, maxz):
     ## Plot a plane XZ

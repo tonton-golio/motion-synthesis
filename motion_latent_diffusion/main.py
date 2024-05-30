@@ -11,7 +11,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args.model, args.mode)
     assert args.model in ['VAE1', 'VAE2', 'VAE3', 'VAE4', 'VAE5',
-                          'LD']  # assert valid
+                          'LD',
+                          ]  # assert valid
     assert args.mode in ['train', 'build', 'inference', 'optuna']
 
     
@@ -30,3 +31,4 @@ if __name__ == "__main__":
 
     elif args.model == 'LD':
         pass
+

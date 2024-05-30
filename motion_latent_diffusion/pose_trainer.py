@@ -1,98 +1,61 @@
 from utils_pose import *
-from modules.pose_VAE import LinearPoseAutoencoder, NodeLevelGNNAutoencoder
-from modules.data_modules import PoseDataModule
-
-from utils import load_config
+from modules.pose_VAE import PoseVAE
+from modules.pose_data import PoseDataModule
+import argparse
+from utils import load_config, unpack_nested_dict, get_ckpts
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.profilers import PyTorchProfiler
-
-from torch_geometric.loader import DataLoader as DataLoader_geometric
 
 
-cfg = config = load_config('pose_VAE')['TRAIN']
 
-print(cfg)
 if __name__ == "__main__":
-    logger = TensorBoardLogger("../tb_logs2", name="TransformerMotionAutoencoder")
+    # add arguments for model and mode
+    parser = argparse.ArgumentParser(description='Run the model')
+    parser.add_argument('--model', type=str, default='LINEAR', help='Model to run')
+    args = parser.parse_args()
+    model_type = args.model.upper()
+    assert model_type in ['LINEAR', 'GRAPH', 'CONV' ]  # assert valid
+    
+
+    cfg = load_config('pose_VAE', mode='TRAIN', model_type=model_type)
+    logger = TensorBoardLogger("logs/PoseVAE", name=model_type)
     datamodule = PoseDataModule(**cfg['DATA'])
     
-    # if config['checkpoint_path'] == "latest" and config['load']:
-    #     # SEE RUNS
-    #     print("looking for latest checkpoint in ", logger.log_dir)
-    #     num = logger.log_dir.split("_")[-1]
-    #     print("num: ", num)
-    #     folder = logger.log_dir.split("version_")[0] + "version_" + str(int(num) - 1)
-    #     print("folder: ", folder)
-    #     check_point_folder = folder + "/checkpoints"
-    #     print(check_point_folder)
+    if cfg['FIT']['load_checkpoint']:
+        path = logger.log_dir.split("version_")[0]
+        ckpts = get_ckpts(path)
 
-    #     checkpoints = glob.glob(f"{check_point_folder}/*.ckpt")
-    #     if len(checkpoints) > 0:
-    #         config.checkpoint_path = max(
-    #             checkpoints, key=lambda x: int(x.split("=")[-1].split(".")[0])
-    #         )
-    #         print("checkpoint path: ", config['checkpoint_path'] )
+        for i, ckpt in enumerate(ckpts):
+            print(i, ckpt)
 
-   
-    if config['MODEL']['MODEL_TYPE'] == "linear":
-        model = LinearPoseAutoencoder(
-            input_dim=66,
-            hidden_dims=config.HIDDEN_DIMS,
-            latent_dim=config.LATENT_DIM,
-            loss_function=config.LOSS_FUNCTION,
-            learning_rate=config.LEARNING_RATE,
-            optimizer=config.OPTIMIZER,
-            kl_weight=config.KL_WEIGHT,
-        )
+        try:
+            ckpt_num = int(input("Enter checkpoint number: "))
+            ckpt = ckpts[ckpt_num]['path']
+        except:
+            ckpt = None
+    else: ckpt = None
 
-    elif config['MODEL']['MODEL_TYPE'] == "graph":
-        model = NodeLevelGNNAutoencoder(
-            model_name = 'graph',
-            c_hidden = config.CHANNELS_HIDDEN,
-            c_in = 3,
-            c_out = config.CHANNELS_OUT,
-            latent_dim=config.LATENT_DIM,
-            num_layers=config.N_LAYERS,
-            lr=config.LEARNING_RATE,
-            optimizer=config.OPTIMIZER,
-            loss_weights = {
-                'kl_div': config.KL_WEIGHT,
-                'mse': 1,
-            },
-            dp_rate=config.DROPOUT,
-            checkpoint = config.checkpoint_path,
-            load=config.load
-        )
-    elif config['MODEL']['MODEL_TYPE'] == "conv":
-        pass
-
-    else:
-        raise ValueError("MODEL_TYPE not recognized")
+    if model_type == "LINEAR":  model = PoseVAE(model_type, **cfg['MODEL'])
+    elif model_type == "GRAPH": model = PoseVAE(model_type, **cfg['MODEL'])
+    elif model_type == "CONV":  model = PoseVAE(model_type, **cfg['MODEL'])
+    else: raise ValueError("MODEL not recognized")
 
     trainer = Trainer(
         # profiler=profiler,
         logger=logger,
-        #accelerator=config.__ACCERLATOR,
-        max_epochs=config['EPOCHS'],
-        #devices=config.__DEVICES,
-        precision=config['__PRECISION'],
-        fast_dev_run=config['__FAST_DEV_RUN'],
-        # callbacks=[DeviceStatsMonitor()],
-        log_every_n_steps = 50,
-        
-        #gpus=config.__N_GPUS,
-        
-    )
+        **cfg['TRAINER'])
 
-    train_val_loss = trainer.fit(model, datamodule)
-    test_loss = trainer.test(model, datamodule)
-    hparams = {k: v for k, v in config.__dict__.items() if not k.startswith("__")}
+    train_val_loss = trainer.fit(model, datamodule, ckpt_path=ckpt)
+    trainer.test(model, datamodule)
+    test_loss = model.test_losses
+    test_loss = torch.stack(test_loss).mean(0).item()
+    print(test_loss)
+
+    hparams = unpack_nested_dict(cfg)
+    
+    print(hparams)
     logger.log_hyperparams(
         hparams,
-        metrics=dict(test_loss=test_loss[0]['test_loss']),
+        metrics=dict(test_loss=test_loss),
     )
-
-    
-
 

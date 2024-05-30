@@ -18,16 +18,15 @@ def todo():
     - [] Motion latent diffusion
         - [] make VAE save latent space at test end
             - [x] VAE1
-            - [] VAE2
-            - [] VAE3
             - [] VAE4
             - [x] VAE5
         - [x] Refactor latent diffusion notebook
         - [] Implement latent diffusion in main.py
     - [] Refactor motion VAEs such that they all have the same style.
     - [] Compare pose VAEs
-        - [] implement CONV based VAE
-        - [] Add pose VAEs to main.py
+        - [x] implement CONV based VAE
+        - [x] refactor VAEs to have same style
+        - [] tune each model
     - [] Add pauls notes to manuscript
         
     """)
