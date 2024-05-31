@@ -1,22 +1,16 @@
 from utils_pose import *
-from modules.pose_VAE import PoseVAE
-from modules.pose_data import PoseDataModule
+from modules.PoseVAE import PoseVAE
+from modules.PoseData import PoseDataModule
 import argparse
 from utils import load_config, unpack_nested_dict, get_ckpts
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 
-
-if __name__ == "__main__":
+def train_test_poseVAE(model_type='LINEAR'):
     # add arguments for model and mode
-    parser = argparse.ArgumentParser(description='Run the model')
-    parser.add_argument('--model', type=str, default='LINEAR', help='Model to run')
-    args = parser.parse_args()
-    model_type = args.model.upper()
     assert model_type in ['LINEAR', 'GRAPH', 'CONV' ]  # assert valid
     
-
     cfg = load_config('pose_VAE', mode='TRAIN', model_type=model_type)
     logger = TensorBoardLogger("logs/PoseVAE", name=model_type)
     datamodule = PoseDataModule(**cfg['DATA'])

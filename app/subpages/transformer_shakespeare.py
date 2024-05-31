@@ -5,9 +5,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-
-
-
 def load(verbose=False):
     # load data from file
     with open('assets/1_NN_fundamentals_and_architectures/tinyShakespear.txt') as f: text = f.read()

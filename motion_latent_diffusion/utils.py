@@ -34,6 +34,15 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
+
+def pad_crop(data, length=420):
+    # Use numpy to handle padding and truncating efficiently
+    if data.shape[0] < length:
+        pad_cropped = np.pad(data, ((0, length - data.shape[0]), (0, 0), (0, 0)), mode='edge')
+    else:
+        pad_cropped = data[:length]
+    return pad_cropped
+
 def get_ckpts(log_dir):
     print('log_dir:', log_dir)
     folders = glob.glob(f"{log_dir}/*") # like: version_0, ...
@@ -145,7 +154,7 @@ def load_config(name, mode=None, model_type=None):
 
             cfg['MODEL'] = temp
 
-        return cfg
+    return cfg
 
 def plot_3d_pose(data, index, ax=None):
     """Plot a 3D pose."""
@@ -221,7 +230,6 @@ def init(ax, fig, title, radius=2):
     fig.suptitle(title, fontsize=20)
     ax.grid(b=False)
 
-
 def plot_trajec(trajec, index, ax):
     ax.plot3D(
         trajec[:index, 0] - trajec[index, 0],
@@ -230,7 +238,6 @@ def plot_trajec(trajec, index, ax):
         linewidth=1.0,
         color="blue",
     )
-
 
 def plot_3d_motion_animation(
     data,
@@ -302,7 +309,6 @@ def plot_3d_motion_animation(
 
     plt.close()
 
-
 def plot_3d_motion_frames_single(data, title, axes, nframes=5, radius=2):
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
@@ -372,6 +378,35 @@ def plot_3d_motion_frames_multiple(
         os.remove("tmp.png")
 
         return torch.tensor(X).permute(2, 0, 1)
+
+
+
+# text mapping
+def translate(txt, idx2word):
+    return ' '.join([idx2word[i.item()] for i in txt])
+
+def translate_inv(txt, word2idx, max_len=250):
+    enc =  [word2idx[i] for i in txt.split()]
+    return torch.tensor(enc + [0] * (max_len - len(enc)))
+
+def test_translate(texts=None, txt = 'a person is walking', word2idx=None, idx2word=None):
+    print(f"""
+    Testing the translation functions:
+        (on input text)
+            txt          : {txt}
+            dec(enc(txt)): {translate(translate_inv(txt, word2idx), idx2word)}""")
+    
+    if texts is not None:
+        # print('               Does the encoder work as expected: ',
+        #       (texts[0][0].detach().cpu() == translate_inv(translate(texts[0][0], idx2word), word2idx)).all())
+        # print('                  Example:     ',translate(texts[0][0], idx2word))
+
+        print(f"""
+        (on texts[0][0])
+            txt          : {translate(texts[0][0], idx2word)}
+            dec(enc(txt)): {translate(translate_inv(translate(texts[0][0], idx2word), word2idx), idx2word)}""")
+
+
 
 
 if __name__ == "__main__":

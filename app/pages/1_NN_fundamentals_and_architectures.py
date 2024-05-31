@@ -13,8 +13,8 @@ tab_names = [
     'Graph Neural Networks',
     'Transformer',
     'U-Net',
-    
 ]
+
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 # Activation Functions
 with tabs['Activation Functions']:

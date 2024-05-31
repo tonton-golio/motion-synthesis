@@ -7,7 +7,7 @@ from torch_geometric.nn import GCNConv
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from utils_pose import plot_3d_motion_frames_multiple
-from modules.loss import VAE_Loss
+from modules.Loss import VAE_Loss
 
 # LINEAR VAE
 class LinearLayer(nn.Module):
@@ -58,7 +58,7 @@ class LinearVAE(nn.Module):
     def encode(self, x):
         x = x.view(-1, self.input_dim)
         x = self.enc(x)
-        mu, logvar = self.enc_final(x)
+        mu, logvar = self.enc_final(x).chunk(2, dim=1)
         z = self.reparametrize(mu, logvar)
         return z, mu, logvar
     

@@ -32,7 +32,7 @@ BASE:
     _motion_path: ../stranger_repos/HumanML3D/HumanML3D/new_joints
 
   TRAINER:
-    max_epochs: 100
+    max_epochs: 1
     accelerator: mps
     devices: 1
     precision: "32-true"

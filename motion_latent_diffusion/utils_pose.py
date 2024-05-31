@@ -1,30 +1,17 @@
 import numpy as np
-
-from os.path import join as pjoin
-import torch.nn.functional as F
 import torch
+
 
 # logging
 import os
 import glob
-import shutil
-import pickle
-import yaml
 
 # animation
-import matplotlib
-from os.path import join as pjoin
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation, PillowWriter
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import mpl_toolkits.mplot3d.axes3d as p3
 
 
-import seaborn as sns
-iris = sns.load_dataset("iris")
-import os
-import glob
 import subprocess
 
 def get_file_names(path):
@@ -64,17 +51,6 @@ def create_gif(input_path, output_path, size=(32, 64), time_per_frame=0.02):
     command = f'ffmpeg -f concat -safe 0 -i {temp_file} -vf "fps=10,scale={size[0]}:{size[1]}:flags=lanczos" -c:v gif {output_path} -y'
     subprocess.run(command, shell=True)
     os.remove(temp_file)  # Clean up the temporary file
-
-
-import numpy as np
-import torch
-import os
-
-# animation
-from os.path import join as pjoin
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
 def plot_3d_pose(data, index, ax = None):

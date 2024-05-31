@@ -1,30 +1,10 @@
-
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import tiktoken
 import torch
-import pytorch_lightning as pl
-from torch.utils.data import DataLoader, Dataset
-import numpy as np
-
-
-import pytorch_lightning as pl
-from torch.utils.data import DataLoader, Dataset
-import numpy as np
 import glob
-import torch
-
-
-
-def pad(data, length=420):
-    # Use numpy to handle padding and truncating efficiently
-    if data.shape[0] < length:
-        padding = np.pad(data, ((0, length - data.shape[0]), (0, 0), (0, 0)), mode='edge')
-    else:
-        padding = data[:length]
-    return padding
-
+from utils import pad_crop
 
 # DATASETS
 class MotionDataset(Dataset):
@@ -61,7 +41,7 @@ class MotionDataset(Dataset):
         # load motion seqs
         motion_seqs = [np.load(f) for f in self.filenames]
         max_seq_len = max([len(m) for m in motion_seqs])
-        motion_seqs = np.array([pad(m, sequence_length) for m in motion_seqs])
+        motion_seqs = np.array([pad_crop(m, sequence_length) for m in motion_seqs])
         self.motion_seqs = torch.from_numpy(motion_seqs).float()
         # check how large it is, in MB
         size_mb = self.motion_seqs.element_size() * self.motion_seqs.nelement() / 1024 / 1024
@@ -89,7 +69,6 @@ class MotionDataset(Dataset):
             np.concatenate([pose0, velocity_relative], dim=0), dim=0
         )
         return motion_less_root
-
 
 class MotionDataModule1(pl.LightningDataModule):
     def __init__(self, **cfg):
@@ -137,99 +116,3 @@ class MotionDataModule1(pl.LightningDataModule):
             num_workers=2,
             persistent_workers=True,
         )
-
-
-
-# DATASETS
-class HumanML3D(Dataset):
-    def __init__(self, t, max_text_len=100):
-        self.file_names = glob.glob(f"../../data/data_fully_preprocessed/{t}/*.npz")
-
-        print("loading", t)
-        # print(self.file_names)
-        self.max_text_len = max_text_len
-
-        print(f"{t} len:", len(self.file_names))
-
-    def __len__(self):
-        return len(self.file_names)
-
-    def __getitem__(self, idx, verbose=False):
-        if verbose:
-            print(self.file_names[idx])
-        data = np.load(self.file_names[idx], allow_pickle=True)
-        motion = torch.tensor(data["motion"]).float()
-        if verbose:
-            print("motion:", motion.shape)
-        velocity = torch.tensor(data["velocity"]).float()
-        if verbose:
-            print("velocity:", velocity.shape)
-        rand_text_idx = np.random.choice(list(data["texts_encoded"].item().keys()))
-
-        text_enc = torch.tensor(data["texts_encoded"].item()[rand_text_idx]).long()
-        # zero pad
-        if text_enc.shape[0] < self.max_text_len:
-            text_enc = torch.cat(
-                [
-                    text_enc,
-                    torch.zeros(
-                        self.max_text_len - text_enc.shape[0], dtype=torch.long
-                    ),
-                ]
-            )
-        else:
-            text_enc = text_enc[: self.max_text_len]
-
-        if verbose:
-            print("text_enc:", text_enc.shape)
-        text = data["texts"].item()[rand_text_idx]
-
-        # print(motion.shape, velocity.shape, text_enc.shape, text)
-        if verbose:
-            print()
-        return motion, velocity, text_enc, text
-
-
-class MotionDataModule2(pl.LightningDataModule):
-    def __init__(self, **cfg):
-        super().__init__()
-        self.max_text_len = cfg.get("max_text_len", 100)
-        self.sequence_length = cfg.get("seq_len", 120)
-        self.batch_size = cfg.get("batch_size", 128)
-
-    def prepare_data(self) -> None:
-        pass
-
-    def setup(self, stage=None) -> None:
-        self.train_ds, self.val_ds, self.test_ds = [
-            HumanML3D(t, self.max_text_len) for t in ["train", "val", "test"]
-        ]
-
-    def train_dataloader(self) -> DataLoader:
-        return DataLoader(
-            self.train_ds,
-            batch_size=self.batch_size,
-            shuffle=True,
-            num_workers=4,
-            persistent_workers=True,
-        )
-
-    def val_dataloader(self) -> DataLoader:
-        return DataLoader(
-            self.val_ds,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=2,
-            persistent_workers=True,
-        )
-
-    def test_dataloader(self) -> DataLoader:
-        return DataLoader(
-            self.test_ds,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=2,
-            persistent_workers=True,
-        )
-
-

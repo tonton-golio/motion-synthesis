@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import torch
 from tqdm import tqdm
 import yaml
-
+from modules.MotionVAE import MotionVAE as VAE
+from modules.MotionData import MotionDataModule1 as DM
 
 def print_scientific(x):
     return "{:.2e}".format(x)
@@ -47,7 +48,7 @@ def prep_save(model, data_loaders, enable_y=False, log_dir=None):
         for batch in tqdm(data_loader):
             x_, text = batch
             print(x_.shape)
-            z = model.encode(x_)
+            z = model.encode(x_).squeeze()
             print('z.shape:', z.shape)
             latent.append(z)
             texts.append(text)
@@ -90,15 +91,13 @@ def save_for_diffusion(save_path, model, **kwargs):
 
 
 def model_selector(model_name='VAE1'):
-    from motion_latent_diffusion.modules.motion_VAE import MotionVAE as VAE
-    from modules.data_modules import MotionDataModule1 as DM
     config = load_config(f'motion_{model_name}')
-    return config, VAE, DM
+    return config
 
 def train(model_name='VAE1', build=False):
-    cfg, VAE, DM = model_selector(model_name)
+    cfg= model_selector(model_name)
 
-    logger = TensorBoardLogger(f"logs/{model_name}/", name="train" if not build else "build")
+    logger = TensorBoardLogger(f"logs/MotionVAE/{model_name}/", name="train" if not build else "build")
     # profiler = PyTorchProfiler(
     #     on_trace_ready=torch.profiler.tensorboard_trace_handler("tb_logs/profiler0"),
     #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),

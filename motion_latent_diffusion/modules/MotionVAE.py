@@ -7,17 +7,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os, shutil
 
-import sys
-sys.path.append("../")
-    
-
-from modules.loss import VAE_Loss
+from modules.Loss import VAE_Loss
 from utils import (
     plot_3d_motion_frames_multiple,
     plot_3d_motion_animation,
     plot_3d_motion_frames_multiple,
     activation_dict,
-    Identity,
 )
 
 from torch import Tensor
@@ -137,16 +132,6 @@ class VAE1(nn.Module):
         eps = torch.randn_like(std)
         z = mu + eps * std
         return z
-
-#### VAE 2
-class VAE2(nn.Module):
-    pass
-
-
-#### VAE 3
-class VAE3(nn.Module):
-    pass
-
 
 #### VAE 4
 def lengths_to_mask(lengths: List[int],
@@ -581,7 +566,6 @@ class VAE4(nn.Module):
     
 
 #### VAE 5
-
 class SkipTransformerEncoder2(nn.Module):
     def __init__(self, encoder_layer, num_layers, norm=None, d_model=256):
         super().__init__()
@@ -815,7 +799,6 @@ class VAE5(nn.Module):
         return feats
 
 
-
 # Lightning Module
 class MotionVAE(pl.LightningModule):
     def __init__(
@@ -849,7 +832,11 @@ class MotionVAE(pl.LightningModule):
         return self.model(x)
     
     def encode(self, x):
-        return self.model.encode(x)[0]  # only return z
+        print('encoding')
+        print('x.shape:', x.shape)
+        z = self.model.encode(x)[0]  # only return z
+        print('z.shape:', z.shape)
+        return z
 
     def decode(self, z):
         return self.model.decode(z)
@@ -1000,20 +987,13 @@ class MotionVAE(pl.LightningModule):
 
 
 if __name__ == "__main__":
-    model = MotionVAE(
-        input_dim=66,
-        nhead=3,
-        hidden_dim_transformer=256,
-        dropout=0.1,
-        transformer_activation="gelu",
-        nlayers_transformer=2,
-        seq_len=160,
-        hidden_dim_linear=256,
-        latent_dim=32,
-        learning_rate=1e-3,
-        clip_grad_norm=1,
-        save_animations_freq=1,
-    )
+    import argparse
+    args = argparse.ArgumentParser()
+    args.add_argument("--model_name", type=str, default="VAE4")
+    args = args.parse_args()
+
+    model = MotionVAE(model_name=args.model_name, verbose=True)
+
     x = torch.randn(128, 160, 22, 3)
     mu, logvar, z, recon = model(x)
     print('x shape: ', x.shape)
