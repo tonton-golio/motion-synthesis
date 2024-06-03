@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import umap
+from sklearn.metrics import pairwise_distances
+
 # Title and intro
 """
 # Autoencoding Theory
@@ -10,17 +12,55 @@ import umap
 """
 
 tab_names = [
-    'KL Divergence',
-    'metrics'
+    'General',
+    'Reconstruction Error (RE)',
+    'KL Divergence (KL)',
+    'Inverse spatial entropy (ISE)'
 ]
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
+# General
+with tabs['General']:
+    cols = st.columns(2)
+    with cols[0]:
+        st.write("""
+        Auto-encoders, as the name suggests are encoding networks which associate the output with the input. As such, autoencoders are an approximation of the identity function for a population of data.
+
+        Seeing as these networks are encoding a sample, we may consider them dimensionality reduction algorithms. The latent space is a compressed representation of the input data.     
+        """)
+    with cols[1]:
+        st.image('assets/5_Autoencoding_theory/AutoEncoderSchema.png', caption='Autoencoder schema', use_column_width=True)
+
+# Reconstruction Error
+with tabs['Reconstruction Error (RE)']:
+    st.write(r"""
+    The primary measure for how well our network is able to encode and decode a sample, is the reconstruction error. The reconstruction error is the difference between the input and the output of the network. 
+    
+    We may measure reconstruction error in a variety of ways, such as a distanced based error, a likelihood based error, or a perceptual error.
+
+    ### Distance based error
+    Distance based error is the most common form of reconstruction error. The most common distance metric is the mean squared error (MSE). The MSE is the average of the squared differences between the input and the output.
+    $$
+    \text{MSE} = \frac{1}{n} \sum_{i=1}^{n} (x_i - \hat{x}_i)^2
+    $$
+    where $x_i$ is the input and $\hat{x}_i$ is the output of the network.
+
+    ### Likelihood based error
+    Likelihood based error is the negative log likelihood of the output given the input. This is the error used in variational autoencoders (VAEs). The likelihood based error is the average of the log likelihood of the output given the input.
+    $$
+    \text{NLL} = -\frac{1}{n} \sum_{i=1}^{n} \log p(x_i | \hat{x}_i)
+    $$
+    where $p(x_i | \hat{x}_i)$ is the likelihood of the output given the input.
+
+    ### Perceptual error
+    Perceptual error is the error of the output given the input as perceived. We may employ an adversarial network to determine the perceptual error.
+
+    """)
+
 # KL Divergence
-with tabs['KL Divergence']:
+with tabs['KL Divergence (KL)']:
     # here we explore how the kl divergence loss works for autoencoders
-    import streamlit as st
-    import numpy as np
-    import matplotlib.pyplot as plt
+    
 
     def kl_divergence(p, q):
         return np.sum(p * np.log(p / q) + (1 - p) * np.log((1 - p) / (1 - q)))
@@ -62,7 +102,6 @@ with tabs['KL Divergence']:
 
 
     '''
-    # KL Divergence Loss
     KL divergence is a measure of how one probability distribution differs from a second probability distribution. In the context of autoencoders, the KL divergence loss force the latentspace to consists of near univariate gaussians. 
 
     The term punishes symertrically with respect to the mean. The term punishes more for larger variances.
@@ -104,44 +143,36 @@ with tabs['KL Divergence']:
 
 
 # Metrics
-with tabs['metrics']:
-    ###### SECTION 2: VAE metrics ######
-    """
-    ---
-    ## VAE metrics
+with tabs['Inverse spatial entropy (ISE)']:
 
-    """
-    
     ## VAE
-    def get_space_fullness(X, N=10, n_runs=3):
-        def single_run(X, N, low=0, high=1):
-            x = np.random.uniform(low, high, (N, X.shape[1]))
-            # distance to nearest
-            from sklearn.metrics import pairwise_distances
-            dist = pairwise_distances(X, x, metric='manhattan').min(axis=0)
-            # plt.figure()
-            # plt.hist(dist, bins=50)
-            # mean, median = np.mean(dist), np.median(dist)
-            # plt.axvline(mean, label='mean', c='r')
-            # plt.axvline(median, label='median', ls='--', c='r')
-            # plt.legend()
-            # plt.show()
-            return np.median(dist)
-        
-        # scale the data: now everything is 0-1
-        X = X.copy()
-        X -= X.min(axis=0)
-        X /= X.max(axis=0)
+        def get_space_fullness(X, N=10, n_runs=3):
+            def single_run(X, N, low=0, high=1):
+                x = np.random.uniform(low, high, (N, X.shape[1]))
+                # distance to nearest
+                
+                dist = pairwise_distances(X, x, metric='manhattan').min(axis=0)
+                # plt.figure()
+                # plt.hist(dist, bins=50)
+                # mean, median = np.mean(dist), np.median(dist)
+                # plt.axvline(mean, label='mean', c='r')
+                # plt.axvline(median, label='median', ls='--', c='r')
+                # plt.legend()
+                # plt.show()
+                return np.median(dist)
+            
+            # scale the data: now everything is 0-1
+            X = X.copy()
+            X -= X.min(axis=0)
+            X /= X.max(axis=0)
 
-        vals = []
-        for i in range(n_runs):
-            vals.append(single_run(X, N))
+            vals = []
+            for i in range(n_runs):
+                vals.append(single_run(X, N))
 
-        return (np.mean(vals), np.std(vals)), X
+            return (np.mean(vals), np.std(vals)), X
 
-    tabs_vae = st.tabs(["Inverse spatial entropy (ISE)", "Kullback-Leibler Divergence (KL)", "Reconstruction Error (RE)"])
 
-    with tabs_vae[0]: # ISE
 
         # data
         data = sns.load_dataset('iris').drop('species', axis=1)

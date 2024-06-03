@@ -1,10 +1,36 @@
 TRAIN:
   DATA:
-    tiny: true
+    tiny: false
+  
+  MODEL_1:
+    nhead: 6
+    ff_transformer: 1024
+    nlayers_transformer: 5
+    hidden_dim_linear: 512
+
+
+  MODEL_4:
+    batch_norm: true
+    learning_rate: 0.0000001
+    latent_dim: 256
+    nhead: 8
+    nlayers_transformer: 5
+    ff_transformer: 1024
+
+  MODEL_5:
+    learning_rate: 0.00001
+    latent_dim: 256
+    nhead: 8
+    num_layers: 5
+    dim_feedforward: 1024
+    dropout: 0.10
+
   MODEL_BASE:
-    _checkpoint_path: latest
     hidden_dim: 256
-    load: false
+    dropout: 0.10
+    transformer_activation: relu
+    seq_len: 420
+
 
     learning_rate: 0.000001
     clip_grad_norm: 1.0
@@ -16,35 +42,17 @@ TRAIN:
       MOTION_L2: 1.0
       MOTIONRELATIVE_L2: 1.0
 
-  MODEL_1:
-    learning_rate: 0.000001
-
-  MODEL_4:
-    batch_norm: true
-    learning_rate: 0.000001
-    latent_dim: 256
-    nhead: 8
-    nlayers_transformer: 5
-    ff_transformer: 1024
-    dropout: 0.10
-
-
-  MODEL_5:
-    learning_rate: 0.00001
-    latent_dim: 256
-    nhead: 8
-    num_layers: 5
-    dim_feedforward: 1024
-    dropout: 0.10
-
   TRAINER:
-    max_epochs: 1
+    max_epochs: 100
     enable_checkpointing: True
     log_every_n_steps: 10
+
+  FIT:
+    load_checkpoint: true
     
 BUILD:
   DATA:
-    BATCH_SIZE: 2
+    batch_size: 2
     SHUFFLE: false
   MODEL:
     hidden_dim: 256
@@ -58,11 +66,11 @@ BASE:
     nhead: 3
     hidden_dim_transformer: 256
     dropout: 0.10
-    transformer_activation: relu
+    
     hidden_dim: 256
     nlayers_transformer: 3
 
-    seq_len: 420
+    
     activation: leaky_relu
     hidden_dim_linear: 256
     latent_dim: 256
@@ -73,7 +81,7 @@ BASE:
 
   DATA:
     seq_len: 420
-    batch_size: 32
+    batch_size: 64
     file_list_paths:
       _train: ../stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
       _val: ../stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt

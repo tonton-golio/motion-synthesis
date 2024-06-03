@@ -1,0 +1,38 @@
+# hidden_dim=512,
+# nhidden=5,
+# timesteps=1000,
+# time_embedding_dim=12,
+# target_embedding_dim=100,
+# epsilon=0.0008,
+# dp_rate=0.1,
+
+# lr = 0.0001,
+# verbose=False
+
+
+TRAINER:
+  fast_dev_run: false
+  max_epochs: 100
+  enable_checkpointing: True
+  log_every_n_steps: 10
+  accelerator: mps
+
+MODEL:
+  hidden_dim: 512
+  nhidden: 5
+  timesteps: 1000
+  time_embedding_dim: 12
+  target_embedding_dim: 100
+  epsilon: 0.0008
+  dp_rate: 0.1
+
+  lr: 0.0001
+  verbose: false
+
+DATA:
+  batch_size: 512
+
+  # shuffle: false
+
+  
+  # tiny: false

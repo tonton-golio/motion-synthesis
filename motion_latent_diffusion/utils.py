@@ -47,6 +47,23 @@ def get_ckpts(log_dir):
     
     return ckpts
 
+def get_ckpt(path):
+    ckpts = get_ckpts(path)
+    print("Available checkpoints:")
+    for k, v in ckpts.items():
+        print(k, v)
+
+    try:
+        ckpt_num = int(input("Enter checkpoint number: "))
+        print(ckpt_num)
+        print(ckpts[ckpt_num])
+        ckpt = ckpts[ckpt_num]['path']
+        print("Loading checkpoint:", ckpt)
+    except:
+        ckpt = None
+        print("No checkpoint loaded")
+    return ckpt
+
 def dict_merge(dct, merge_dct):
     """
     Recursively merge two dictionaries, dct takes precedence over merge_dct.
@@ -397,6 +414,13 @@ def plotUMAP(latent, latent_dim, KL_weight,  save_path, show=False, max_points=5
 
 def prep_save(model, data_loaders, enable_y=False, log_dir=None):
     latent, texts = list(), list()
+    counter = 0
+
+    # if size is too big
+    path = log_dir+'/saved_latent/tmp'
+    if not os.path.exists(path):
+        os.makedirs(path)
+
     for data_loader in data_loaders:
         for batch in tqdm(data_loader):
             x_, text = batch
@@ -406,8 +430,42 @@ def prep_save(model, data_loaders, enable_y=False, log_dir=None):
             latent.append(z)
             texts.append(text)
 
-    latent = torch.cat(latent, dim=0)  # maybe detach
+            if len(latent) > 10:
+                print('Saving latent space... as it is too large')
+                latent = torch.cat(latent, dim=0)  # maybe detach
+                texts = torch.cat(texts, dim=0)
+
+                kwargs_save = {
+                    f'z_{counter}': latent,
+                    f'texts_{counter}': texts,
+                }
+                # save_for_diffusion(save_path=log_dir+'/saved_latent', **kwargs_save)  # todo do this in a tmp folder
+                
+                save_for_diffusion(save_path=path, **kwargs_save)
+                latent, texts = list(), list()
+                counter += 1
+
+    latent = torch.cat(latent, dim=0)
     texts = torch.cat(texts, dim=0)
+    kwargs_save = {
+        f'z_{counter}': latent,
+        f'texts_{counter}': texts,
+    }
+    # save_for_diffusion(save_path=log_dir+'/saved_latent', **kwargs_save)
+    save_for_diffusion(save_path=path, **kwargs_save)
+    
+    # latent = torch.cat([
+    #     torch.load(f'{log_dir}/saved_latent/z_{i}.pt') for i in range(counter+1)
+    # ], dim=0)
+    # texts = torch.cat([
+    #     torch.load(f'{log_dir}/saved_latent/texts_{i}.pt') for i in range(counter+1)
+    # ], dim=0)
+
+    latent = torch.cat([torch.load(f'{path}/z_{i}.pt') for i in range(counter+1)], dim=0)
+    texts = torch.cat([torch.load(f'{path}/texts_{i}.pt') for i in range(counter+1)], dim=0)
+
+        
+
 
     # make covariance matrix of latent space
     # cov = torch.cov(latent.T)
@@ -419,7 +477,7 @@ def prep_save(model, data_loaders, enable_y=False, log_dir=None):
     # plt.close(cov_fig)
     return latent, texts
     
-def save_for_diffusion(save_path, model, **kwargs):
+def save_for_diffusion(save_path, model=None, **kwargs):
     """
     Save:
         'model' : 'model.pth',
@@ -432,11 +490,11 @@ def save_for_diffusion(save_path, model, **kwargs):
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    torch.save(model, f'{save_path}/model.pth')
-
-    num_params = sum(p.numel() for p in model.parameters())
-    with open(f'{save_path}/num_params.txt', 'w') as file:
-        file.write(f'Number of parameters: {num_params}')
+    if model is not None:
+        torch.save(model, f'{save_path}/model.pth')
+        num_params = sum(p.numel() for p in model.parameters())
+        with open(f'{save_path}/num_params.txt', 'w') as file:
+            file.write(f'Number of parameters: {num_params}')
 
     for k, v in kwargs.items():
         torch.save(v, f'{save_path}/{k}.pt')

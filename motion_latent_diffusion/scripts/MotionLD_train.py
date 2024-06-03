@@ -8,9 +8,13 @@ from utils import test_translate
 import pytorch_lightning as pl
 from modules.LatentMotionData import LatentMotionData
 from modules.MotionLatentDiffusion import MotionLatentDiffusion
-from utils import plot_3d_motion_animation
+from utils import plot_3d_motion_animation, load_config
+
+# logger
+from pytorch_lightning.loggers import TensorBoardLogger
+
 # get latent vectors
-def find_saved_latent(path = f"logs/VAE/train/", cfg_name='config'):
+def find_saved_latent(path = f"logs/MotionVAE/VAE1/train/", cfg_name='config'):
     """
     Find saved latent vectors from VAE training
     """
@@ -20,7 +24,7 @@ def find_saved_latent(path = f"logs/VAE/train/", cfg_name='config'):
         version_num = version.split('_')[-1]
         contents = os.listdir(f"{path}{version}")
         base_path = os.path.join(path, version, )
-
+        print(contents)
         if 'saved_latent' in contents:
             print(f"Found saved latent vectors for version {version_num}")
             cfg_file = None  # get config file
@@ -31,6 +35,7 @@ def find_saved_latent(path = f"logs/VAE/train/", cfg_name='config'):
             
             projection = None  # get projection image
             for file in contents:
+                print(file)
                 if 'projection' in file and file.endswith('.png'):
                     projection = file
                     break
@@ -43,7 +48,7 @@ def find_saved_latent(path = f"logs/VAE/train/", cfg_name='config'):
                 'paths' : {
                     'config' : os.path.join(base_path, cfg_file),
                     'saved_latent' : os.path.join(base_path, 'saved_latent'),
-                    'projection' : os.path.join(base_path, projection),
+                    'projection' : os.path.join(base_path, projection) if projection else None,
                     'checkpoints' : checkpoints,
                     'log' : base_path,
                 },
@@ -80,12 +85,13 @@ def show_saved_latent_info(data, return_fig=False):
     if len(data) == 1:
         ax = ax.reshape(2, 1)
     for i, (version, info) in enumerate(data.items()):
-        ax[0, i].imshow(plt.imread(info['paths']['projection']))
-        ax[0, i].set_title(f"Version {version}")
-        ax[0, i].axis('off')
+        if info['paths']['projection']: 
+            ax[0, i].imshow(plt.imread(info['paths']['projection']))
+            ax[0, i].set_title(f"Version {version}")
+            ax[0, i].axis('off')
 
-        ax[1, i].text(0.5, 0.5, f"Num Files: {saved_latent_info[version]['num_files']}", ha='center', va='center')
-        ax[1, i].axis('off')
+            ax[1, i].text(0.5, 0.5, f"Num Files: {saved_latent_info[version]['num_files']}", ha='center', va='center')
+            ax[1, i].axis('off')
     if return_fig:
         return fig
 
@@ -164,10 +170,14 @@ def decode_latent(z, autoencoder, VAE_version):
 
 # train
 def train(VAE_version = 'VAE5'):
-    data_version, version = latent_picker(f'logs/MotionLatentDiffusion/{VAE_version}/train/', cfg_name='hparams')
+
+    # load config and instantiate logger
+    cfg = load_config('motion_LD')
+    logger = TensorBoardLogger('logs', name=f'MotionLD/{VAE_version}')
+
+    # load latent vectors
+    data_version, version = latent_picker(f'logs/MotionVAE/{VAE_version}/train/', cfg_name='hparams')
     z, texts , autoencoder, projector, projection = load_latent(data_version, y_name='/texts.pt')
-
-
 
     # text mapping
     idx2word = np.load('../stranger_repos/HumanML3D/HumanML3D/texts_enc/simple/idx2word.npz', allow_pickle=True)['arr_0'].item()
@@ -175,30 +185,22 @@ def train(VAE_version = 'VAE5'):
     test_translate(texts, 'a person is walking', word2idx, idx2word)
 
     # data module
-    data_module = LatentMotionData(z, texts, batch_size=4)
+    data_module = LatentMotionData(z, texts, **cfg["DATA"])
     data_module.setup()
-
+    
+    # decoder
     decoder = LatentDecoder(autoencoder, VAE_version)
 
+    # model
     model = MotionLatentDiffusion(
         decode=decoder,
         idx2word=idx2word,
         latent_dim=data_module.latent_dim,
-        hidden_dim=512,
-        nhidden=5,
-        timesteps=1000,
-        time_embedding_dim=12,
-        target_embedding_dim=100,
-        epsilon=0.0008,
-        dp_rate=0.1,
-        
-        lr = 0.0001,
-        verbose=False
+        **cfg["MODEL"]
     )
 
-
     # train
-    trainer = pl.Trainer(max_epochs=100, accelerator='mps')
+    trainer = pl.Trainer(**cfg["TRAINER"], logger=logger)
     trainer.fit(model, data_module)
 
     # test

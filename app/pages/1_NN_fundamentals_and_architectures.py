@@ -1,6 +1,7 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
+from utils import load_or_save_fig
 
 # Title and intro
 """
@@ -16,79 +17,74 @@ tab_names = [
 ]
 
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
+
+with st.sidebar:
+    pass
+    darkmode = st.checkbox('Dark mode', value=False)
+    enable_transformer = st.checkbox('Enable Transformer', value=False)
+
 # Activation Functions
 with tabs['Activation Functions']:
 
-    # Title and intro
-    """
-    ### Activation Functions
-    Activation functions are used to introduce non-linearity to a neural network.
-    """
 
-    # activation functions
-    act_funcs = {
-        'Soft step' : {
-            'tanh': lambda x: np.tanh(x),
-            'sigmoid': lambda x: 1 / (1 + np.exp(-x)),
-            'softsign': lambda x: x / (1 + np.abs(x)),
-        },
-        'rectifier': {
-            'relu': lambda x: np.maximum(0, x),
-            'leaky_relu': lambda x: np.maximum(0.1 * x, x),
-            'elu': lambda x: np.maximum(0.1 * (np.exp(x) - 1), x),
-            'swish': lambda x: x * 1 / (1 + np.exp(-x)),
-            'mish': lambda x: x * np.tanh(np.log(1 + np.exp(x))),
-            'softplus': lambda x: np.log(1 + np.exp(x)),
-        },
-    }
-    act_funcs['all'] = {**act_funcs['Soft step'], **act_funcs['rectifier']}  # combine all
+    @load_or_save_fig('assets_produced/1_NN_fundamentals_and_architectures/activation_functions.png')
+    def activation_grid(darkmode=False):
+        """
+        Create a grid of activation function plots.
 
+        Parameters:
+        - darkmode: Boolean to enable dark mode
 
-    def activation_grid(act_funcs, x, darkmode=True):
+        Returns:
+        - fig: Matplotlib figure
+        """
+        # activation functions
+        act_funcs = {
+            'Soft step' : {
+                'tanh': lambda x: np.tanh(x),
+                'sigmoid': lambda x: 1 / (1 + np.exp(-x)),
+                'softsign': lambda x: x / (1 + np.abs(x)),
+            },
+            'rectifier': {
+                'relu': lambda x: np.maximum(0, x),
+                'leaky_relu': lambda x: np.maximum(0.1 * x, x),
+                'elu': lambda x: np.maximum(0.1 * (np.exp(x) - 1), x),
+                'swish': lambda x: x * 1 / (1 + np.exp(-x)),
+                'mish': lambda x: x * np.tanh(np.log(1 + np.exp(x))),
+                'softplus': lambda x: np.log(1 + np.exp(x)),
+            },
+        }
+        act_funcs['all'] = {**act_funcs['Soft step'], **act_funcs['rectifier']}  # combine all
+        x = np.linspace(-3, 3, 100)
+
         fig, axes = plt.subplots(3, 3, figsize=(6, 6), sharex=True, sharey=True)
-        if darkmode:
-            fig.patch.set_facecolor('black')
-            fig.patch.set_alpha(0.)
-            color = 'white'
-        else:
-            color = 'purple'
+        color = 'white' if darkmode else 'purple'
 
-        for (name, func), ax in zip(act_funcs.items(), axes.flatten()):
-            ax.plot(x, func(x), label=name, color=color, lw=6, alpha=0.3)
-            ax.plot(x, func(x), label=name, color=color, lw=3, alpha=0.3, ls='-')
-            ax.plot(x, func(x), label=name, color=color, lw=1, alpha=0.3, ls='-')
+        for (name, func), ax in zip(act_funcs['all'].items(), axes.flatten()):
+            ax.plot(x, func(x), label=name, color=color, lw=3, alpha=0.7)
             
-            
-            if darkmode: 
+            if darkmode:
                 ax.set_facecolor('grey')
                 ax.set_title(name, color='white')
                 ax.grid(color='white', alpha=0.6)
-                ax.set_xticks([-1,0,1], [-1,0,1], color='white')
-                ax.set_yticks([-1,0,1], [-1,0,1], color='white')
+                ax.tick_params(axis='x', colors='white')
+                ax.tick_params(axis='y', colors='white')
             else:
                 ax.set_title(name)
                 ax.grid()
+
             ax.set_ylim(-1.5, 1.5)
         plt.tight_layout()
         return fig
 
-    def plot_functions(act_funcs, x, darkmode=True, **kwargs):
-        fig, ax = plt.subplots(figsize=(5, 3))
-        if darkmode:
-            'dark'
-            # plt.style.use('dark_background')
-        for name, f in act_funcs.items():
-            ax.plot(x, f(x), label=name)
-        ax.legend(ncol=kwargs.get('ncol', 1))#, bbox_to_anchor=kwargs.get('bbox', (1, 1)))
-        ax.set_ylim(kwargs.get('ylim', (-1.3, 1.3)))
-        
-        ax.grid()
-        plt.tight_layout()
-        return fig
 
     if __name__ == '__main__':
-        x = np.linspace(-3, 3, 100)
-        fig = activation_grid(act_funcs['all'], x)
+        # Title and intro
+        """
+        ### Activation Functions
+        Activation functions are used to introduce non-linearity to a neural network.
+        """
+        
         cols = st.columns((2,3))
         cols[0].write("""
         Activation function introduce non-linearity to a neural network. Some common ones are displayed on the right.
@@ -99,20 +95,18 @@ with tabs['Activation Functions']:
                     
         *I wonder if these create different latent spaces.*
         """)
+
+
+        fig = activation_grid(darkmode=False)
         cols[1].pyplot(fig)
 
-        # # cols = st.columns(2)
-        # fig = plot_functions(act_funcs['Soft step'], x)
-        # cols[1].pyplot(fig)
-
-        # fig = plot_functions(act_funcs['rectifier'], x, ncol=2, ylim=(-1, 3), )
-        # cols[1].pyplot(fig)
 
 
 # Transformer
 with tabs['Transformer']:
-    from subpages.transformer_shakespeare import render
-    render()
+    if enable_transformer:
+        from subpages.transformer_shakespeare import render
+        render()
     
 # U-Net
 with tabs['U-Net']:

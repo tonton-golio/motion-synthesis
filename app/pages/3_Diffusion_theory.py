@@ -8,6 +8,8 @@ sys.path.append('../')
 from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 from matplotlib import gridspec
 
+from utils import load_or_save_fig
+
 st.set_page_config(
     page_title="Diffusion Theory",
     page_icon="🧊",
@@ -65,6 +67,7 @@ def shannon_entropy_2d(im, return_all=False):
         return H, im_derivative
     return H
 
+@load_or_save_fig('assets_produced/3_diffusion_theory/vector_entropy.png')
 def vector_entropy_demo(vector_length = 8):
     vl = vector_length 
     A = normalize(np.random.rand(vl))
@@ -94,15 +97,8 @@ def vector_entropy_demo(vector_length = 8):
         plt.close()
         return fig
     
-    r"""
-    ### Vector Entropy
-    Given two vectors of unit length (manhattan norm), we can calculate the entropy of the distribution of values in the vector.
-
-    A vector, $\bar{a}$, with values distributed uniformly, has maximum entropy, while a vector, $\bar{b}$, with all values concentrated in a single component has minimum entropy.
-    """
-    
     fig = make_plot()
-    st.pyplot(fig)
+    return fig
 
 def image_entropy_demo(ims):
     st.write(r"""
@@ -150,7 +146,19 @@ def image_entropy_demo(ims):
         col.pyplot(fig)
 
 with tabs['Vector/image entropy']:
-    vector_entropy_demo(10)
+
+
+    fig = vector_entropy_demo(10)
+    r"""
+    ### Vector Entropy
+    Given two vectors of unit length (manhattan norm), we can calculate the entropy of the distribution of values in the vector.
+
+    A vector, $\bar{a}$, with values distributed uniformly, has maximum entropy, while a vector, $\bar{b}$, with all values concentrated in a single component has minimum entropy.
+    """
+    st.pyplot(fig)
+
+
+
     st.divider()
     im_4 = grayscale(plt.imread('assets/example_images/4.png'))
     im_cat = grayscale(plt.imread('assets/example_images/cat.png'))

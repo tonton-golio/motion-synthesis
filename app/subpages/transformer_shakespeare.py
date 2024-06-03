@@ -241,12 +241,12 @@ def load_model(n_embed, n_head, n_layer, device, block_size, small=False):
     # load model
     m = LanguageModel(vocab_size, n_embed=n_embed, n_head=n_head, n_layer=n_layer, block_size=block_size).to(device)
     suffix = 'small' if small else 'big'
-    m.load_state_dict(torch.load('assets/1_NN_fundamentals_and_architectures/shakespear_model_{suffix}.pth'))
+    m.load_state_dict(torch.load(f'assets/1_NN_fundamentals_and_architectures/shakespear_model_{suffix}.pth'))
     return m,  decode, encode
 
 def render():
     torch.manual_seed(1337)
-    small = False
+    small = True
     
     if small:
         block_size = 64

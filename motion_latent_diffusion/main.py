@@ -54,23 +54,10 @@ if __name__ == "__main__":
         logger = TensorBoardLogger("logs/PoseVAE", name=model_name)
         datamodule = PoseDataModule(**cfg['DATA'])
         
+        ckpt = None
         if cfg['FIT']['load_checkpoint']:
             path = logger.log_dir.split("version_")[0]
-            ckpts = get_ckpts(path)
-            print("Available checkpoints:")
-            for k, v in ckpts.items():
-                print(k, v)
-
-            try:
-                ckpt_num = int(input("Enter checkpoint number: "))
-                print(ckpt_num)
-                print(ckpts[ckpt_num])
-                ckpt = ckpts[ckpt_num]['path']
-                print("Loading checkpoint:", ckpt)
-            except:
-                ckpt = None
-                print("No checkpoint loaded")
-        else: ckpt = None
+            ckpt = get_ckpt(path)
 
         if model_name == "LINEAR":  model = PoseVAE(model_name, **cfg['MODEL'])
         elif model_name == "GRAPH": model = PoseVAE(model_name, **cfg['MODEL'])

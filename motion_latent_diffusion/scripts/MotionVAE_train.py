@@ -2,7 +2,7 @@
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 # from pytorch_lightning.profilers import PyTorchProfiler
-from utils import load_config, get_ckpts
+from utils import load_config, get_ckpts, get_ckpt
 from utils import prep_save, plotUMAP, save_for_diffusion
 import matplotlib.pyplot as plt
 import torch
@@ -23,12 +23,10 @@ def train(model_name='VAE1', build=False):
     # )
     
     
-    # check if config.MODEL._checkpoint_path is latest if so look it up
-    if cfg['MODEL']['load']:
-        checkpoints = get_ckpts('/'.join(logger.log_dir.split('/')[:-1]))
-        checkpoint = checkpoints[cfg['MODEL']['_checkpoint_path']]
-        cfg['MODEL']['_checkpoint_path'] = checkpoint['path']
-        print(f"Loading checkpoint from {cfg['MODEL']['_checkpoint_path']}")
+    ckpt = None
+    if cfg['FIT']['load_checkpoint']:
+        path = logger.log_dir.split("version_")[0]
+        ckpt = get_ckpt(path)
       
     datamodule = DM(**cfg['DATA'])
 
@@ -43,7 +41,8 @@ def train(model_name='VAE1', build=False):
     )
     epochs_trained = trainer.callback_metrics.get("epoch", 0)
     trainer.fit(model, datamodule, 
-                ckpt_path=cfg['MODEL']['_checkpoint_path'] if cfg['MODEL']['load'] else None)
+                ckpt_path=ckpt,
+    )
     
     print('i will test now, please wait (did we already test?)')
     res = trainer.test(model, datamodule)
@@ -69,6 +68,12 @@ def test(dm , trainer, model, logger, config, save_latent=False):
     logger.log_hyperparams(model.hparams, res[0])
     print(config)
     # save_latent
+
+    # clean up
+    
+    del trainer
+    del res
+
     if save_latent:
         dataloaders = [dm.test_dataloader(), dm.train_dataloader(), dm.val_dataloader()]
         KL_weight = config['MODEL']['LOSS']['DIVERGENCE_KL']

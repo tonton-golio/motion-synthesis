@@ -5,19 +5,18 @@ import pytorch_lightning as pl
 
 import matplotlib.pyplot as plt
 import numpy as np
-import os, shutil
+import os, shutil, copy
+from torch import Tensor
+from typing import List, Optional
 
 from modules.Loss import VAE_Loss
 from utils import (
     plot_3d_motion_frames_multiple,
     plot_3d_motion_animation,
-    plot_3d_motion_frames_multiple,
     activation_dict,
 )
 
-from torch import Tensor
-from typing import List, Optional
-import copy
+
 
 #### VAE 1
 class VAE1(nn.Module):
@@ -233,8 +232,6 @@ class TransformerEncoderLayer(nn.Module):
         self.d_model = d_model
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
-        print('dim_feedforward:', dim_feedforward)
-        print('d_model:', d_model)
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
@@ -462,49 +459,39 @@ class VAE4(nn.Module):
         xseq = torch.cat((dist, x), 0)
         xseq = self.query_pos_encoder(xseq)
         dist = self.encoder(xseq, src_key_padding_mask=~aug_mask)#[:dist.shape[0]]
-        # print(dist.shape)
+
         # temporal compression  8 --> 1
         bite_size = self.bite_size
-        # print(dist.shape)
+
         dists_bite_sized = [dist[i*bite_size:(i+1)*bite_size].permute(1, 0, 2).reshape(batch_size, -1)
                      for i in range(self.seq_len//bite_size)]
         
         dists_compressed = [self.temporal_compressor(d).view(batch_size, 1, -1) for d in dists_bite_sized]
         dists_compressed = torch.cat(dists_compressed, axis=1).permute(1, 0, 2)
-        # print(dists_compressed.shape)
+
         dists = self.encoder_transformer2(dists_compressed)
-        # print(dists.shape)
+
 
         # spatial compression
-        # print('beginning spatial compression')
+
         dists = dists.permute(1, 0, 2)
         dists = self.spatial_compressor(dists)
         dists = dists.permute(1, 0, 2)
-        # print(dists.shape)
 
         # transformer 3
-        # print('beginning transformer 3')
-        # print('shape before:', dists.shape)
+
         dists = self.encoder_transformer3(dists)
         dists = dists.permute(1, 0, 2)
-        # print('shape after:', dists.shape)
 
         # more temporal compression
-        # print('beginning more temporal compression')
         dists = dists.permute(0,2,1)
         dists = self.temporal_compressor2(dists)
-        # print(dists.shape)
+
 
         dist = torch.flatten(dists, start_dim=1)
 
-        
-
         dist = self.final_encode_linear(dist)
-
-        # print(dist.shape)
-
         mu, logvar = dist[:, :self.latent_dim], dist[:, self.latent_dim:]
-
 
         # resample
         std = logvar.exp().pow(0.5)
@@ -514,16 +501,14 @@ class VAE4(nn.Module):
         return latent, lengths, mu, logvar
 
     def decode(self, z: Tensor, lengths: List[int]):
-        # print('decoding')
         mask = lengths_to_mask(lengths, z.device)
         bs, nframes = mask.shape
-        # print('z.shape', z.shape)
+
         z = z.view(16, bs, 16).permute(1,2,0)
         z = self.temporal_decompressor1(z)
-        # print('z.shape', z.shape)
+
         z = z.permute(2,0,1)
         z = self.decoder_transformer1(z)
-        # print(z.shape)
 
         # spatial decompressor
         z = self.spatial_decompressor(z)
@@ -536,9 +521,6 @@ class VAE4(nn.Module):
         z = z.permute(1,2,0)
         z = self.temporal_decompressor2(z)
         z = z.permute(2, 0, 1)
-        # print(z.shape)
-
-
 
         # queries = torch.zeros(nframes, bs, self.latent_dim, device=z.device)
         # xseq = torch.cat((z, queries), axis=0)
@@ -832,10 +814,7 @@ class MotionVAE(pl.LightningModule):
         return self.model(x)
     
     def encode(self, x):
-        print('encoding')
-        print('x.shape:', x.shape)
         z = self.model.encode(x)[0]  # only return z
-        print('z.shape:', z.shape)
         return z
 
     def decode(self, z):
@@ -876,7 +855,6 @@ class MotionVAE(pl.LightningModule):
             plt.close()
 
     def decompose_recon(self, motion_seq):
-        print(motion_seq.shape) 
         pose0 = motion_seq[:, :1]
         root_travel = motion_seq[:, :, :1, :]
         root_travel = root_travel - root_travel[:1]  # relative to the first frame
@@ -889,11 +867,8 @@ class MotionVAE(pl.LightningModule):
 
     def _common_step(self, batch, batch_idx):
         motion_seq, text = batch
-        # print('motion_seq.shape:', motion_seq.shape)
         recon, z, mu, logvar = self(motion_seq)
         
-        print('recon.shape:', recon.shape)
-        print('motion_seq.shape:', motion_seq.shape)
         pose0_pred, vel_rel_pred, root_trvl_pred, motion_rel_pred, vel_pred = self.decompose_recon(recon)
         pose0_gt, vel_rel_gt, root_trvl_gt, motion_rel_gt, vel_gt = self.decompose_recon(motion_seq)
         
@@ -940,8 +915,8 @@ class MotionVAE(pl.LightningModule):
         res = self._common_step(batch, batch_idx)
         
         loss = {k + "_trn": v for k, v in res["losses_unscaled"].items()}
-        self.log_dict(loss, prog_bar=True, logger=True, on_step=True, on_epoch=False)
-
+        self.log_dict(loss, prog_bar=True, logger=True)
+        self.log("total_loss_trn", res["total_loss"])
         # clip gradients --> do i do this here? # TODO
         if self.clip > 0:
             torch.nn.utils.clip_grad_norm_(self.parameters(), self.clip)
@@ -949,14 +924,14 @@ class MotionVAE(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         res = self._common_step(batch, batch_idx)
-        loss = {k + "_val": v for k, v in res["losses_unscaled"].items()}
-        self.log_dict(loss)
+        # loss = {k + "_val": v for k, v in res["losses_unscaled"].items()}
+        # self.log_dict(loss)
+        self.log("total_loss_val", res["total_loss"])
         
         self.val_outputs['motion_seq'] = res['motion_seq'][0]
         self.val_outputs['recon_seq'] = res['recon_seq'][0]
 
     def on_validation_epoch_end(self):
-        print('validation_epoch_end')
         motion_seq, recon_seq = self.val_outputs['motion_seq'], self.val_outputs['recon_seq']
         motion_seq = motion_seq.cpu().detach().numpy()
         recon_seq = recon_seq.cpu().detach().numpy()
