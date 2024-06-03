@@ -8,7 +8,6 @@ TRAIN:
     nlayers_transformer: 5
     hidden_dim_linear: 512
 
-
   MODEL_4:
     batch_norm: true
     learning_rate: 0.0000001
@@ -25,11 +24,19 @@ TRAIN:
     dim_feedforward: 1024
     dropout: 0.10
 
+  MODEL_6:
+    learning_rate: 0.000001
+    latent_dim: 256
+    nhead: 8
+    nlayers_transformer: 5
+    transformer_activation: gelu
+    dropout: 0.10
+
   MODEL_BASE:
     hidden_dim: 256
     dropout: 0.10
     transformer_activation: relu
-    seq_len: 420
+    seq_len: 160
 
 
     learning_rate: 0.000001
@@ -39,7 +46,7 @@ TRAIN:
       VELOCITY_L2: 1.0
       ROOT_L2: 0.0
       POSE0_L2: 0.0
-      MOTION_L2: 1.0
+      MOTION_L2: 1.
       MOTIONRELATIVE_L2: 1.0
 
   TRAINER:
@@ -81,7 +88,7 @@ BASE:
 
   DATA:
     seq_len: 420
-    batch_size: 64
+    batch_size: 32
     file_list_paths:
       _train: ../stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
       _val: ../stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt

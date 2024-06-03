@@ -266,8 +266,9 @@ class LatentDiffusionModule(pl.LightningModule):
         # self.device = torch.device("mps")
         self.noise_multiplier = kwargs.get("NOISE", 1.0)
         self.model.noise_multiplier = self.noise_multiplier
-        autoencoder.model.eval()
-        self.decoder = autoencoder.model.decode if autoencoder is not None else None
+        if autoencoder is not None:
+            autoencoder.model.eval()
+            self.decoder = autoencoder.model.decode if autoencoder is not None else None
 
         self.scaler = scaler
 

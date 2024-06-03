@@ -16,8 +16,6 @@ from utils import (
     activation_dict,
 )
 
-
-
 #### VAE 1
 class VAE1(nn.Module):
     def __init__(self, **kwargs):
@@ -139,7 +137,11 @@ def lengths_to_mask(lengths: List[int],
     """
     Provides a mask, of length max_len or the longest element in lengths. With True for the elements less than the length for each length in lengths.
     """
-    lengths = torch.tensor(lengths, device=device)
+    if type(lengths) == list:
+        lengths = torch.tensor(lengths, device=device)
+    else:
+        lengths = lengths.to(device)
+        
     max_len = max_len if max_len else max(lengths)
     mask = torch.arange(max_len, device=device).expand(len(lengths), max_len) < lengths.unsqueeze(1)
     return mask
@@ -515,7 +517,7 @@ class VAE4(nn.Module):
 
         # transfomer
         z = self.decoder_transformer2(z)
-        # print(z.shape)
+
         
         # temporal_decompressor 2
         z = z.permute(1,2,0)
@@ -533,14 +535,13 @@ class VAE4(nn.Module):
 
         xseq = self.query_pos_decoder(xseq)
         output = self.decoder(xseq)#[z.shape[0]:]
-        
-        # print(output.shape)
+
         output = self.final_layer(output)
         # output[~mask.T] = 0
         feats = output.permute(1, 0, 2)
-        # print('feats.shape', feats.shape)
+
         # zero for padded area
-        # print('mask.shape', mask.shape)
+
         # feats[~mask] = 0
         # Pytorch Transformer: [Sequence, Batch size, ...]
         feats = feats.view(bs, nframes, 22, 3) 
@@ -780,6 +781,180 @@ class VAE5(nn.Module):
         feats = feats.view(bs, nframes, 22, 3)
         return feats
 
+## VAE 6
+class PositionEmbeddingSine1D(nn.Module):
+
+    def __init__(self, d_model, max_len=500, batch_first=False):
+        super().__init__()
+        self.batch_first = batch_first
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(
+            0, d_model, 2).float() * (-np.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        # not used in the final model
+        if self.batch_first:
+            pos = self.pe.permute(1, 0, 2)[:, :x.shape[1], :]
+        else:
+            pos = self.pe[:x.shape[0], :]
+        return pos
+
+class VAE6(nn.Module):
+    def __init__(self, **kwargs):
+        super(VAE6, self).__init__()
+        self.verbose = False
+
+        self.latent_size = 1   # 1 for single timestep
+        self.latent_dim = kwargs.get("latent_dim", 256)
+        self.seq_len = kwargs.get("seq_len")
+        self.nhead = kwargs.get("nhead")
+        self.dropout = kwargs.get("dropout")
+        self.transformer_activation = kwargs.get("transformer_activation")
+        self.nlayers_transformer = kwargs.get("nlayers_transformer")
+        self.activation = nn.LeakyReLU()
+        
+        self.setup_model()
+        self._reset_parameters()
+
+    def setup_model(self):
+        ld = self.latent_dim
+        
+        self.skel_enc = nn.Linear(66, ld)
+    
+        self.skip_trans_enc = SkipTransformerEncoder2(
+            encoder_layer= nn.TransformerEncoderLayer(
+                d_model=ld, nhead=self.nhead, dim_feedforward=4*ld, 
+                dropout=self.dropout, activation=self.transformer_activation, 
+                norm_first=False, batch_first=True),
+            num_layers=self.nlayers_transformer,
+            norm=nn.LayerNorm(ld),
+            d_model=ld
+        )
+
+        self.latent_enc_linear = nn.Sequential(
+            nn.Linear(2*ld, 2*ld),
+            nn.LeakyReLU(),
+            nn.Linear(2*ld, 2*ld),
+        )   
+        self.query_pos_decoder = PositionEmbeddingSine1D(ld, max_len=self.seq_len, batch_first=True)
+
+        self.trans_dec = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(
+                d_model=ld, nhead=self.nhead, dim_feedforward=4*ld,
+                dropout=self.dropout, activation=self.transformer_activation,
+                norm_first=False, batch_first=True),
+            num_layers=self.nlayers_transformer,
+            norm=nn.LayerNorm(ld),
+        )
+
+        self.flatten = nn.Flatten()
+        
+        self.final_layer = nn.Sequential(
+            nn.Linear(ld, ld),
+            nn.LeakyReLU(),
+            nn.Linear(ld, 66),
+            nn.LeakyReLU(),
+            nn.Linear(66, 66),
+        )   
+    
+    def _reset_parameters(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
+
+    def forward(self, src: Tensor):
+        z, lengths, mu, logvar = self.encode(src)
+        recon = self.decode(z, lengths)
+        return recon, z, mu, logvar
+
+    def encode(self, src):
+        bs, seq_len = src.shape[0], src.shape[1]
+        src = src.view(bs, seq_len, 66)
+        # get lengths
+        lengths = torch.tensor([len(seq) for seq in src], dtype=torch.float32).to(src.device)
+
+        if self.verbose: print('ENCODING')
+        # get shapes
+        bs, nframes, nfeats = src.shape
+        if self.verbose: print('batch size:', bs, 'nframes:', nframes, 'nfeats:', nfeats)
+
+        # skeletal embedding
+        x = self.skel_enc(src)
+        if self.verbose: print('skel_enc:', x.shape)
+
+        # pass through transformerencoder with skip connections
+        x = self.skip_trans_enc(x)
+        if self.verbose: print('skip trans enc:', x.shape)
+
+        x = x[:, :2]  # select first frames
+        x = self.flatten(x)
+        x = self.latent_enc_linear(x)
+
+        mu, logvar = x[:, :self.latent_dim], x[:, self.latent_dim:]
+        z = self.reparametrize(mu, logvar)  # resample
+        if self.verbose: print('latent:', z.shape)
+
+        latentdim = torch.prod(torch.tensor(z.shape[1:]))
+        if self.verbose: print('latentdim:', latentdim)
+
+        return z, lengths, mu, logvar
+    
+    def reparametrize(self, mu, logvar):
+        std = logvar.exp().pow(0.5)
+        dist = torch.distributions.Normal(mu, std)
+        z = dist.rsample()
+        return z
+
+    
+    def decode(self, z: Tensor, lengths: List[int]):
+        if self.verbose: print('DECODING')
+        mask = lengths_to_mask(lengths, z.device, self.seq_len)
+        bs, nframes = mask.shape
+        if self.verbose: 
+            print('batch size:', bs, 'nframes:', nframes, 'z shape:', z.shape)
+            print('mask:', mask)
+
+        # ask transformer to generate the rest of the sequence
+        
+        z = z.unsqueeze(1)
+        if self.verbose: print('z:', z.shape)
+
+        # apply transformer
+        queries = torch.zeros(bs, nframes, self.latent_dim, device=z.device)
+        if self.verbose: print('queries:', queries.shape)
+        queries = self.query_pos_decoder(queries)
+        queries = queries.repeat(bs, 1, 1)
+
+        if self.verbose: 
+            print('queries:', queries.shape)
+            print('mask:', mask.shape)
+            print('z:', z.shape)
+
+        z = self.trans_dec(tgt=queries,
+                           memory=z,
+                            tgt_key_padding_mask=~mask)
+        if self.verbose: print('skip trans dec2:', z.shape)
+
+        if self.verbose: print('final layer:', z)
+        
+        # final layer
+        output = self.final_layer(z)
+        if self.verbose: print('final layer:', output.shape)
+        output[~mask] = 0
+        feats = output#.permute(1, 0, 2)
+        if self.verbose: print('feats:', feats.shape)
+
+        feats = feats.view(bs, nframes, 22, 3)
+        # print('final_output:', feats.shape)
+        return feats
+
 
 # Lightning Module
 class MotionVAE(pl.LightningModule):
@@ -796,12 +971,13 @@ class MotionVAE(pl.LightningModule):
         self.save_animations_freq = kwargs.get("save_animations_freq", -1)
         self.epochs_animated = []
 
-        if model_name == "VAE1":   self.model = VAE1(**kwargs)
-        # elif model_name == "VAE2": self.model = VAE2(**kwargs)
-        # elif model_name == "VAE3": self.model = VAE3(**kwargs)
-        elif model_name == "VAE4": self.model = VAE4(**kwargs)
-        elif model_name == "VAE5": self.model = VAE5(**kwargs)
-        else: raise ValueError(f"Model name {model_name} not recognized")
+        self.model = {
+            "VAE1": VAE1,
+            "VAE4": VAE4,
+            "VAE5": VAE5,
+            "VAE6": VAE6,
+        }[model_name](**kwargs)
+        assert self.model is not None, f"Model {model_name} not found"
 
         if verbose: self.model.verbose = True
 
@@ -842,12 +1018,16 @@ class MotionVAE(pl.LightningModule):
             os.makedirs(self.subfolder)
 
         fname = f"{self.subfolder}/recon_epoch{self.current_epoch}.mp4"
-        plot_3d_motion_animation(
-            recon_seq, "recon", figsize=(10, 10), fps=20, radius=2, save_path=fname, velocity=False,)
-        plt.close()
+        try:
+            
+            plot_3d_motion_animation(
+                recon_seq, "recon", figsize=(10, 10), fps=20, radius=2, save_path=fname, velocity=False,)
+            plt.close()
+            shutil.copyfile(fname, f"{self.folder}/recon_latest.mp4")  # copy file to latest
+        except Exception as e:
+            print(f"Error: {e}")
 
         
-        shutil.copyfile(fname, f"{self.folder}/recon_latest.mp4")  # copy file to latest
 
         if self.current_epoch == 0:
             plot_3d_motion_animation(
@@ -863,7 +1043,6 @@ class MotionVAE(pl.LightningModule):
         velocity_relative = torch.diff(motion_less_root, dim=1)
 
         return pose0, velocity_relative, root_travel, motion_less_root, velocity
-
 
     def _common_step(self, batch, batch_idx):
         motion_seq, text = batch

@@ -11,6 +11,29 @@ from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
 
 # general utils
+
+def print_dict(d, indent=0, num_spaces=4, title=None):
+    if title is not None:
+        print(title)
+    for key, value in d.items():
+        print(' ' * (indent * num_spaces) + str(key), end='')
+        if isinstance(value, dict):
+            print()
+            print_dict(value, indent + 1, num_spaces)
+        else:
+            print(': ' + str(value))
+
+def print_header(title='Title', small=False):
+    if not small:
+        print()
+        print('=' * 80)
+        print(title)
+    
+    else:
+        print()
+        print('-' * 80)
+        print(title)
+
 def get_ckpts(log_dir):
     """
     Get all checkpoints in the log directory
@@ -47,11 +70,13 @@ def get_ckpts(log_dir):
     
     return ckpts
 
-def get_ckpt(path):
+def get_ckpt(path, verbose=True):
+
+    if verbose: print_header('Checkpoints')
     ckpts = get_ckpts(path)
     print("Available checkpoints:")
     for k, v in ckpts.items():
-        print(k, v)
+        print(k, {k: v for k, v in v.items() if 'path' not in k})
 
     try:
         ckpt_num = int(input("Enter checkpoint number: "))
@@ -77,7 +102,7 @@ def dict_merge(dct, merge_dct):
             dct[k] = v
     return dct
 
-def load_config(name, mode=None, model_type=None):
+def load_config(name, mode=None, model_type=None, verbose=True):
     """
     Load config file and return the config dictionary
 
@@ -86,6 +111,8 @@ def load_config(name, mode=None, model_type=None):
     - mode (str): mode like 'TRAIN', 'BUILD', 'INFERENCE'
     - model_type (str): model type like 'CONV', 'LINEAR', 'GRAPH'
     """
+    if verbose: print_header('Config')
+    if verbose: print(f"Loading config for {name}, mode: {mode}, model_type: {model_type}")
     # load config file
     full_name = name if '.yaml' in name else f'configs/config_{name}.yaml'
     with open(full_name, 'r') as file:
@@ -93,6 +120,8 @@ def load_config(name, mode=None, model_type=None):
 
     # check if BASE in cfg, if so, append the BASE config to other configs
     if 'BASE' in cfg:
+        if verbose:
+            print('Merging with base')
         base_cfg = cfg['BASE']
         cfg.pop('BASE')
         for key in cfg: 
@@ -100,6 +129,8 @@ def load_config(name, mode=None, model_type=None):
 
     # check if mode is specified, if so, only return that mode
     if mode is not None:
+        if verbose:
+            print(f"Returning config for mode: {mode}")
         cfg = cfg[mode]
 
     if model_type is not None:
@@ -110,11 +141,14 @@ def load_config(name, mode=None, model_type=None):
                 # cfg.pop(key)
                 to_pop.append(key)
 
+        if verbose: print(f"Popping entries: {to_pop}")
         for key in to_pop:
             cfg.pop(key)
 
         # merge with base
         if 'MODEL_BASE' in cfg:
+            if verbose:
+                print('Merging with base')
             model_base_cfg = cfg['MODEL_BASE']
             cfg.pop('MODEL_BASE')
             to_pop = []
@@ -126,10 +160,14 @@ def load_config(name, mode=None, model_type=None):
                 if 'MODEL' in key: 
                     to_pop.append(key)
             
+            if verbose: print(f"Popping entries: {to_pop}")
             for key in to_pop:
                 cfg.pop(key)
 
             cfg['MODEL'] = temp
+
+
+    if verbose: print_dict(cfg, title='Final config')
     return cfg
 
 def unpack_nested_dict(d, unpacked=None, prefix=''):
@@ -257,12 +295,13 @@ def plot_3d_motion_animation(
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
     # cut tail, if equal
-    print(data.shape)
+    # print(data.shape)
     for i in range(data.shape[0]-1):
-        if (data[i] == data[i+1]).all():
-            data = data[:i]
-            break
-    print(data.shape)
+        # if i > 100:
+            if (data[i] == data[i+1]).all():
+                data = data[:i]
+                break
+    # print(data.shape)
 
     if velocity:
         data = np.cumsum(data, axis=0)
@@ -366,9 +405,12 @@ def plot_3d_motion_frames_multiple(
         len(data_multiple), nframes, figsize=figsize, subplot_kw={"projection": "3d"}
     )
     for i, data in enumerate(data_multiple):
-        if velocity:
-            data = np.cumsum(data, axis=0)
-        plot_3d_motion_frames_single(data, titles[i], axes[i], nframes, radius)
+        try:
+            if velocity:
+                data = np.cumsum(data, axis=0)
+            plot_3d_motion_frames_single(data, titles[i], axes[i], nframes, radius)
+        except:
+            print(f"Error plotting {titles[i]}")
     if return_array:
         plt.savefig("tmp.png")
         X = plt.imread("tmp.png")
@@ -424,45 +466,43 @@ def prep_save(model, data_loaders, enable_y=False, log_dir=None):
     for data_loader in data_loaders:
         for batch in tqdm(data_loader):
             x_, text = batch
-            print(x_.shape)
             z = model.encode(x_).squeeze()
-            print('z.shape:', z.shape)
-            latent.append(z)
-            texts.append(text)
+            latent.append(z.detach())
+            texts.append(text.detach())
 
-            if len(latent) > 10:
-                print('Saving latent space... as it is too large')
-                latent = torch.cat(latent, dim=0)  # maybe detach
-                texts = torch.cat(texts, dim=0)
+            # if len(latent) > 10:
+            #     print('Saving latent space... as it is too large')
+            #     latent = torch.cat(latent, dim=0)  # maybe detach
+            #     texts = torch.cat(texts, dim=0)
 
-                kwargs_save = {
-                    f'z_{counter}': latent,
-                    f'texts_{counter}': texts,
-                }
-                # save_for_diffusion(save_path=log_dir+'/saved_latent', **kwargs_save)  # todo do this in a tmp folder
+            #     kwargs_save = {
+            #         f'z_{counter}': latent,
+            #         f'texts_{counter}': texts,
+            #     }
+            #     # save_for_diffusion(save_path=log_dir+'/saved_latent', **kwargs_save)  # todo do this in a tmp folder
                 
-                save_for_diffusion(save_path=path, **kwargs_save)
-                latent, texts = list(), list()
-                counter += 1
+            #     save_for_diffusion(save_path=path, **kwargs_save)
+            #     latent, texts = list(), list()
+            #     counter += 1
 
     latent = torch.cat(latent, dim=0)
     texts = torch.cat(texts, dim=0)
-    kwargs_save = {
-        f'z_{counter}': latent,
-        f'texts_{counter}': texts,
-    }
-    # save_for_diffusion(save_path=log_dir+'/saved_latent', **kwargs_save)
-    save_for_diffusion(save_path=path, **kwargs_save)
+    # kwargs_save = {
+    #     f'z_{counter}': latent,
+    #     f'texts_{counter}': texts,
+    # }
+    # # save_for_diffusion(save_path=log_dir+'/saved_latent', **kwargs_save)
+    # save_for_diffusion(save_path=path, **kwargs_save)
     
-    # latent = torch.cat([
-    #     torch.load(f'{log_dir}/saved_latent/z_{i}.pt') for i in range(counter+1)
-    # ], dim=0)
-    # texts = torch.cat([
-    #     torch.load(f'{log_dir}/saved_latent/texts_{i}.pt') for i in range(counter+1)
-    # ], dim=0)
+    # # latent = torch.cat([
+    # #     torch.load(f'{log_dir}/saved_latent/z_{i}.pt') for i in range(counter+1)
+    # # ], dim=0)
+    # # texts = torch.cat([
+    # #     torch.load(f'{log_dir}/saved_latent/texts_{i}.pt') for i in range(counter+1)
+    # # ], dim=0)
 
-    latent = torch.cat([torch.load(f'{path}/z_{i}.pt') for i in range(counter+1)], dim=0)
-    texts = torch.cat([torch.load(f'{path}/texts_{i}.pt') for i in range(counter+1)], dim=0)
+    # latent = torch.cat([torch.load(f'{path}/z_{i}.pt') for i in range(counter+1)], dim=0)
+    # texts = torch.cat([torch.load(f'{path}/texts_{i}.pt') for i in range(counter+1)], dim=0)
 
         
 

@@ -90,8 +90,8 @@ with tabs['Noise schedule set-up']:
 
 
 with tabs['Inference']:
-    if not 'checkpoint_num_mnist_latent_diffusion' in st.session_state:
-        st.session_state.checkpoint_num_mnist_latent_diffusion = 'None'
+    if not 'idx' in st.session_state:
+        st.session_state.idx = 'None'
     from mnist_latent_diffusion.modules.latentDiffusion import LatentDiffusionModule
     from mnist_latent_diffusion.utils import get_ckpt
     parent_log_dir = '../mnist_latent_diffusion/logs/latentDiffusion/train/'
@@ -154,29 +154,36 @@ with tabs['Inference']:
 
 
     saved_latent_data = find_latent_diffusion('../mnist_latent_diffusion/logs/latentDiffusion/train/')
-    # 'saved_latent_data', saved_latent_data
-    idx = "79"
+    'saved_latent_data', saved_latent_data.keys()
+    idx = st.selectbox('Select latent diffusion model', list(saved_latent_data.keys()))
+    # idx = "79"
+    # saved_latent_data[idx]
 
-    autoencoder = torch.load(saved_latent_data[idx]['VAE_ckpt_path'])
+    ckpt_LD = saved_latent_data[idx]['paths']['checkpoints'][0]
+    # ckpt_LD
+    VAE_data  = find_saved_latent(path = f"../mnist_latent_diffusion/logs/VAE/train/")
+    data_version = VAE_data[saved_latent_data[idx]['VAE_version']]
+    # data_version
+    # autoencoder = torch.load(saved_latent_data[idx]['VAE_ckpt_path'])
     scalar = saved_latent_data[idx]['scalar']
     
     # autoencoder
-
+    z, y,  autoencoder, projector, projection = load_latent(data_version)
     
-
+    
     model = LatentDiffusionModule(autoencoder=autoencoder, 
                                  scaler=scalar,
-                                criteria=criteria,
+                                criteria=None,
                                 classifier=None,
                                 projector=projector,
                                 projection=projection,
                                 labels=y,
                                 
-                                 **config['TRAIN']['MODEL'])
+                                 **config['MODEL'])
 
     def load_model_and_get_samples(checkpoint):
 
-        plModule = LatentDiffusionModule.load_from_checkpoint(checkpoint['ckpt_path'])
+        plModule = LatentDiffusionModule.load_from_checkpoint(checkpoint)
         plModule.eval()
 
         import yaml
@@ -189,11 +196,12 @@ with tabs['Inference']:
         x_t_All, hist_all, y_all = plModule.model.sampling(20, clipped_reverse_diffusion=clipped_reverse_diffusion, y=True, device='mps', tqdm_disable=False)
 
         return x_t_All, hist_all, y_all
-    checkpoint
+    
 
-    if 'x_t_All' not in st.session_state or st.session_state.checkpoint_num != checkpoint['version_num']:
-        st.session_state.checkpoint_num = checkpoint['version_num']
-        st.session_state.x_t_All, st.session_state.hist_all, st.session_state.y_all = load_model_and_get_samples(checkpoint)
+
+    if 'x_t_All' not in st.session_state or st.session_state.idx != idx:
+        st.session_state.idx = idx
+        st.session_state.x_t_All, st.session_state.hist_all, st.session_state.y_all = load_model_and_get_samples(ckpt_LD)
 
     cols = st.columns([1, 1])
 

@@ -66,7 +66,16 @@ def dict_merge(dct, merge_dct):
             dct[k] = v
     return dct
 
-def load_config(name):
+def print_dict(d, indent=0, num_spaces=4):
+    for key, value in d.items():
+        print(' ' * (indent * num_spaces) + str(key), end='')
+        if isinstance(value, dict):
+            print()
+            print_dict(value, indent + 1, num_spaces)
+        else:
+            print(': ' + str(value))
+
+def load_config(name, verbose=True):
     
     if '.yaml' in name:
         full_name = name
@@ -83,6 +92,10 @@ def load_config(name):
 
         for key in cfg:
             cfg[key] = dict_merge(cfg[key], base_cfg)
+
+    if verbose:
+        print_dict(cfg)
+
 
     return cfg
 

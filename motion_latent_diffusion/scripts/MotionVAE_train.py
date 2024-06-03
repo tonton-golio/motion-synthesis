@@ -13,8 +13,6 @@ from modules.MotionData import MotionDataModule1 as DM
 
 def train(model_name='VAE1', build=False):
     cfg= load_config('motion_VAE', mode='TRAIN', model_type=model_name[3:])
-    # cfg = cfg['TRAIN'] if not build else cfg['BUILD']
-    print(cfg)
 
     logger = TensorBoardLogger(f"logs/MotionVAE/{model_name}/", name="train" if not build else "build")
     # profiler = PyTorchProfiler(
@@ -22,9 +20,8 @@ def train(model_name='VAE1', build=False):
     #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),
     # )
     
-    
     ckpt = None
-    if cfg['FIT']['load_checkpoint']:
+    if cfg['FIT']['load_checkpoint'] and not build:
         path = logger.log_dir.split("version_")[0]
         ckpt = get_ckpt(path)
       
@@ -63,6 +60,7 @@ def train(model_name='VAE1', build=False):
 
 def test(dm , trainer, model, logger, config, save_latent=False):
     # test
+    model.eval()
     res = trainer.test(model, datamodule=dm)
     print(res)
     logger.log_hyperparams(model.hparams, res[0])
@@ -70,10 +68,9 @@ def test(dm , trainer, model, logger, config, save_latent=False):
     # save_latent
 
     # clean up
-    
     del trainer
     del res
-
+    model.eval()
     if save_latent:
         dataloaders = [dm.test_dataloader(), dm.train_dataloader(), dm.val_dataloader()]
         KL_weight = config['MODEL']['LOSS']['DIVERGENCE_KL']

@@ -27,7 +27,7 @@ with st.sidebar:
 with tabs['Activation Functions']:
 
 
-    @load_or_save_fig('assets_produced/1_NN_fundamentals_and_architectures/activation_functions.png')
+    @load_or_save_fig('assets_produced/1_NN_fundamentals_and_architectures/activation_functions.png', deactivate=False, darkmode=darkmode)
     def activation_grid(darkmode=False):
         """
         Create a grid of activation function plots.
@@ -58,17 +58,18 @@ with tabs['Activation Functions']:
         x = np.linspace(-3, 3, 100)
 
         fig, axes = plt.subplots(3, 3, figsize=(6, 6), sharex=True, sharey=True)
-        color = 'white' if darkmode else 'purple'
+        color = 'black' if darkmode else 'purple'
 
         for (name, func), ax in zip(act_funcs['all'].items(), axes.flatten()):
             ax.plot(x, func(x), label=name, color=color, lw=3, alpha=0.7)
             
             if darkmode:
-                ax.set_facecolor('grey')
+                ax.set_facecolor('lightgrey')
                 ax.set_title(name, color='white')
                 ax.grid(color='white', alpha=0.6)
                 ax.tick_params(axis='x', colors='white')
                 ax.tick_params(axis='y', colors='white')
+                fig.set_facecolor('black')
             else:
                 ax.set_title(name)
                 ax.grid()
@@ -77,28 +78,26 @@ with tabs['Activation Functions']:
         plt.tight_layout()
         return fig
 
-
-    if __name__ == '__main__':
-        # Title and intro
-        """
-        ### Activation Functions
-        Activation functions are used to introduce non-linearity to a neural network.
-        """
-        
-        cols = st.columns((2,3))
-        cols[0].write("""
-        Activation function introduce non-linearity to a neural network. Some common ones are displayed on the right.
-                    
-        **A series of linear functions, remains a linear function.** As such, the network will fail to learn the generator function. For example,
-                    
-        If we construct $f: y=x^2+z^2$, and let $x$ and $z$ be the randomly sampled input, with ground truth $y$, the network will fail to learn the generator function. (as $y$ is not linear in $x$ and $z$).
-                    
-        *I wonder if these create different latent spaces.*
-        """)
+    # Title and intro
+    """
+    ### Activation Functions
+    Activation functions are used to introduce non-linearity to a neural network.
+    """
+    
+    cols = st.columns((2,3))
+    cols[0].write("""
+    Activation function introduce non-linearity to a neural network. Some common ones are displayed on the right.
+                
+    **A series of linear functions, remains a linear function.** As such, the network will fail to learn the generator function. For example,
+                
+    If we construct $f: y=x^2+z^2$, and let $x$ and $z$ be the randomly sampled input, with ground truth $y$, the network will fail to learn the generator function. (as $y$ is not linear in $x$ and $z$).
+                
+    *I wonder if these create different latent spaces.*
+    """)
 
 
-        fig = activation_grid(darkmode=False)
-        cols[1].pyplot(fig)
+    fig = activation_grid(darkmode=darkmode)
+    cols[1].pyplot(fig)
 
 
 

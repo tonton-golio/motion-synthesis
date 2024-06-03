@@ -85,16 +85,16 @@ with tabs['Network']:
     from mnist_latent_diffusion.modules.imageDiffusion import Unet
     def make_graph(model):
         # check if graph.png exists
-        if not 'graph.pdf' in os.listdir():
+        fname = 'assets_produced/9_MNIST_diffusion/graph'
+        if not fname in os.listdir():
             model.eval()
             x = torch.randn(1, 1, 28, 28)
             y = model(x, torch.tensor([10]), torch.tensor([9]))
             g = torchviz.make_dot(y.mean(), params=dict(model.named_parameters()))
-
             # Render the Graphviz output and save as a file
-            g.render(filename='graph', format='pdf', cleanup=True, )
+            g.render(filename=fname, format='pdf', cleanup=True, )
 
-        embed_pdf('graph.pdf')
+        embed_pdf(fname + '.pdf')
         
     model = Unet(timesteps=100, time_embedding_dim=10, dim_mults=[2,4])
     num_params = sum(p.numel() for p in model.parameters())

@@ -301,6 +301,7 @@ class MotionLatentDiffusion(pl.LightningModule):
         )
 
         if batch_idx == 0 and self.decode is not None:
+            print('reconstruction\n =====================')
             with torch.no_grad():
                 # make image by decoding latent space
                 x, y = batch
@@ -317,13 +318,21 @@ class MotionLatentDiffusion(pl.LightningModule):
                 # grid = torchvision.utils.make_grid(raw_and_recon[:16], nrow=8, normalize=True)
                 # self.logger.experiment.add_image('top: noisy input, bot: reconstruction', grid, global_step=self.global_step)
 
-                plot_3d_motion_animation(raw_reconstruction[0].cpu().detach().numpy(), translate(y[0], self.idx2word), 
-                                     figsize=(10, 10), fps=20, radius=2, save_path=f"recon_dirty.mp4", velocity=False)
-                plt.close()
+                path_base = self.logger.log_dir + f"/recon_{self.current_epoch}"
 
-                plot_3d_motion_animation(reconstruction[0].cpu().detach().numpy(), translate(y[0], self.idx2word), 
-                                     figsize=(10, 10), fps=20, radius=2, save_path=f"recon_clean.mp4", velocity=False)
-                plt.close()
+
+                for data, name in zip([raw_reconstruction, reconstruction], ['dirty', 'clean']):
+                    
+                    plot_3d_motion_animation(
+                                data = data[0].cpu().detach().numpy(),
+                                title = translate(y[0], self.idx2word),
+                                figsize=(10, 10),
+                                fps=20,
+                                radius=2,
+                                save_path=f"{path_base}_{name}.mp4",
+                                velocity=False
+                            )
+                    plt.close()
 
         return loss
 

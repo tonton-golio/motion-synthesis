@@ -21,10 +21,12 @@ def find_saved_latent(path = f"logs/MotionVAE/VAE1/train/", cfg_name='config'):
 
     VAE_data = {}
     for version in os.listdir(path):
+        if not os.path.isdir(f"{path}{version}"):
+            continue
         version_num = version.split('_')[-1]
         contents = os.listdir(f"{path}{version}")
         base_path = os.path.join(path, version, )
-        print(contents)
+        # print(contents)
         if 'saved_latent' in contents:
             print(f"Found saved latent vectors for version {version_num}")
             cfg_file = None  # get config file
@@ -35,7 +37,7 @@ def find_saved_latent(path = f"logs/MotionVAE/VAE1/train/", cfg_name='config'):
             
             projection = None  # get projection image
             for file in contents:
-                print(file)
+                # print(file)
                 if 'projection' in file and file.endswith('.png'):
                     projection = file
                     break

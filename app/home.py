@@ -37,6 +37,9 @@ def todo():
     - [x] merge motion VAE config files
     - [] take everything from motion/scripts and put in main.py and utils.py
     - [] implement wrapper in app.py: if not image found, produce and save image. +re run button
+    - [x] pretty config print
+    - [] cifar 100 for image entropy experiment
+             - [] rename motion vae models to more descriptive names
     """)
 
 def home():

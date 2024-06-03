@@ -105,7 +105,9 @@ def train(build_mode=False):
     projection = projector.transform(z.detach().cpu().numpy())
 
     # set up data module
-    dm = LatentSpaceDataModule(z, y, batch_size=config['TRAIN' if not build_mode else 'BUILD']['DATA']['BATCH_SIZE'], scale=config['TRAIN' if not build_mode else 'BUILD']['DATA']['SCALE'],)
+    dm = LatentSpaceDataModule(z, y, 
+                               batch_size=config['TRAIN' if not build_mode else 'BUILD']['DATA']['BATCH_SIZE'], 
+                               scale=config['TRAIN' if not build_mode else 'BUILD']['DATA']['SCALE'],)
     dm.setup()
     scaler = dm.scaler
     torch.save(scaler, f'{logger.log_dir}/scaler.pth')
