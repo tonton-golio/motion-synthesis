@@ -3,6 +3,7 @@
 *.mp4
 tb_logs*
 logs/
+logs_old/
 lightning_logs/
 stranger_repos/
 MNIST/

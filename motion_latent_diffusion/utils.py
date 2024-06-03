@@ -1,52 +1,20 @@
 import numpy as np
 import torch
-import os
-
-# animation
+import torch.nn as nn
+import os, glob, yaml
 from os.path import join as pjoin
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, PillowWriter
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import yaml
-import torch.nn as nn
-import glob
+import subprocess
+from matplotlib.animation import FuncAnimation
 
-activation_dict = {
-    "tanh": nn.Tanh(),
-    "leaky_relu": nn.LeakyReLU(),
-    "relu": nn.ReLU(),
-    "sigmoid": nn.Sigmoid(),
-    "elu": nn.ELU(),
-    "swish": nn.SiLU(),
-    "mish": nn.Mish(),
-    "softplus": nn.Softplus(),
-    "softsign": nn.Softsign(),
-    "softmax": nn.Softmax(),
-    "softmin": nn.Softmin(),
-    "softshrink": nn.Softshrink(),
-}
-
-# no activation class
-class Identity(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        return x
-
-
-def pad_crop(data, length=420):
-    # Use numpy to handle padding and truncating efficiently
-    if data.shape[0] < length:
-        pad_cropped = np.pad(data, ((0, length - data.shape[0]), (0, 0), (0, 0)), mode='edge')
-    else:
-        pad_cropped = data[:length]
-    return pad_cropped
-
+# general utils
 def get_ckpts(log_dir):
-    print('log_dir:', log_dir)
+    """
+    Get all checkpoints in the log directory
+    """
     folders = glob.glob(f"{log_dir}/*") # like: version_0, ...
-    print(folders)
     ckpts = {}
     count = {'success': 0, 'fail': 0}
     for folder in folders:
@@ -69,24 +37,19 @@ def get_ckpts(log_dir):
             count['success'] += 1
         except:
             count['fail'] += 1
-            # print(f"Failed to get checkpoint for {folder}")
 
-    print(ckpts)
-    print(count)
+
     if count['success'] == 0:
         ckpts['latest'] = {'path': None, 'cfg_path': None, 'epoch': 0, 'step': 0}
     else:
         ckpts['latest'] = ckpts[max(ckpts.keys(), key=int)]
     
-
     return ckpts
 
-def load_config(name):
-    with open(f'configs/config_{name}.yaml', 'r') as file:
-        return yaml.safe_load(file)
-    
 def dict_merge(dct, merge_dct):
-    """Recursively merge two dictionaries, dct takes precedence over merge_dct."""
+    """
+    Recursively merge two dictionaries, dct takes precedence over merge_dct.
+    """
     for k, v in merge_dct.items():
         if k in dct and isinstance(dct[k], dict):
             dict_merge(dct[k], v)  # merge dicts recursively
@@ -97,29 +60,29 @@ def dict_merge(dct, merge_dct):
     return dct
 
 def load_config(name, mode=None, model_type=None):
-    
-    # load
-    if '.yaml' in name:
-        full_name = name
-    else:
-        full_name = f'configs/config_{name}.yaml'
+    """
+    Load config file and return the config dictionary
 
+    Args:
+    - name (str): name of the config file
+    - mode (str): mode like 'TRAIN', 'BUILD', 'INFERENCE'
+    - model_type (str): model type like 'CONV', 'LINEAR', 'GRAPH'
+    """
+    # load config file
+    full_name = name if '.yaml' in name else f'configs/config_{name}.yaml'
     with open(full_name, 'r') as file:
         cfg =  yaml.safe_load(file)
 
-    
-    
     # check if BASE in cfg, if so, append the BASE config to other configs
     if 'BASE' in cfg:
         base_cfg = cfg['BASE']
         cfg.pop('BASE')
-
-        for key in cfg:
+        for key in cfg: 
             cfg[key] = dict_merge(cfg[key], base_cfg)
 
+    # check if mode is specified, if so, only return that mode
     if mode is not None:
         cfg = cfg[mode]
-
 
     if model_type is not None:
         # delete other models except base and model_type
@@ -134,30 +97,66 @@ def load_config(name, mode=None, model_type=None):
 
         # merge with base
         if 'MODEL_BASE' in cfg:
-            print('MODEL_BASE in cfg')
             model_base_cfg = cfg['MODEL_BASE']
             cfg.pop('MODEL_BASE')
-
             to_pop = []
             for key in cfg:
                 
-                if f'MODEL_{model_type}' in key:
-                    print('key:', key)
+                if f'MODEL_{model_type}' in key: 
                     temp = dict_merge(cfg[key], model_base_cfg)
 
-                if 'MODEL' in key:
-                    # cfg['TRAIN'].pop(key)
+                if 'MODEL' in key: 
                     to_pop.append(key)
             
             for key in to_pop:
                 cfg.pop(key)
 
             cfg['MODEL'] = temp
-
     return cfg
 
+def unpack_nested_dict(d, unpacked=None, prefix=''):
+    if unpacked is None:
+        unpacked = {}
+    for k, v in d.items():
+        # print(f"prefix: {prefix}")
+        if isinstance(v, dict):
+            unpacked = unpack_nested_dict(v, unpacked, prefix=f"{prefix}{k}_")
+        else:
+            unpacked[f"{prefix}{k}"] = v
+    return unpacked
+
+# nn utils
+activation_dict = {
+    "tanh": nn.Tanh(),
+    "leaky_relu": nn.LeakyReLU(),
+    "relu": nn.ReLU(),
+    "sigmoid": nn.Sigmoid(),
+    "elu": nn.ELU(),
+    "swish": nn.SiLU(),
+    "mish": nn.Mish(),
+    "softplus": nn.Softplus(),
+    "softsign": nn.Softsign(),
+    "softmax": nn.Softmax(),
+    "softmin": nn.Softmin(),
+    "softshrink": nn.Softshrink(),}
+
+class Identity(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return x
+
+
+# logging utils (plotting)
 def plot_3d_pose(data, index, ax=None):
-    """Plot a 3D pose."""
+    """
+    Plot a single 3D pose.
+
+    Args:
+    - data (np.array): 3D pose data (seq_len, joints_num, 3)
+    - index (int): index of the frame to plot
+    """
 
     if ax is None:
         fig = plt.figure(figsize=(10, 10))
@@ -195,17 +194,6 @@ def plot_3d_pose(data, index, ax=None):
 
     return ax
 
-def unpack_nested_dict(d, unpacked=None, prefix=''):
-    if unpacked is None:
-        unpacked = {}
-    for k, v in d.items():
-        # print(f"prefix: {prefix}")
-        if isinstance(v, dict):
-            unpacked = unpack_nested_dict(v, unpacked, prefix=f"{prefix}{k}_")
-        else:
-            unpacked[f"{prefix}{k}"] = v
-    return unpacked
-
 def plot_xzPlane(ax, minx, maxx, miny, minz, maxz):
     ## Plot a plane XZ
     verts = [
@@ -218,8 +206,7 @@ def plot_xzPlane(ax, minx, maxx, miny, minz, maxz):
     xz_plane.set_facecolor((0.5, 0.5, 0.5, 0.5))
     ax.add_collection3d(xz_plane)
 
-
-def init(ax, fig, title, radius=2):
+def init_3d_plot(ax, fig, title, radius=2):
     ax.set_xlim3d([-radius / 2, radius / 2])
     ax.set_ylim3d([0, radius])
     ax.set_zlim3d([0, radius])
@@ -247,8 +234,7 @@ def plot_3d_motion_animation(
     radius=2,
     save_path="test.mp4",
     velocity=False,
-    save_path_2=None,
-):
+    save_path_2=None,):
     #     matplotlib.use('Agg')
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
@@ -266,7 +252,7 @@ def plot_3d_motion_animation(
     fig = plt.figure(figsize=figsize)
 
     ax = fig.add_subplot(111, projection="3d")
-    init(ax, fig, title, radius)
+    init_3d_plot(ax, fig, title, radius)
     MINS, MAXS = data.min(axis=0).min(axis=0), data.max(axis=0).max(axis=0)
 
     data[:, :, 1] -= MINS[1]  # height offset
@@ -358,9 +344,7 @@ def plot_3d_motion_frames_multiple(
     nframes=5,
     radius=2,
     figsize=(10, 10),
-    return_array=False,
-    velocity=False,
-):
+    return_array=False, velocity=False):
     fig, axes = plt.subplots(
         len(data_multiple), nframes, figsize=figsize, subplot_kw={"projection": "3d"}
     )
@@ -379,6 +363,15 @@ def plot_3d_motion_frames_multiple(
 
         return torch.tensor(X).permute(2, 0, 1)
 
+
+# data utils
+def pad_crop(data, length=420):
+    # Use numpy to handle padding and truncating efficiently
+    if data.shape[0] < length:
+        pad_cropped = np.pad(data, ((0, length - data.shape[0]), (0, 0), (0, 0)), mode='edge')
+    else:
+        pad_cropped = data[:length]
+    return pad_cropped
 
 
 # text mapping
@@ -407,16 +400,11 @@ def test_translate(texts=None, txt = 'a person is walking', word2idx=None, idx2w
             dec(enc(txt)): {translate(translate_inv(translate(texts[0][0], idx2word), word2idx), idx2word)}""")
 
 
-
-
-if __name__ == "__main__":
-    path = "../data/HumanML3D/joints/000000.npy"
+# testing the functions
+if __name__ == '__main__':
+    path = "../stranger_repos/HumanML3D/joints/000000.npy"
     motion = np.load(path)
-    print("motion shape: ", motion.shape)
-    # plot_3d_motion_animation(motion, 'test', radius=1.4, save_path='test.mp4')
-    motion1, motion2 = motion[: len(motion) // 2], motion[len(motion) // 2 :]
-    motion_stacked = [motion1, motion2]
-    X = plot_3d_motion_frames_multiple(
-        motion_stacked, nframes=5, radius=1.4, figsize=(20, 10), return_array=True
-    )
-    print(X.shape)
+
+    ax = plot_3d_pose(motion, 12) 
+    plot_xzPlane(ax, -.1, .1, 0, -.1, .1)
+    plt.show()

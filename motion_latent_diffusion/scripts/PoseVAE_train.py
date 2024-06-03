@@ -1,4 +1,3 @@
-from utils_pose import *
 from modules.PoseVAE import PoseVAE
 from modules.PoseData import PoseDataModule
 import argparse

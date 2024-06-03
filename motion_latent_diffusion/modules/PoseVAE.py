@@ -5,8 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from torch_geometric.nn import GCNConv
 import pytorch_lightning as pl
-import torch.nn.functional as F
-from utils_pose import plot_3d_motion_frames_multiple
+from utils import plot_3d_motion_frames_multiple
 from modules.Loss import VAE_Loss
 
 # LINEAR VAE

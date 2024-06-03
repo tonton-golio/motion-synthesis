@@ -35,6 +35,7 @@ def todo():
     - [] to validate pose model, try to VAE all frames of a seq, and then output a seq.
     - [x] clean up MotionData.py (delete 1 module)
     - [] merge motion VAE config files
+    - [] take everything from motion/scripts and put in main.py and utils.py
         
     """)
 
