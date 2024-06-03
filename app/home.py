@@ -28,13 +28,13 @@ def todo():
         - [x] refactor VAEs to have same style
         - [] tune each model
     - [] Add pauls notes to manuscript
-    - [] merge utils and utils_pose
+    - [x] merge utils and utils_pose
     - [x] merge pose_trainer and main
     - [] plot pose distribution (if we take each pose, center it, and rotate it to the same orientation (using the hip)
     - [] balance pose dataset
     - [] to validate pose model, try to VAE all frames of a seq, and then output a seq.
     - [x] clean up MotionData.py (delete 1 module)
-    - [] merge motion VAE config files
+    - [x] merge motion VAE config files
     - [] take everything from motion/scripts and put in main.py and utils.py
         
     """)

@@ -2,6 +2,13 @@
 import argparse
 from utils import load_config
 
+from utils import load_config, unpack_nested_dict, get_ckpts
+from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import TensorBoardLogger
+
+from modules.PoseVAE import PoseVAE
+from modules.PoseData import PoseDataModule
+
 
 if __name__ == "__main__":
     # add arguments for model and mode
@@ -40,7 +47,49 @@ if __name__ == "__main__":
             inference(VAE_version=args.model_name.split('_')[1])
 
     elif args.model_name[:4] == 'POSE':
-        assert args.model_name[4:] in ['LINEAR', 'GRAPH', 'CONV']
-        from scripts.PoseVAE_train import train_test_poseVAE
-        train_test_poseVAE(model_type=args.model_name.upper()[4:])
+        # if args.mode = 'train', train the model
+        model_name = args.model_name[4:]
+    
+        cfg = load_config('pose_VAE', mode='TRAIN', model_type=model_name)
+        logger = TensorBoardLogger("logs/PoseVAE", name=model_name)
+        datamodule = PoseDataModule(**cfg['DATA'])
+        
+        if cfg['FIT']['load_checkpoint']:
+            path = logger.log_dir.split("version_")[0]
+            ckpts = get_ckpts(path)
+            print("Available checkpoints:")
+            for k, v in ckpts.items():
+                print(k, v)
+
+            try:
+                ckpt_num = int(input("Enter checkpoint number: "))
+                print(ckpt_num)
+                print(ckpts[ckpt_num])
+                ckpt = ckpts[ckpt_num]['path']
+                print("Loading checkpoint:", ckpt)
+            except:
+                ckpt = None
+                print("No checkpoint loaded")
+        else: ckpt = None
+
+        if model_name == "LINEAR":  model = PoseVAE(model_name, **cfg['MODEL'])
+        elif model_name == "GRAPH": model = PoseVAE(model_name, **cfg['MODEL'])
+        elif model_name == "CONV":  model = PoseVAE(model_name, **cfg['MODEL'])
+        else: raise ValueError("MODEL not recognized")
+
+        trainer = Trainer(
+            logger=logger,
+            **cfg['TRAINER'])
+
+        train_val_loss = trainer.fit(model, datamodule, ckpt_path=ckpt)
+        trainer.test(model, datamodule)
+        test_loss = model.test_losses
+        test_loss = torch.stack(test_loss).mean(0).item()
+
+        hparams = unpack_nested_dict(cfg)
+        
+        logger.log_hyperparams(
+            hparams,
+            metrics=dict(test_loss=test_loss),
+        )
 

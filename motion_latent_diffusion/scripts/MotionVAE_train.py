@@ -3,99 +3,18 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 # from pytorch_lightning.profilers import PyTorchProfiler
 from utils import load_config, get_ckpts
-import os
+from utils import prep_save, plotUMAP, save_for_diffusion
 import matplotlib.pyplot as plt
 import torch
-from tqdm import tqdm
-import yaml
+import yaml, os
 from modules.MotionVAE import MotionVAE as VAE
 from modules.MotionData import MotionDataModule1 as DM
 
-def print_scientific(x):
-    return "{:.2e}".format(x)
-
-def plotUMAP(latent, latent_dim, KL_weight,  save_path, show=False, max_points=5000):
-    import umap
-    print('\n\nPLotting UMAP...')
-    if latent.shape[0] > max_points:
-        idx = torch.randperm(latent.shape[0])[:max_points]
-        latent = latent[idx]
-        # labels = labels[idx]
-
-    print(f'latent shape: {latent.shape}')
-
-    reducer = umap.UMAP()
-    projection = reducer.fit_transform(latent.cpu().detach().numpy())
-    
-    fig = plt.figure()
-    plt.scatter(projection[:, 0], projection[:, 1], 
-                #c=labels.cpu().numpy(), cmap='tab10', 
-                alpha=0.5, s=4)
-    plt.colorbar()
-    plt.title(f'UMAP projection of latent space (LD={latent_dim}, KL={print_scientific(KL_weight)})')
-    
-    if save_path is not None:
-        plt.savefig(f'{save_path}/projection_LD{latent_dim}_KL{print_scientific(KL_weight)}.png')
-    
-        return projection, reducer
-    elif show:
-        plt.show()
-    return fig
-
-def prep_save(model, data_loaders, enable_y=False, log_dir=None):
-    latent, texts = list(), list()
-    for data_loader in data_loaders:
-        for batch in tqdm(data_loader):
-            x_, text = batch
-            print(x_.shape)
-            z = model.encode(x_).squeeze()
-            print('z.shape:', z.shape)
-            latent.append(z)
-            texts.append(text)
-
-    latent = torch.cat(latent, dim=0)  # maybe detach
-    texts = torch.cat(texts, dim=0)
-
-    # make covariance matrix of latent space
-    # cov = torch.cov(latent.T)
-    # cov_fig = plt.figure()
-    # plt.imshow(cov.cpu().detach().numpy())
-    # plt.colorbar()
-    # plt.title('Covariance matrix of latent space')
-    # plt.savefig(f'{log_dir}/covariance_matrix.png')
-    # plt.close(cov_fig)
-    return latent, texts
-    
-def save_for_diffusion(save_path, model, **kwargs):
-    """
-    Save:
-        'model' : 'model.pth',
-        'latent' : 'z.pt',
-        'labels' : 'y.pt',
-        'projection' : 'projection.pt',
-        'reconstruction' : 'reconstruction.pt',
-        'projector' : 'projector.pt',
-    """
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-
-    torch.save(model, f'{save_path}/model.pth')
-
-    num_params = sum(p.numel() for p in model.parameters())
-    with open(f'{save_path}/num_params.txt', 'w') as file:
-        file.write(f'Number of parameters: {num_params}')
-
-    for k, v in kwargs.items():
-        torch.save(v, f'{save_path}/{k}.pt')
-
-
-
-def model_selector(model_name='VAE1'):
-    config = load_config(f'motion_{model_name}')
-    return config
 
 def train(model_name='VAE1', build=False):
-    cfg= model_selector(model_name)
+    cfg= load_config('motion_VAE', mode='TRAIN', model_type=model_name[3:])
+    # cfg = cfg['TRAIN'] if not build else cfg['BUILD']
+    print(cfg)
 
     logger = TensorBoardLogger(f"logs/MotionVAE/{model_name}/", name="train" if not build else "build")
     # profiler = PyTorchProfiler(
@@ -103,8 +22,7 @@ def train(model_name='VAE1', build=False):
     #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),
     # )
     
-    cfg = cfg['TRAIN'] if not build else cfg['BUILD']
-    print(cfg)
+    
     # check if config.MODEL._checkpoint_path is latest if so look it up
     if cfg['MODEL']['load']:
         checkpoints = get_ckpts('/'.join(logger.log_dir.split('/')[:-1]))

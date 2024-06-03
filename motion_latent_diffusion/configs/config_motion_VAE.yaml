@@ -1,22 +1,59 @@
 TRAIN:
   DATA:
     tiny: true
-  MODEL:
+  MODEL_BASE:
+    _checkpoint_path: latest
     hidden_dim: 256
+    load: false
+
+    learning_rate: 0.000001
+    clip_grad_norm: 1.0
+    LOSS:
+      DIVERGENCE_KL: 0.0000001
+      VELOCITY_L2: 1.0
+      ROOT_L2: 0.0
+      POSE0_L2: 0.0
+      MOTION_L2: 1.0
+      MOTIONRELATIVE_L2: 1.0
+
+  MODEL_1:
+    learning_rate: 0.000001
+
+  MODEL_4:
+    batch_norm: true
+    learning_rate: 0.000001
+    latent_dim: 256
+    nhead: 8
+    nlayers_transformer: 5
+    ff_transformer: 1024
+    dropout: 0.10
+
+
+  MODEL_5:
+    learning_rate: 0.00001
+    latent_dim: 256
+    nhead: 8
+    num_layers: 5
+    dim_feedforward: 1024
+    dropout: 0.10
+
   TRAINER:
     max_epochs: 1
     enable_checkpointing: True
     log_every_n_steps: 10
     
-
 BUILD:
+  DATA:
+    BATCH_SIZE: 2
+    SHUFFLE: false
   MODEL:
     hidden_dim: 256
   TRAINER:
     fast_dev_run: True
+    # overfit_batches: 1
 
 BASE:
-  MODEL:
+  MODEL_BASE:
     input_dim: 66
     nhead: 3
     hidden_dim_transformer: 256
@@ -26,27 +63,14 @@ BASE:
     nlayers_transformer: 3
 
     seq_len: 420
-    activation: relu
+    activation: leaky_relu
     hidden_dim_linear: 256
     latent_dim: 256
 
-
-    learning_rate: 0.000001
-    clip_grad_norm: 1.0
+    # logging
     save_animations_freq: 1
 
-    load: false
 
-    _checkpoint_path: latest
-    
-    
-    LOSS:
-      DIVERGENCE_KL: 0.00000001
-      VELOCITY_L2: 1.0
-      ROOT_L2: 0.0
-      POSE0_L2: 0.0
-      MOTION_L2: 0.0
-      MOTIONRELATIVE_L2: 1.0
   DATA:
     seq_len: 420
     batch_size: 32
@@ -56,10 +80,7 @@ BASE:
       _test: ../stranger_repos/HumanML3D/HumanML3D/test_cleaned.txt
     _motion_path: ../stranger_repos/HumanML3D/HumanML3D/new_joints
   TRAINER:
-    max_epochs: 10
     accelerator: mps
     devices: 1
     precision: "32-true"
   
-
-

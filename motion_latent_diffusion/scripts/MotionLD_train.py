@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import glob
 import torch
+from utils import test_translate
 
 import pytorch_lightning as pl
 from modules.LatentMotionData import LatentMotionData
@@ -131,8 +132,6 @@ def load_latent(data_version, y_name='/y.pt'):
 
     return z, y , autoencoder, projector, projection
 
-
-
 class LatentDecoder:
     def __init__(self, autoencoder, VAE_version):
         self.autoencoder = autoencoder
@@ -162,9 +161,6 @@ def decode_latent(z, autoencoder, VAE_version):
                                                 torch.tensor([420]).to(torch.device('mps')))
         
     return reconstruction
-
-
-from utils import test_translate
 
 # train
 def train(VAE_version = 'VAE5'):
@@ -240,7 +236,6 @@ def predict(text_input, translate_inv, word2idx, model, decoder):
     plot_3d_motion_animation(recon_noisy[0].cpu().detach().numpy(), text_input,
                                             figsize=(10, 10), fps=20, radius=2, save_path=f"recon_text_noisy.mp4", velocity=False)
     plt.close()
-
 
 def inference(trans_inv, word2idx, model, decoder):
     # inference mode
