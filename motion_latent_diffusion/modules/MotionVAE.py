@@ -23,7 +23,7 @@ class VAE1(nn.Module):
         self.verbose = False
         self.input_dim = kwargs.get("input_dim", 66)
         self.nhead = kwargs.get("nhead")
-        self.ff_transformer = kwargs.get("hidden_dim_transformer")
+        self.ff_transformer = kwargs.get("ff_transformer")
         self.dropout = kwargs.get("dropout")
         self.transformer_activation = kwargs.get("transformer_activation")
         self.nlayers_transformer = kwargs.get("nlayers_transformer")
@@ -1094,6 +1094,7 @@ class MotionVAE(pl.LightningModule):
         res = self._common_step(batch, batch_idx)
         
         loss = {k + "_trn": v for k, v in res["losses_unscaled"].items()}
+
         self.log_dict(loss, prog_bar=True, logger=True)
         self.log("total_loss_trn", res["total_loss"])
         # clip gradients --> do i do this here? # TODO
@@ -1136,8 +1137,17 @@ class MotionVAE(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        # this is also where we would put the scheduler
-        return optim.AdamW(self.parameters(), lr=self.lr)
+        # configure optimizers and schedulers
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=15, verbose=True)
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': {
+                'scheduler': scheduler,
+                'monitor': 'total_loss_val',
+            }
+        }
+    
 
 
 if __name__ == "__main__":

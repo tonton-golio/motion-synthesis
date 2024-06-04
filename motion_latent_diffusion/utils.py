@@ -74,6 +74,8 @@ def get_ckpt(path, verbose=True):
 
     if verbose: print_header('Checkpoints')
     ckpts = get_ckpts(path)
+    # sort by key
+    # ckpts = dict(sorted(ckpts.items()))
     print("Available checkpoints:")
     for k, v in ckpts.items():
         print(k, {k: v for k, v in v.items() if 'path' not in k})
@@ -356,12 +358,12 @@ def plot_3d_motion_frames_single(data, title, axes, nframes=5, radius=2):
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
     # cut tail, if equal
-    print(data.shape)
+    # print(data.shape)
     for i in range(data.shape[0]-1):
         if (data[i] == data[i+1]).all():
             data = data[:i]
             break
-    print(data.shape)
+    # print(data.shape)
 
     # init(ax, fig, title, radius)
     MINS, MAXS = data.min(axis=0).min(axis=0), data.max(axis=0).max(axis=0)
@@ -537,6 +539,7 @@ def save_for_diffusion(save_path, model=None, **kwargs):
             file.write(f'Number of parameters: {num_params}')
 
     for k, v in kwargs.items():
+        print(f'Saving {k}...')
         torch.save(v, f'{save_path}/{k}.pt')
 
 

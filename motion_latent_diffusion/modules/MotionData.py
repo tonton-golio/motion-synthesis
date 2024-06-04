@@ -13,7 +13,7 @@ class MotionDataset(Dataset):
         file_list_path,
         path,
         sequence_length=42,
-        tiny=False,
+        tiny=-1,
     ):
         super().__init__()  # just added this: maybe it will work
         self.tiny = tiny
@@ -30,8 +30,8 @@ class MotionDataset(Dataset):
         self.filenames = [f"{path}/{f}.npy" for f in filenames]
         self.filenames_text_enc = [f"{self.path_text_enc}encodings/{f}.npy" for f in filenames]
 
-        if self.tiny:
-            n_tiny = 320
+        if self.tiny > 0:
+            n_tiny = self.tiny
             # pick random
             idxs = np.random.choice(len(self.filenames), n_tiny, replace=False)
             self.filenames = [self.filenames[i] for i in idxs]
@@ -77,7 +77,7 @@ class MotionDataModule1(pl.LightningDataModule):
         self.path = cfg.get("_motion_path")
         self.sequence_length = cfg.get("seq_len", 200)
         self.batch_size = cfg.get("batch_size", 128)
-        self.tiny = cfg.get("tiny", False)
+        self.tiny = cfg.get("tiny", -1)
 
     def prepare_data(self) -> None:
         pass

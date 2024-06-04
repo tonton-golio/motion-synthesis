@@ -16,14 +16,11 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, default='VAE', help='Model to run')
     parser.add_argument('--mode', type=str, default='train', help='Mode to run')
     args = parser.parse_args()
-    print(args.model_name, args.mode)
     assert args.model_name.upper() in ['VAE1', 'VAE4', 'VAE5', 'VAE6', # MotionVAE
                           'LD_VAE1', 'LD_VAE4', 'LD_VAE5', # Latent Diffusion
                             'POSELINEAR', 'POSEGRAPH', 'POSECONV'  # PoseVAE
                           ]
     assert args.mode.lower() in ['train', 'build', 'inference', 'optuna']
-
-
 
     if args.model_name[:3] == 'VAE':
         if args.mode == 'train':
