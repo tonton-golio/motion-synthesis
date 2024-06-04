@@ -169,7 +169,6 @@ class LatentDiffusion(nn.Module):
         return pred_noise, noise, x_t, t
 
     @torch.no_grad()
-    @torch.no_grad()
     def sampling(self,n_samples, device="mps", tqdm_disable=True):
         
         x_t = torch.randn( (n_samples, self.latent_dim), device=device, dtype=torch.float32)

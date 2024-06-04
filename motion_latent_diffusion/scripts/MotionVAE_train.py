@@ -58,7 +58,7 @@ def train(model_name='VAE1', build=False):
     cfg["MODEL"]["epochs_trained"] = epochs_trained
 
     if not build:
-        with open(logger.log_dir + "/hparams2.yaml", "w") as file:
+        with open(logger.log_dir + "/hparams.yaml", "w") as file:
             yaml.dump(cfg, file)
 
     return datamodule, trainer, model, logger, cfg

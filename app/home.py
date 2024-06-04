@@ -9,38 +9,9 @@ abstract = """
     """
 
 def todo():
-    st.write("""
-    ## To do
-    - [] Renew thesis contract
-        - [x] Email supervisors
-        - [x] Send contract (30 may 2024)
-    - [] Implement metrics for image space diffusion
-    - [] Motion latent diffusion
-        - [x] make VAE save latent space at test end
-            - [x] VAE1
-            - [x] VAE4
-            - [x] VAE5
-        - [x] Refactor latent diffusion notebook
-        - [x] Implement latent diffusion in main.py
-    - [x] Refactor motion VAEs such that they all have the same style.
-    - [] Compare pose VAEs
-        - [x] implement CONV based VAE
-        - [x] refactor VAEs to have same style
-        - [] tune each model
-    - [] Add pauls notes to manuscript
-    - [x] merge utils and utils_pose
-    - [x] merge pose_trainer and main
-    - [] plot pose distribution (if we take each pose, center it, and rotate it to the same orientation (using the hip)
-    - [] balance pose dataset
-    - [] to validate pose model, try to VAE all frames of a seq, and then output a seq.
-    - [x] clean up MotionData.py (delete 1 module)
-    - [x] merge motion VAE config files
-    - [] take everything from motion/scripts and put in main.py and utils.py
-    - [] implement wrapper in app.py: if not image found, produce and save image. +re run button
-    - [x] pretty config print
-    - [] cifar 100 for image entropy experiment
-    - [] rename motion vae models to more descriptive names
-    """)
+    from subpages.todo import todo_interface
+    todo_interface()
+
 
 def home():
     # introduction and flow

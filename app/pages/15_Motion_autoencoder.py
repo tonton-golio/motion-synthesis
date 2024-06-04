@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 # path join 
 from os.path import join as pjoin
 from pathlib import Path
+from tensorboard.backend.event_processing import event_accumulator
+import os
 
 # Intro and title
 """
@@ -73,25 +75,6 @@ def find_saved_latent(path = f"logs/VAE/train/", cfg_name='hparams'):
 
     return VAE_data
 
-VAE_data = find_saved_latent('../motion_latent_diffusion/logs/MotionVAE/VAE1/train/')
-idx = st.selectbox('Select VAE model', list(VAE_data.keys()))
-VAE_data[str(idx)]
-
-
-# now we want to show the loss,
-# the projection of the latent space
-
-
-# show the projection
-for entry in VAE_data:
-    VAE_data[entry]['image'] = plt.imread(VAE_data[entry]['paths']['projection'])
-    st.image(VAE_data[entry]['image'])
-
-
-# load the loss
-from tensorboard.backend.event_processing import event_accumulator
-import os
-
 def load_log_scalar(logdir, tag='train/loss'):
     """
     Load the loss from tensorboard log
@@ -106,28 +89,74 @@ def load_log_scalar(logdir, tag='train/loss'):
     return ea.Scalars(tag)
 
 
-# # "VELOCITY_L2_trn"
-# 1:"MOTION_L2_trn"
-# 2:"MOTIONRELATIVE_L2_trn"
-# 3:"DIVERGENCE_KL_trn"
-scalars = {
-    k : load_log_scalar(VAE_data[str(idx)]['paths']['log'], tag=k) for k in ['MOTION_L2_trn', 'MOTIONRELATIVE_L2_trn', 'DIVERGENCE_KL_trn']
-}
+def view_entry(entry):
 
-scalars
-# config
-from motion_latent_diffusion.utils import load_config
-cfg = load_config(VAE_data[str(idx)]['paths']['config'])
-cfg
+    cols = st.columns([1.3, 1])
+
+    sub_cols = cols[0].columns([1, 1])
+    with sub_cols[0]:
+        # get num param from num_params.txt
+        with open(f"{VAE_data[str(idx)]['paths']['saved_latent']}/num_params.txt", 'r') as file:
+            num_params = file.read()
+
+        num_params
+
+        # log contents
+        with st.expander('Log contents'):
+            st.write(VAE_data[str(idx)])
+
+        # config
+        from motion_latent_diffusion.utils import load_config
+        cfg = load_config(VAE_data[str(idx)]['paths']['config'])
+        with st.expander('Config'):
+            cfg
+
+    with sub_cols[1]:
+
+        VAE_data[entry]['image'] = plt.imread(VAE_data[entry]['paths']['projection'])
+        st.image(VAE_data[entry]['image'])
 
 
-# get num param from num_params.txt
-with open(f"{VAE_data[str(idx)]['paths']['saved_latent']}/num_params.txt", 'r') as file:
-    num_params = file.read()
+    with cols[0]:
+        # load the loss
 
-num_params
+        # # "VELOCITY_L2_trn"
+        # 1:"MOTION_L2_trn"
+        # 2:"MOTIONRELATIVE_L2_trn"
+        # 3:"DIVERGENCE_KL_trn"
+        scalars = {
+            k : load_log_scalar(VAE_data[str(idx)]['paths']['log'], tag=k) for k in ['MOTION_L2_trn', 'MOTIONRELATIVE_L2_trn', 'DIVERGENCE_KL_trn']
+        }
+        # load_log_scalar(VAE_data[str(idx)]['paths']['log'], tag='asd')
+        
+        
+        # plot all scalars
+        fig, axes = plt.subplots(1, len(scalars), figsize=(5*len(scalars), 5))
+        for ax, (k, v) in zip(axes, scalars.items()):
+            ax.plot([x.step for x in v], [x.value for x in v])
+            ax.set_title(k)
+
+        st.pyplot(fig)
+    
+
+    
+
+    with cols[1]:
+        # view recon_latest.mp4
+
+        st.video(f"{VAE_data[str(idx)]['paths']['log']}/recon_latest.mp4")
 
 
-# view recon_latest.mp4
 
-st.video(f"{VAE_data[str(idx)]['paths']['log']}/recon_latest.mp4")
+VAE_data = find_saved_latent('../motion_latent_diffusion/logs/MotionVAE/VAE1/train/')
+idx = st.selectbox('Select VAE model', list(VAE_data.keys()))
+
+
+
+# now we want to show the loss,
+# the projection of the latent space
+
+
+# show the projection
+
+view_entry(idx)

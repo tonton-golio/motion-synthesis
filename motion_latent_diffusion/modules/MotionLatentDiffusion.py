@@ -9,7 +9,65 @@ import torchvision
 
 from utils import plot_3d_motion_animation, translate
 import matplotlib.pyplot as plt
+class TimeMLP(nn.Module):
+    '''
+    naive introduce timestep information to feature maps with mlp
+    '''
+    def __init__(self,in_dim,hidden_dim,out_dim):
+        super().__init__()
+        self.mlp=nn.Sequential(nn.Linear(in_dim,hidden_dim),
+                                nn.SiLU(),
+                               nn.Linear(hidden_dim,out_dim))
+        self.act=nn.SiLU()
 
+    def forward(self,t):
+        t_emb=self.mlp(t)#.unsqueeze(-1).unsqueeze(-1)
+        # print('t_emb', t_emb.shape)
+        #x=x+t_emb
+  
+        return t_emb
+    
+class MLP(nn.Module):
+    '''
+    naive introduce timestep information to feature maps with mlp
+    '''
+    def __init__(self,in_dim,hidden_dim,out_dim, nhidden=5, activation=nn.SiLU(), dropout=0.1):
+        super().__init__()
+        self.mlp=nn.Sequential(nn.Linear(in_dim,hidden_dim),
+                                activation,
+                               nn.Dropout(dropout))
+        for _ in range(nhidden-1):
+            self.mlp.add_module(f'hidden_{_}', nn.Linear(hidden_dim,hidden_dim))
+            self.mlp.add_module(f'activation_{_}', activation)
+            self.mlp.add_module(f'dropout_{_}', nn.Dropout(dropout))
+        self.mlp.add_module('out', nn.Linear(hidden_dim,out_dim))
+        self.act=activation
+
+
+    def forward(self,x):
+        x=self.mlp(x)
+        return x
+    
+class TextTransformer(nn.Module):
+    def __init__(self, target_embedding_dim=5, nhead=10, num_layers=3, dim_feedforward=512, dropout=0.1, activation='relu'):
+        super().__init__()
+        self.text_transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                d_model=target_embedding_dim,
+                nhead=nhead,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
+                activation=activation,
+                batch_first=True
+            ),
+            num_layers=num_layers,
+            norm=nn.LayerNorm(target_embedding_dim)
+        )
+
+    def forward(self, x):
+        return self.text_transformer(x)
+    
+    
 class SimpleModel(nn.Module):
     # a simple model takes (batchsize, latent dim),
     # performs linear layers
@@ -25,82 +83,84 @@ class SimpleModel(nn.Module):
         target_embedding_dim=5,
         target_size=10054,
         dp_rate=0.1,
-        verbose=False
+        verbose=False,
+        **kwargs
     ):
         super(SimpleModel, self).__init__()
         self.verbose = verbose
         self.time_embedding_dim = time_embedding_dim
         self.target_embedding_dim = target_embedding_dim
+        
+        self.dropout = dp_rate
+
         self.time_embedding = nn.Embedding(timesteps, time_embedding_dim)
         self.target_embedding = nn.Embedding(target_size+1, target_embedding_dim, sparse=False)
-        # dropout
-        self.dropout = nn.Dropout(dp_rate)
+        self.nhead = kwargs.get("nhead", 10)
+        self.num_transformer_layers = kwargs.get("num_transformer_layers", 3)
+        self.dim_feedforward = kwargs.get("dim_feedforward", 512)
+        self.transformer_activation = kwargs.get("transformer_activation", 'relu')
 
-        input_dim = latent_dim + time_embedding_dim + 250*4
-        out_put_dim = latent_dim
-        self.fc1 = nn.Linear(
-            input_dim, hidden_dim
-        )
+
+
+        self.time_mlp=TimeMLP(
+            in_dim=time_embedding_dim, 
+            hidden_dim=time_embedding_dim*2,
+            out_dim=time_embedding_dim)
         
-        # input_dim = 11036
-        self.fc_hidden = nn.ModuleList(
-            [nn.Linear(hidden_dim, hidden_dim) for _ in range(nhidden)]
+        self.target_transformer = TextTransformer(
+            target_embedding_dim=target_embedding_dim, 
+            nhead=self.nhead, 
+            num_layers=self.num_transformer_layers, 
+            dim_feedforward=self.dim_feedforward, 
+            dropout=self.dropout, 
+            activation=self.transformer_activation)
+        
+        self.fc = MLP(
+            in_dim=latent_dim + time_embedding_dim + target_embedding_dim,
+            hidden_dim=hidden_dim,
+            out_dim=latent_dim,
+            nhidden=nhidden,
+            activation=nn.SiLU(),
+            dropout=dp_rate
         )
 
-        self.fc2 = nn.Sequential(
-            nn.Linear(hidden_dim, latent_dim),
-        )
-
-        # text transformer encoder
-        self.text_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=target_embedding_dim,
-                nhead=10,
-                dim_feedforward=512,
-                dropout=0.1,
-                activation='relu',
-                batch_first=True
-            ),
-            num_layers=3
-        )
-        self.text_linear1 = nn.Linear(target_embedding_dim, 4)
 
     def forward(self, x, y, t):
+        
+        # start of forward
         if self.verbose:
-            print('x', x.shape)
-            print('y', y.shape)
-            print('t', t.shape)
+            print()
+            print('start of forward')
+            print('x', x.shape, x.dtype)
+            print('y', y.shape, y.dtype)
+            print('t', t.shape, t.dtype)
 
+        # time embedding
         t = self.time_embedding(t)  # (batchsize, time_embedding_dim)
         if self.verbose:
-            print('t', t.shape)
-        y = self.target_embedding(y)
+            print('t (after embedding)', t.shape)
+        t = self.time_mlp(t)  # (batchsize, time_embedding_dim)
+        if self.verbose:
+            print('t (after mlp)', t.shape)
+
+        # target embedding
+        y = self.target_embedding(y)  # (batchsize, target_embedding_dim)
         if self.verbose:
             print('y (after target embedding)', y.shape)
+        y = self.target_transformer(y)
+        if self.verbose:
+            print('y (after target transformer)', y.shape)
 
-        y = self.text_transformer(y)
+        y = y[:, -1, :]          # select the last timestep
         if self.verbose:
-            print('y', y.shape)
-        y = self.text_linear1(y)
-        y = nn.Flatten()(y)
-        if self.verbose:
-            print('y (done)', y.shape)
-            print('t', t.shape)
-            print('x', x.shape)
-        
+            print('y (after selecting the last timestep)', y.shape)
 
         x = torch.cat([x, t, y], dim=1)
         if self.verbose:
             print('after cat: x', x.shape)
-        x = self.fc1(x)
+        x = self.fc(x)
         if self.verbose:
             print('x', x.shape)
-        for layer in self.fc_hidden:
-            # x = torch.relu(layer(x))
-            x = nn.LeakyReLU()(layer(x))
-            x = self.dropout(x)
-
-        x = self.fc2(x)
         return x
 
 class LatentDiffusionModel(nn.Module):
@@ -117,6 +177,7 @@ class LatentDiffusionModel(nn.Module):
         verbose=False
     ):
         super().__init__()
+        self.latent_dim = latent_dim
         self.timesteps = timesteps
         self.in_channels = latent_dim
 
@@ -147,6 +208,8 @@ class LatentDiffusionModel(nn.Module):
             verbose=verbose
         )
 
+        self.rand_texts = []
+
     def forward(self, x, y, noise):
         # x:NCHW
         t = torch.randint(0, self.timesteps, (x.shape[0],)).to(x.device)
@@ -162,9 +225,12 @@ class LatentDiffusionModel(nn.Module):
         return pred_noise
 
     @torch.no_grad()
-    def sampling(self, n_samples, clipped_reverse_diffusion=True, device="cuda"):
+    def sampling(self, texts, clipped_reverse_diffusion=True, device="cuda"):
+        n_samples = len(texts)
+        y = texts
+        print('y', y.shape, y.dtype, y)
         x_t = torch.randn(
-            (n_samples, self.in_channels, self.image_size, self.image_size)
+            (n_samples, self.latent_dim)
         ).to(device)
         for i in tqdm(range(self.timesteps - 1, -1, -1), desc="Sampling"):
             noise = torch.randn_like(x_t).to(device)
@@ -173,7 +239,7 @@ class LatentDiffusionModel(nn.Module):
             if clipped_reverse_diffusion:
                 x_t = self._reverse_diffusion_with_clip(x_t, t, noise)
             else:
-                x_t = self._reverse_diffusion(x_t, t, noise)
+                x_t = self._reverse_diffusion(x_t, y, t, noise)
 
         x_t = (x_t + 1.0) / 2.0  # [-1,1] to [0,1]
 
@@ -301,7 +367,10 @@ class MotionLatentDiffusion(pl.LightningModule):
         )
 
         if batch_idx == 0 and self.decode is not None:
+
             print('reconstruction\n =====================')
+            x_t = self.model.sampling(batch[1][:1], clipped_reverse_diffusion=False, device='mps')
+
             with torch.no_grad():
                 # make image by decoding latent space
                 x, y = batch
@@ -311,6 +380,7 @@ class MotionLatentDiffusion(pl.LightningModule):
 
                 raw_reconstruction = self.decode(x_dirty)
                 reconstruction = self.decode(pred_clean)
+                sample = self.decode(x_t)
                 # print('reconstruction', reconstruction.shape)
 
                 # raw_and_recon = torch.cat([raw_reconstruction[:8], reconstruction[:8], ])
@@ -321,7 +391,7 @@ class MotionLatentDiffusion(pl.LightningModule):
                 path_base = self.logger.log_dir + f"/recon_{self.current_epoch}"
 
 
-                for data, name in zip([raw_reconstruction, reconstruction], ['dirty', 'clean']):
+                for data, name in zip([raw_reconstruction, reconstruction, sample], ['dirty', 'clean', 'sample']):
                     
                     plot_3d_motion_animation(
                                 data = data[0].cpu().detach().numpy(),
