@@ -7,6 +7,9 @@ from os.path import join as pjoin
 from pathlib import Path
 from tensorboard.backend.event_processing import event_accumulator
 import os
+import torch
+
+
 
 # Intro and title
 """
@@ -160,3 +163,11 @@ idx = st.selectbox('Select VAE model', list(VAE_data.keys()))
 # show the projection
 
 view_entry(idx)
+
+st.divider()
+'## Inference (sampling from the latent space and decoding)'
+from motion_latent_diffusion.modules import MotionVAE
+# load model
+path = VAE_data[str(idx)]['paths']['checkpoints'][0]
+model = MotionVAE.load_from_checkpoint(path)
+

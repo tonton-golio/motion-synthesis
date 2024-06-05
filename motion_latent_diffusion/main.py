@@ -38,6 +38,8 @@ if __name__ == "__main__":
     elif args.model_name[:2] == 'LD':
         if args.mode == 'train':
             from scripts.MotionLD_train import train
+            
+            # 
             train(VAE_version=args.model_name.split('_')[1])
         elif args.mode == 'inference':
             from scripts.MotionLD_train import inference

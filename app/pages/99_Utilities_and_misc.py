@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+st.set_page_config(layout="wide")
 # Title and intro
 """
 # Autoencoding Theory
@@ -13,7 +14,6 @@ tab_names = [
     'How much code?',
     'Make GIF',
     'twitch chat',
-    'storage usage',
     'PCA demo',
     'hparams viewer',
     'Determine joint connectivity',
@@ -24,56 +24,62 @@ tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
 
 with tabs['How much code?']:
-    import os
+    from app.subpages.repo_info import groupby_and_pie, count_info, get_file_sizes, expand_info, accumulate_folder_sizes
 
-    # List of folders to search
-    folders = ["../app", "../mnist_latent_diffusion", 
-               "../motion_latent_diffusion"]
-    
-    exclude = 'logs'
+    counts_ = count_info()
 
-    def count_in_file(file_path):
-        with open(file_path, 'r') as file:
-            f = file.read()
 
-        return dict(
-            lines=f.count('\n'),
-            words=len(f.split()),
-            chars=len(f)
-        )
+    df = get_file_sizes('../') # all files in the repo and their sizes
+    expand_info(df)# parse the paths to get some more info
+    total_size = df['size_gb'].sum()
 
-    def count_lines_in_folder(folder):
-        total = {'lines': 0, 'words': 0, 'chars': 0}
-        for root, _, files in os.walk(folder):
+    df.sort_values('size_gb', ascending=False, inplace=True)
+
+
+    # render
+    cols = st.columns((1, 1))
+    with cols[0]:
+        sub_cols0 = st.columns((8, 1,4,1))
+
+        with sub_cols0[2]:
+            st.write(f'## Total: {total_size:.2f} GB')
+            st.divider()
+            pie_plots = st.checkbox('Show pie plots')
+        with sub_cols0[0]:
+            "### File counts"
+            st.dataframe(counts_)
+        cols2show = [
+            'file_name',
+            'size_gb',
+            'file_extension',
+            'parent_folder',
+            'grandparent_folder',
+            'great_grandparent_folder'
+            ]
+        
+        "### Large files"
+        st.dataframe(df[cols2show])
+        
+    with cols[1]:
+        "### Grouped"
+        columns = ['file_extension', 'parent_folder', 'grandparent_folder', 'great_grandparent_folder']
+
+        # Create columns for the layout
+        sub_cols = st.columns((1, 1))
+
+        
+        for i, c in enumerate(columns):
+            fig, grouped= groupby_and_pie(df, c,  n=8)
             
-            if exclude in root:
-                continue
-            
-            for file in files:
-                if file.endswith('.py'):
-                    # st.write(os.path.join(root, file))
-                    file_path = os.path.join(root, file)
-                    counts = count_in_file(file_path)
-                    total['lines'] += counts['lines']
-                    total['words'] += counts['words']
-                    total['chars'] += counts['chars']
-        return total
+            with sub_cols[i % 2]:
+                if pie_plots:
+                    st.plotly_chart(fig)
+                else:
+                    st.dataframe(grouped)
+    # with st.expander("More info`"):
+    #     folder_sizes = accumulate_folder_sizes('../')
+    #     folder_sizes
 
-    def main():
-        data = {}
-        for folder in folders:
-            if os.path.exists(folder):
-                count = count_lines_in_folder(folder)
-                # st.write(f"Folder: {folder}, Lines: {count['lines']}, Words: {count['words']}, Chars: {count['chars']}")
-                data[folder.split('../')[1]] = count
-            else:
-                print(f"Folder not found: {folder}")
-        df = pd.DataFrame(data)
-        df['Total'] = df.sum(axis=1)
-        df
-
-    if __name__ == "__main__":
-        main()
 
 # Make GIF
 with tabs['Make GIF']:
@@ -128,112 +134,6 @@ with tabs['twitch chat']:
     st.code("""
     !pip install twitch-chat-irc
     """)
-
-
-# storage usage
-with tabs['storage usage']:
-    # determine how much storage is used by a given directory
-    # we want the results in a dataframe
-    import streamlit as st
-    import os, sys, glob
-    import pandas as pd
-
-    def get_file_sizes(folder_path):
-        data = {}
-        for root, dirs, files in os.walk(folder_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                size = os.path.getsize(file_path)
-                data[file_path] = size
-
-        df = pd.DataFrame(list(data.items()), columns=['file', 'size'])
-        return df
-
-    def expand_info(df):
-        #df['size_kb'] = df['size'] / 1024
-        df['size_mb'] = df['size'] / 1024 / 1024
-        df['size_gb'] = df['size_mb'] / 1024
-        
-        df['file_extension'] = df['file'].apply(lambda x: x.split('.')[-1] if not 'ubyte' in x else 'ubyte')
-        df['parent_folder'] = df['file'].apply(lambda x: x.split('/')[-2])
-        df['file_name'] = df['file'].apply(lambda x: x.split('/')[-1])
-        df['grandparent_folder'] = df['file'].apply(lambda x: x.split('/')[-3] if len(x.split('/')) > 2 else None)
-        df['great_grandparent_folder'] = df['file'].apply(lambda x: x.split('/')[-4] if len(x.split('/')) > 3 else None)
-
-    def accumulate_folder_sizes(folder_path):
-        folder_sizes = {}
-        
-        # Function to recursively accumulate sizes
-        def accumulate(path, container):
-            if os.path.isdir(path):
-                total_size = 0
-                for item in os.listdir(path):
-                    item_path = os.path.join(path, item)
-                    item_size = accumulate(item_path, container.setdefault(item, {}))
-                    total_size += item_size
-                container["__size__"] = total_size  # Store the total size in the current folder's dict
-                return total_size
-            else:
-                return os.path.getsize(path)
-        
-        # Start the accumulation
-        accumulate(folder_path, folder_sizes)
-        return folder_sizes
-
-    def print_tree(container, indent=""):
-        for key, value in container.items():
-            if key == "__size__":
-                continue  # Skip printing the size key directly
-            if isinstance(value, dict):
-                print(f"{indent}{key}/ ({value.get('__size__', 0)} bytes)")
-                print_tree(value, indent + "  ")
-            else:
-                pass#print(f"{indent}{key}: {value} bytes")
-
-    if __name__ == "__main__":
-
-        # set up
-        folder_path = '../'
-        df = get_file_sizes(folder_path)
-        expand_info(df)
-        df = df.sort_values('size', ascending=False)  # sort by size
-        total_size = df['size_gb'].sum()
-
-
-        # render
-        print(f'Total size: {total_size:.2f} GB')
-
-        # total size by file extension
-        print((df.groupby('file_extension')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:7])
-        count_by_ext = df.groupby('file_extension').count()['size'].sort_values(ascending=False)
-        count_by_ext
-        # total size by parent folder
-        print((df.groupby('parent_folder')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:7])
-
-        # total size by grandparent folder
-        print((df.groupby('grandparent_folder')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:7])
-
-        # total size by great grandparent folder
-        print((df.groupby('great_grandparent_folder')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:7])
-
-        """# Storage usage of repository"""
-        st.metric(label="Total size", value=f"{total_size:.2f} GB")
-        cols = st.columns(2)
-        with cols[0]: # total size by file extension
-            st.dataframe((df.groupby('file_extension')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:5])
-        with cols[1]: # total size by parent folder
-            st.dataframe((df.groupby('parent_folder')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:5])
-
-        with cols[0]: # total size by grandparent folder
-            st.dataframe((df.groupby('grandparent_folder')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:5])
-
-        with cols[1]: # total size by great grandparent folder
-            st.dataframe((df.groupby('great_grandparent_folder')['size_gb'].sum().sort_values(ascending=False).astype(int).astype(str) + ' GB')[:5])
-
-
-        # with st.expander("More info`"):
-        #     folder_sizes = accumulate_folder_sizes(folder_path)
-        #     folder_sizes
 
 
 # PCA demo
@@ -303,7 +203,7 @@ with tabs['PCA demo']:
                 2. *Mathematical explanation*: Principal axes are the eigenvectors of the covariance matrix of the data. The eigenvalues of the covariance matrix represent the variance along the principal axes.
                 
                 We define some data $X in \mathbb{R}^{n \times m}$, where $n$ is the number of samples and $m$ is the number of features. We compute the covariance between features
-                    $$
+                $$
                 \\text{cov}(X) = \mathbb{E}[(X - \mathbb{E}[X])(X - \mathbb{E}[X])^T].
                 $$
                 The eigenvectors of $C$ are the principal axes, and the eigenvalues are the variance along these axes.
@@ -649,163 +549,163 @@ with tabs['Determine joint connectivity']:
     # set page layout to wide
     # st.set_page_config(layout="wide")
 
-    def make_df():
-        file = 'autoEncoder/assets/generated_motion/transformer/E9_-_side_step_left_stageii20231207-111812.npz'
-        #file = 'data/extracted_joint_positions/B7_-_walk_backwards_turn_forwards_stageii.npz'
-        seq = np.load(file, allow_pickle=True)['arr_0'].squeeze()
-        print(seq.shape)
-        df_gen = pd.DataFrame(seq.reshape(-1, 3), columns=['x', 'y', 'z'])
+    # def make_df():
+    #     file = 'autoEncoder/assets/generated_motion/transformer/E9_-_side_step_left_stageii20231207-111812.npz'
+    #     #file = 'data/extracted_joint_positions/B7_-_walk_backwards_turn_forwards_stageii.npz'
+    #     seq = np.load(file, allow_pickle=True)['arr_0'].squeeze()
+    #     print(seq.shape)
+    #     df_gen = pd.DataFrame(seq.reshape(-1, 3), columns=['x', 'y', 'z'])
 
-        frame_number = np.array([[i] * len(seq[i]) for i in range(len(seq))]).flatten()
-        joint_number = np.array([np.arange(len(seq[i])) for i in range(len(seq))]).flatten()
-        df_gen['frame_number'] = frame_number
-        df_gen['joint_number'] = joint_number
+    #     frame_number = np.array([[i] * len(seq[i]) for i in range(len(seq))]).flatten()
+    #     joint_number = np.array([np.arange(len(seq[i])) for i in range(len(seq))]).flatten()
+    #     df_gen['frame_number'] = frame_number
+    #     df_gen['joint_number'] = joint_number
 
-        return df_gen
-
-
-
-    def make_plotly(df_gen, frame_number, joint_connections):
-
-        fig = go.Figure()
-
-        df_frame = df_gen[df_gen['frame_number'] == frame_number]
-
-        # plot scatter
-        fig.add_trace(go.Scatter3d(x=df_frame['x'], y=df_frame['y'], z=df_frame['z'], mode='markers', name='Joints', hovertext=df_frame['joint_number']))
-
-        for i, (start,stop) in enumerate(joint_connections):
-            if start == None or stop == None: continue
-            x0, y0, z0 = df_frame[df_frame['joint_number'] == start][['x', 'y', 'z']].values[0]
-            x1, y1, z1 = df_frame[df_frame['joint_number'] == stop][['x', 'y', 'z']].values[0]
-
-            fig.add_trace(go.Scatter3d(x=[x0, x1], y=[y0, y1], z=[z0, z1], mode='lines', name=f'Joint {i}', line=dict(color='red', width=4)))
-
-        # hide legend
-        fig.update_layout(showlegend=False)
-
-        # set axis range
-        # fig.update_layout(
-        #     scene=dict(
-        #         xaxis=dict(range=[-3, 3],),
-        #         yaxis=dict(range=[-3, 3],),
-        #         zaxis=dict(range=[-3, 3],),
-        #     ),
-        # )
-
-        # set height to 500
-        fig.update_layout(height=1000)
-
-        return fig
+    #     return df_gen
 
 
 
-    df_gen = make_df()
+    # def make_plotly(df_gen, frame_number, joint_connections):
+
+    #     fig = go.Figure()
+
+    #     df_frame = df_gen[df_gen['frame_number'] == frame_number]
+
+    #     # plot scatter
+    #     fig.add_trace(go.Scatter3d(x=df_frame['x'], y=df_frame['y'], z=df_frame['z'], mode='markers', name='Joints', hovertext=df_frame['joint_number']))
+
+    #     for i, (start,stop) in enumerate(joint_connections):
+    #         if start == None or stop == None: continue
+    #         x0, y0, z0 = df_frame[df_frame['joint_number'] == start][['x', 'y', 'z']].values[0]
+    #         x1, y1, z1 = df_frame[df_frame['joint_number'] == stop][['x', 'y', 'z']].values[0]
+
+    #         fig.add_trace(go.Scatter3d(x=[x0, x1], y=[y0, y1], z=[z0, z1], mode='lines', name=f'Joint {i}', line=dict(color='red', width=4)))
+
+    #     # hide legend
+    #     fig.update_layout(showlegend=False)
+
+    #     # set axis range
+    #     # fig.update_layout(
+    #     #     scene=dict(
+    #     #         xaxis=dict(range=[-3, 3],),
+    #     #         yaxis=dict(range=[-3, 3],),
+    #     #         zaxis=dict(range=[-3, 3],),
+    #     #     ),
+    #     # )
+
+    #     # set height to 500
+    #     fig.update_layout(height=1000)
+
+    #     return fig
 
 
-    cols = st.columns((1,4))
 
-    with cols[0]:
-        st.write('Frame number')
-        frame_number = st.slider('Frame number', 0, len(df_gen['frame_number'].unique()) - 1, 0)
+    # df_gen = make_df()
+
+
+    # cols = st.columns((1,4))
+
+    # with cols[0]:
+    #     st.write('Frame number')
+    #     frame_number = st.slider('Frame number', 0, len(df_gen['frame_number'].unique()) - 1, 0)
         
-        st.write('joint_connections')
+    #     st.write('joint_connections')
 
-        joint_connections = [
-            (0,3),
-            (1,0),
-            (2,0),
-            (3,6),
-            (4,1),
-            (5,2),
-            (6,9),
-            (7,4),
-            (8,5),
-            (9,12),
-            (10,27),
-            (11,30),
-            (12, 12),
-            (13,9),
-            (14,9),
-            (15,12),
-            (16,13),
-            (17,14),
-            (18,16),
-            (19,17),
-            (20,18),
-            (21,19),
-            (22,12),
-            (23,22),
-            (24,15),
-            (25,26),
-            (26,10),
-            (27,7),
-            (28,29),
-            (29,11),
-            (30,8),
-        ]
+    #     joint_connections = [
+    #         (0,3),
+    #         (1,0),
+    #         (2,0),
+    #         (3,6),
+    #         (4,1),
+    #         (5,2),
+    #         (6,9),
+    #         (7,4),
+    #         (8,5),
+    #         (9,12),
+    #         (10,27),
+    #         (11,30),
+    #         (12, 12),
+    #         (13,9),
+    #         (14,9),
+    #         (15,12),
+    #         (16,13),
+    #         (17,14),
+    #         (18,16),
+    #         (19,17),
+    #         (20,18),
+    #         (21,19),
+    #         (22,12),
+    #         (23,22),
+    #         (24,15),
+    #         (25,26),
+    #         (26,10),
+    #         (27,7),
+    #         (28,29),
+    #         (29,11),
+    #         (30,8),
+    #     ]
 
-        # # let the user connect each joins to 1 other joint
-        # conn = [st.select_slider(f'Joint {0}', [None]+list(np.arange(31)), 3),
-        #         st.select_slider(f'Joint {1}', [None]+list(np.arange(31)), 0),
-        #         st.select_slider(f'Joint {2}', [None]+list(np.arange(31)), 0),
-        #         st.select_slider(f'Joint {3}', [None]+list(np.arange(31)), 6),
-        #         st.select_slider(f'Joint {4}', [None]+list(np.arange(31)), 1),
-        #         st.select_slider(f'Joint {5}', [None]+list(np.arange(31)), 2),
-        #         st.select_slider(f'Joint {6}', [None]+list(np.arange(31)), 9),
-        #         st.select_slider(f'Joint {7}', [None]+list(np.arange(31)), 4),
-        #         st.select_slider(f'Joint {8}', [None]+list(np.arange(31)), 5),
-        #         st.select_slider(f'Joint {9}', [None]+list(np.arange(31)), 12),
+    #     # # let the user connect each joins to 1 other joint
+    #     # conn = [st.select_slider(f'Joint {0}', [None]+list(np.arange(31)), 3),
+    #     #         st.select_slider(f'Joint {1}', [None]+list(np.arange(31)), 0),
+    #     #         st.select_slider(f'Joint {2}', [None]+list(np.arange(31)), 0),
+    #     #         st.select_slider(f'Joint {3}', [None]+list(np.arange(31)), 6),
+    #     #         st.select_slider(f'Joint {4}', [None]+list(np.arange(31)), 1),
+    #     #         st.select_slider(f'Joint {5}', [None]+list(np.arange(31)), 2),
+    #     #         st.select_slider(f'Joint {6}', [None]+list(np.arange(31)), 9),
+    #     #         st.select_slider(f'Joint {7}', [None]+list(np.arange(31)), 4),
+    #     #         st.select_slider(f'Joint {8}', [None]+list(np.arange(31)), 5),
+    #     #         st.select_slider(f'Joint {9}', [None]+list(np.arange(31)), 12),
 
-        #         st.select_slider(f'Joint {10}', [None]+list(np.arange(31)), 27),
-        #         st.select_slider(f'Joint {11}', [None]+list(np.arange(31)), 30),
-        #         st.select_slider(f'Joint {12}', [None]+list(np.arange(31)), ),
-        #         st.select_slider(f'Joint {13}', [None]+list(np.arange(31)), 9),
-        #         st.select_slider(f'Joint {14}', [None]+list(np.arange(31)), 9),
-        #         st.select_slider(f'Joint {15}', [None]+list(np.arange(31)), 12),
-        #         st.select_slider(f'Joint {16}', [None]+list(np.arange(31)), 13),
-        #         st.select_slider(f'Joint {17}', [None]+list(np.arange(31)), 14),
-        #         st.select_slider(f'Joint {18}', [None]+list(np.arange(31)), 16),
-        #         st.select_slider(f'Joint {19}', [None]+list(np.arange(31)), 17),
-        #         st.select_slider(f'Joint {20}', [None]+list(np.arange(31)), 18),
+    #     #         st.select_slider(f'Joint {10}', [None]+list(np.arange(31)), 27),
+    #     #         st.select_slider(f'Joint {11}', [None]+list(np.arange(31)), 30),
+    #     #         st.select_slider(f'Joint {12}', [None]+list(np.arange(31)), ),
+    #     #         st.select_slider(f'Joint {13}', [None]+list(np.arange(31)), 9),
+    #     #         st.select_slider(f'Joint {14}', [None]+list(np.arange(31)), 9),
+    #     #         st.select_slider(f'Joint {15}', [None]+list(np.arange(31)), 12),
+    #     #         st.select_slider(f'Joint {16}', [None]+list(np.arange(31)), 13),
+    #     #         st.select_slider(f'Joint {17}', [None]+list(np.arange(31)), 14),
+    #     #         st.select_slider(f'Joint {18}', [None]+list(np.arange(31)), 16),
+    #     #         st.select_slider(f'Joint {19}', [None]+list(np.arange(31)), 17),
+    #     #         st.select_slider(f'Joint {20}', [None]+list(np.arange(31)), 18),
 
-        #         st.select_slider(f'Joint {21}', [None]+list(np.arange(31)), 19),
-        #         st.select_slider(f'Joint {22}', [None]+list(np.arange(31)), 12),
-        #         st.select_slider(f'Joint {23}', [None]+list(np.arange(31)), 22),
-        #         st.select_slider(f'Joint {24}', [None]+list(np.arange(31)), 15),
-        #         st.select_slider(f'Joint {25}', [None]+list(np.arange(31)), 26),
-        #         st.select_slider(f'Joint {26}', [None]+list(np.arange(31)), 10),
-        #         st.select_slider(f'Joint {27}', [None]+list(np.arange(31)), 7),
-        #         st.select_slider(f'Joint {28}', [None]+list(np.arange(31)), 29),
-        #         st.select_slider(f'Joint {29}', [None]+list(np.arange(31)), 11),
-        #         st.select_slider(f'Joint {30}', [None]+list(np.arange(31)), 8),
+    #     #         st.select_slider(f'Joint {21}', [None]+list(np.arange(31)), 19),
+    #     #         st.select_slider(f'Joint {22}', [None]+list(np.arange(31)), 12),
+    #     #         st.select_slider(f'Joint {23}', [None]+list(np.arange(31)), 22),
+    #     #         st.select_slider(f'Joint {24}', [None]+list(np.arange(31)), 15),
+    #     #         st.select_slider(f'Joint {25}', [None]+list(np.arange(31)), 26),
+    #     #         st.select_slider(f'Joint {26}', [None]+list(np.arange(31)), 10),
+    #     #         st.select_slider(f'Joint {27}', [None]+list(np.arange(31)), 7),
+    #     #         st.select_slider(f'Joint {28}', [None]+list(np.arange(31)), 29),
+    #     #         st.select_slider(f'Joint {29}', [None]+list(np.arange(31)), 11),
+    #     #         st.select_slider(f'Joint {30}', [None]+list(np.arange(31)), 8),
 
 
                 
-        #         ]
+    #     #         ]
 
-        # joint_connections = [(i, j) for i, j in enumerate(conn)]
-        # joint_connections
+    #     # joint_connections = [(i, j) for i, j in enumerate(conn)]
+    #     # joint_connections
 
-        run = st.button('Run')
-        stop = st.button('Stop')
+    #     run = st.button('Run')
+    #     stop = st.button('Stop')
 
-    with cols[1]:
+    # with cols[1]:
 
-        canvas = st.empty()
-        if run:
+    #     canvas = st.empty()
+    #     if run:
             
-            for frame_number in range(len(df_gen['frame_number'].unique())):
+    #         for frame_number in range(len(df_gen['frame_number'].unique())):
 
-                canvas.plotly_chart(make_plotly(df_gen, frame_number, joint_connections), use_container_width=True)
+    #             canvas.plotly_chart(make_plotly(df_gen, frame_number, joint_connections), use_container_width=True)
                 
-                time.sleep(0.1)
-                if stop: 
-                    break
-                    run = False
-            run = False
-        else:
-            canvas.plotly_chart(make_plotly(df_gen, frame_number, joint_connections), use_container_width=True)
+    #             time.sleep(0.1)
+    #             if stop: 
+    #                 break
+    #                 run = False
+    #         run = False
+    #     else:
+    #         canvas.plotly_chart(make_plotly(df_gen, frame_number, joint_connections), use_container_width=True)
 
 
 

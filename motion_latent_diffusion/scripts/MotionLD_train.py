@@ -177,6 +177,10 @@ def train(VAE_version = 'VAE5'):
     cfg = load_config('motion_LD')
     logger = TensorBoardLogger('logs', name=f'MotionLD/{VAE_version}')
 
+
+    # make animations folder
+    if not os.path.exists(f'logs/MotionLD/{VAE_version}/animations'):
+        os.makedirs(logger.log_dir + '/animations')
     # load latent vectors
     data_version, version = latent_picker(f'logs/MotionVAE/{VAE_version}/train/', cfg_name='hparams')
     z, texts , autoencoder, projector, projection = load_latent(data_version, y_name='/texts.pt')

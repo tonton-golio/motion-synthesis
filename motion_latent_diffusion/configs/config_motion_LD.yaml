@@ -25,9 +25,9 @@ MODEL:
   target_embedding_dim: 500
   epsilon: 0.0008
   dp_rate: 0.1
-  noise_multiplier: 3.
+  noise_multiplier: 20.
 
-  lr: 0.00001
+  lr: 0.000001
   verbose: false
 
 DATA:

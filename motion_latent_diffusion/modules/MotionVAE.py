@@ -16,6 +16,8 @@ from utils import (
     activation_dict,
 )
 
+
+
 #### VAE 1
 class VAE1(nn.Module):
     def __init__(self, **kwargs):

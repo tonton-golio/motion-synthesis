@@ -1,0 +1,200 @@
+[
+  {
+    "task": "Implement metrics for image space diffusion",
+    "completed": false,
+    "old": false,
+    "subtasks": []
+  },
+  {
+    "task": "Compare pose VAEs",
+    "completed": false,
+    "old": false,
+    "subtasks": [
+      {
+        "task": "implement CONV based VAE",
+        "completed": true
+      },
+      {
+        "task": "refactor VAEs to have same style",
+        "completed": true
+      },
+      {
+        "task": "tune each model",
+        "completed": false
+      },
+      {
+        "task": "plot pose distribution (if we take each pose, center it, and rotate it to the same orientation (using the hip)",
+        "completed": false
+      },
+      {
+        "task": "balance pose dataset",
+        "completed": false
+      },
+      {
+        "task": "to validate pose model, try to VAE all frames of a seq, and then output a seq.",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "task": "Add pauls notes to manuscript",
+    "completed": false,
+    "old": false,
+    "subtasks": []
+  },
+  {
+    "task": "refactor code base",
+    "completed": false,
+    "old": false,
+    "subtasks": [
+      {
+        "task": "merge utils and utils_pose",
+        "completed": true
+      },
+      {
+        "task": "merge pose_trainer and main",
+        "completed": true
+      },
+      {
+        "task": "clean up MotionData.py (delete 1 module)",
+        "completed": true
+      },
+      {
+        "task": "merge motion VAE config files",
+        "completed": true
+      },
+      {
+        "task": "pretty config print",
+        "completed": true
+      },
+      {
+        "task": "Refactor motion VAEs such that they all have the same style.",
+        "completed": true
+      },
+      {
+        "task": "refactor motion VAE config file",
+        "completed": false
+      },
+      {
+        "task": "rename motion vae models to more descriptive names",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "task": "Improve app",
+    "completed": false,
+    "old": false,
+    "subtasks": [
+      {
+        "task": "implement wrapper in app.py: if not image found, produce and save image. +re run button",
+        "completed": true
+      },
+      {
+        "task": "implement wrapper every where",
+        "completed": false
+      },
+      {
+        "task": "make cool TODO page",
+        "completed": true
+      },
+      {
+        "task": "implement motion latent diffusion inference",
+        "completed": false
+      },
+      {
+        "task": "remove MNIST things from diffusion theory",
+        "completed": false
+      },
+      {
+        "task": "TIDY motion autoencoder",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "task": "cifar 100 for image entropy experiment",
+    "completed": false,
+    "old": false,
+    "subtasks": []
+  },
+  {
+    "task": "implement clip in motion latent diffusion",
+    "completed": false,
+    "old": false,
+    "subtasks": [
+      {
+        "task": "Watch video about CLIP",
+        "completed": false
+      },
+      {
+        "task": "Skim read CLIP paper",
+        "completed": false
+      },
+      {
+        "task": "Implement CLIP in motion latent diffusion",
+        "completed": false
+      },
+      {
+        "task": "Write short section about CLIP in app (diffusion theory)/thesis",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "task": "Renew thesis contract",
+    "completed": true,
+    "old": true,
+    "subtasks": [
+      {
+        "task": "Email supervisors",
+        "completed": true
+      },
+      {
+        "task": "Send contract (30 may 2024)",
+        "completed": true
+      },
+      {
+        "task": "call to verify",
+        "completed": true
+      }
+    ]
+  },
+  {
+    "task" : "Use clip to classify MNIST diffusion outputs",
+    "completed": false
+  },
+  {
+    "task": "Motion latent diffusion",
+    "completed": true,
+    "old": true,
+    "subtasks": [
+      {
+        "task": "make VAE save latent space at test end",
+        "completed": true,
+        "subtasks": [
+          {
+            "task": "VAE1",
+            "completed": true
+          },
+          {
+            "task": "VAE4",
+            "completed": true
+          },
+          {
+            "task": "VAE5",
+            "completed": true
+          }
+        ]
+      },
+      {
+        "task": "Refactor latent diffusion notebook",
+        "completed": true
+      },
+      {
+        "task": "Implement latent diffusion in main.py",
+        "completed": true
+      }
+    ]
+  }
+]

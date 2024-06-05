@@ -7,6 +7,8 @@ from tqdm import tqdm
 
 import torchvision
 import matplotlib.pyplot as plt
+
+from torch import Tensor
 # from torcheval.metrics import FrechetInceptionDistance as FID
 
 # implement tghe following:
@@ -17,7 +19,7 @@ def get_index_from_list(vals, t, x_shape):
     return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
 
 
-from torch import Tensor
+
 def _calculate_frechet_distance(
         mu1: Tensor,
         sigma1: Tensor,
@@ -372,6 +374,8 @@ class ImageDiffusion(nn.Module):
             betas = self._cosine_variance_schedule(self.timesteps, kwargs.get('epsilon', 0.008))
         elif method == 'square':
             betas = self._sqr_variance_schedule(self.timesteps, kwargs.get('beta_start', 1e-5), kwargs.get('beta_end', 0.004))
+        elif method == 'linear':
+            betas = self._linear_variance_schedule(self.timesteps, kwargs.get('beta_start', 1e-4), kwargs.get('beta_end', 0.02))
         else:
             raise ValueError('method must be either "cosine" or "square"')
         alphas = 1.0 - betas
@@ -432,6 +436,11 @@ class ImageDiffusion(nn.Module):
         f_t = steps**2
         betas = torch.clip(f_t[1:] , 0.0, 0.999)
         return betas
+    
+    def _linear_variance_schedule(self, timesteps, beta_start=1e-4, beta_end=0.02):
+            betas = torch.linspace(beta_start, beta_end, steps=timesteps + 1, dtype=torch.float32) + .02
+            betas = torch.clip(betas[1:] , 0.0, 0.999)
+            return betas
 
     def _forward_diffusion(self, x_0, t, noise):
         assert x_0.shape == noise.shape

@@ -4,7 +4,7 @@ import numpy as np
 import seaborn as sns
 import umap
 from sklearn.metrics import pairwise_distances
-
+from utils import load_or_save_fig
 # Title and intro
 """
 # Autoencoding Theory
@@ -69,7 +69,21 @@ with tabs['KL Divergence (KL)']:
     def kl_divergence_loss(mu, log_var):
         return -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var), axis=-1)
 
-    def make_contour_plot(KL, low_alpha=-np.pi, high_alpha=np.pi, low_beta=-np.pi, high_beta=np.pi):
+    @load_or_save_fig('assets_produced/5_Autoencoding_theory/kl_divergence_contour.png')
+    def make_contour_plot(low_alpha=-np.pi, high_alpha=np.pi, low_beta=-np.pi, high_beta=np.pi):
+        n, n_ = 100, 10
+
+        KL = np.zeros((n, n))
+        log_var_scale = np.linspace(-2,2, n)
+        mu_scale = np.linspace(-1, 1, n)
+        for i, v in enumerate(log_var_scale):
+            for j, m in enumerate(mu_scale):
+                mu = np.random.rand(n)# * alpha
+                log_var = np.random.rand(n)# * beta
+                
+                KL[i, j] = kl_divergence_loss(m*mu, v*log_var)
+        
+        
         n_beta, n_alpha = KL.shape
         
 
@@ -87,7 +101,12 @@ with tabs['KL Divergence (KL)']:
         plt.gca().set_aspect('equal', adjustable='box')
         return fig
 
-    def dist_plot(dist, rand):
+    @load_or_save_fig('assets_produced/5_Autoencoding_theory/kl_divergence_dist.png')
+    def dist_plot(n):
+        mu = np.random.rand(n)# * alpha
+        log_var = np.random.rand(n)# * beta
+        dist = np.random.normal(mu, np.exp(log_var / 2))
+        rand = np.random.rand(n)
         fig = plt.figure()
         shared_bins = np.linspace(-2, 2, 30)
         counts_dist, _ = np.histogram(dist, bins=shared_bins)
@@ -106,32 +125,8 @@ with tabs['KL Divergence (KL)']:
 
     The term punishes symertrically with respect to the mean. The term punishes more for larger variances.
     '''
-    n, n_ = 100, 10
-
-    KL = np.zeros((n, n))
-    log_var_scale = np.linspace(-2,2, n)
-    mu_scale = np.linspace(-1, 1, n)
-    for i, v in enumerate(log_var_scale):
-        for j, m in enumerate(mu_scale):
-            mu = np.random.rand(n)# * alpha
-            log_var = np.random.rand(n)# * beta
-            
-            KL[i, j] = kl_divergence_loss(m*mu, v*log_var)
-    
-    
-    # KL = kl_divergence_loss(mu_grid, log_var_grid)
-    fig1 = make_contour_plot(KL)
-    
-
-    
-
-    n = 1000
-    mu = np.random.rand(n)# * alpha
-    log_var = np.random.rand(n)# * beta
-    dist = np.random.normal(mu, np.exp(log_var / 2))
-    rand = np.random.rand(n)
-
-    fig2 = dist_plot(dist, rand)
+    fig1 = make_contour_plot()
+    fig2 = dist_plot(n = 1000)
     
     cols = st.columns(2)
     with cols[0]:
@@ -146,32 +141,35 @@ with tabs['KL Divergence (KL)']:
 with tabs['Inverse spatial entropy (ISE)']:
 
     ## VAE
-        def get_space_fullness(X, N=10, n_runs=3):
-            def single_run(X, N, low=0, high=1):
-                x = np.random.uniform(low, high, (N, X.shape[1]))
-                # distance to nearest
-                
-                dist = pairwise_distances(X, x, metric='manhattan').min(axis=0)
-                # plt.figure()
-                # plt.hist(dist, bins=50)
-                # mean, median = np.mean(dist), np.median(dist)
-                # plt.axvline(mean, label='mean', c='r')
-                # plt.axvline(median, label='median', ls='--', c='r')
-                # plt.legend()
-                # plt.show()
-                return np.median(dist)
+    def get_space_fullness(X, N=10, n_runs=3):
+        def single_run(X, N, low=0, high=1):
+            x = np.random.uniform(low, high, (N, X.shape[1]))
+            # distance to nearest
             
-            # scale the data: now everything is 0-1
-            X = X.copy()
-            X -= X.min(axis=0)
-            X /= X.max(axis=0)
+            dist = pairwise_distances(X, x, metric='manhattan').min(axis=0)
+            # plt.figure()
+            # plt.hist(dist, bins=50)
+            # mean, median = np.mean(dist), np.median(dist)
+            # plt.axvline(mean, label='mean', c='r')
+            # plt.axvline(median, label='median', ls='--', c='r')
+            # plt.legend()
+            # plt.show()
+            return np.median(dist)
+        
+        # scale the data: now everything is 0-1
+        X = X.copy()
+        X -= X.min(axis=0)
+        X /= X.max(axis=0)
 
-            vals = []
-            for i in range(n_runs):
-                vals.append(single_run(X, N))
+        vals = []
+        for i in range(n_runs):
+            vals.append(single_run(X, N))
 
-            return (np.mean(vals), np.std(vals)), X
-
+        return (np.mean(vals), np.std(vals)), X
+    
+    @load_or_save_fig('assets_produced/5_Autoencoding_theory/umap_space_inverse_entropy.png')
+    def make_space_full_plot(n_sample_points=1000):
+        N = n_sample_points  # number of sampling points
 
 
         # data
@@ -183,12 +181,11 @@ with tabs['Inverse spatial entropy (ISE)']:
         X = reducer.fit_transform(data)
         X1 = reducer.fit_transform(X1)
 
-        N = 1000 # number of sampling points
         space_fullness, X = get_space_fullness(X, N, n_runs=3)
         space_fullness1, X1 = get_space_fullness(X1, N, n_runs=3)
 
-        print(f'space fullness: {space_fullness[0]:.2f} ± {space_fullness[1]:.2f}')
-        print(f'space fullness1: {space_fullness1[0]:.2f} ± {space_fullness1[1]:.2f}')
+        # print(f'space fullness: {space_fullness[0]:.2f} ± {space_fullness[1]:.2f}')
+        # print(f'space fullness1: {space_fullness1[0]:.2f} ± {space_fullness1[1]:.2f}')
 
 
         #plot
@@ -200,4 +197,7 @@ with tabs['Inverse spatial entropy (ISE)']:
         ax[1].set_title(r'random , inverse entropy: $S^{-1}$' +'={:.2f} ± {:.2f}'.format(space_fullness1[0], space_fullness1[1]))
 
         # plt.savefig('assets/umap_space_inverse_entropy.png')
-        st.pyplot(fig)
+        return fig
+    
+    fig = make_space_full_plot()
+    st.pyplot(fig)  

@@ -9,6 +9,8 @@ import torchvision
 
 from utils import plot_3d_motion_animation, translate
 import matplotlib.pyplot as plt
+
+
 class TimeMLP(nn.Module):
     '''
     naive introduce timestep information to feature maps with mlp
@@ -67,7 +69,6 @@ class TextTransformer(nn.Module):
     def forward(self, x):
         return self.text_transformer(x)
     
-    
 class SimpleModel(nn.Module):
     # a simple model takes (batchsize, latent dim),
     # performs linear layers
@@ -113,7 +114,7 @@ class SimpleModel(nn.Module):
             num_layers=self.num_transformer_layers, 
             dim_feedforward=self.dim_feedforward, 
             dropout=self.dropout, 
-            activation=self.transformer_activation)
+            activation=self.transformer_activation)  # todo: use CLIP instead of transformer
         
         self.fc = MLP(
             in_dim=latent_dim + time_embedding_dim + target_embedding_dim,
@@ -228,7 +229,7 @@ class LatentDiffusionModel(nn.Module):
     def sampling(self, texts, clipped_reverse_diffusion=True, device="cuda"):
         n_samples = len(texts)
         y = texts
-        print('y', y.shape, y.dtype, y)
+        # print('y', y.shape, y.dtype, y)
         x_t = torch.randn(
             (n_samples, self.latent_dim)
         ).to(device)
@@ -388,13 +389,14 @@ class MotionLatentDiffusion(pl.LightningModule):
                 # grid = torchvision.utils.make_grid(raw_and_recon[:16], nrow=8, normalize=True)
                 # self.logger.experiment.add_image('top: noisy input, bot: reconstruction', grid, global_step=self.global_step)
 
-                path_base = self.logger.log_dir + f"/recon_{self.current_epoch}"
+                path_base = self.logger.log_dir + f"/animations/recon_{self.current_epoch}"
 
 
                 for data, name in zip([raw_reconstruction, reconstruction, sample], ['dirty', 'clean', 'sample']):
-                    
+                    rand_idx = torch.randint(0, data.shape[0], (1,))
+
                     plot_3d_motion_animation(
-                                data = data[0].cpu().detach().numpy(),
+                                data = data[rand_idx].cpu().detach().numpy(),
                                 title = translate(y[0], self.idx2word),
                                 figsize=(10, 10),
                                 fps=20,
@@ -415,4 +417,6 @@ class MotionLatentDiffusion(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.lr)
+        opt = torch.optim.AdamW(self.parameters(), lr=self.lr)
+        sch = torch.optim.lr_scheduler.StepLR(opt, step_size=10, gamma=0.5)
+        return [opt], [sch]
