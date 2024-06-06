@@ -36,6 +36,9 @@ class MNISTDataModule(pl.LightningDataModule):
         self.normalize = (kwargs.get("NORMALIZE_MEAN", 0.1307), kwargs.get("NORMALIZE_STD", 0.3081))
         self.bool = kwargs.get("BOOL", False)
         self.no_normalize = kwargs.get("NO_NORMALIZE", False)
+        self.max_samples = kwargs.get("MAX_SAMPLES", None)
+
+        print('self.max_samples', self.max_samples)
 
         if verbose: self.print_params()
 
@@ -73,16 +76,18 @@ class MNISTDataModule(pl.LightningDataModule):
             # instead do 0 to 1 
         return transforms.Compose(transform_lst)
     
-    def setup(self, stage=None, max_samples=None):
+    def setup(self, stage=None):
         """
         Get dataloaders for MNIST dataset.
-        """   
+        """  
+        max_samples = self.max_samples 
         transforms = self.compose_transfoms()
 
         data_train = MNIST(root=self.path, train=True, download=False, transform=transforms)
         self.data_test = MNIST(root=self.path, train=False, download=False, transform=transforms)
         print('len before', len(data_train), len(self.data_test))
-        if max_samples is not None:
+        print('max_samples', max_samples)
+        if not max_samples is None:
             
             data_train = torch.utils.data.Subset(data_train, torch.arange(max_samples))
             self.data_test = torch.utils.data.Subset(self.data_test, torch.arange(max_samples))

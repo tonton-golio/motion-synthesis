@@ -50,10 +50,18 @@ def get_ckpt(parent_log_dir = 'logs/imageDiffusion/train/', config_name='config_
     if return_all:
         return checkpoints
     if with_streamlit:
-        checkpoint = checkpoints[st.selectbox('Select checkpoint', list(checkpoints.keys()))]
+        choice = st.selectbox('Select checkpoint', list(checkpoints.keys()))
+        
     else:
-        checkpoint = checkpoints[input('Enter checkpoint idx/key: ')]
-    return checkpoint
+        choice = input('Enter checkpoint idx/key: ')
+        # checkpoint = checkpoints[input('Enter checkpoint idx/key: ')]
+
+    
+
+    ckpt =  checkpoints.get(choice, None)
+    
+    
+    return ckpt
 
 def dict_merge(dct, merge_dct):
     """Recursively merge two dictionaries, dct takes precedence over merge_dct."""

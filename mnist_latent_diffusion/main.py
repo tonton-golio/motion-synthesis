@@ -9,10 +9,129 @@ from pytorch_lightning import Trainer
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from utils import load_config, manual_config_log, get_ckpt
+from utils import load_config, manual_config_log, get_ckpt, print_dict
 from modules.dataModules import MNISTDataModule
 import torch
+import optuna
+from optuna.integration import PyTorchLightningPruningCallback
 
+
+def optuna_sweep(MODEL, dm, config):
+    def objective(trial: optuna.trial.Trial) -> float:
+        # these are our sweep parameters
+        # ld = trial.suggest_categorical("latent_dim", [4, 6, 8, 10])
+
+        # acts = ['tanh', 'sigmoid', 'softsign', 'leaky_relu', 'ReLU', 'elu']
+        # #act = trial.suggest_categorical("activation", acts)
+        # klDiv = trial.suggest_float("klDiv", 1e-6, 1e-4, log=True)
+
+        # what should we sweep?
+        # learning rate, batch_size, timesteps, Noise_schedule_method
+        # epsilon if noise_schedule_method is cosine
+        # beta_start, beta_end, if noise_schedule_method is linear or square
+        settings = dict(
+            # learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-4, log=True),
+            # batch_size = trial.suggest_categorical("batch_size", [256, 1024]),
+            TIMESTEPS = trial.suggest_categorical("TIMESTEPS", [100, 200]),
+            NOISE_SCHEDULE_METHOD = trial.suggest_categorical("NOISE_SCHEDULE_METHOD", ['cosine', 'linear', 'square']),
+            EPSILON = trial.suggest_float("EPSILON", 1e-3, 1e-1, log=True),
+            BETA_START = trial.suggest_float("BETA_START", 1e-6, 1e-3, log=True),
+            BETA_END = trial.suggest_float("BETA_END", 1e-4, 1e-1, log=True),
+        )
+        
+
+        # change config
+        for k, v in settings.items():
+            config['OPTUNA']['MODEL'][k] = v
+
+        print_dict(config['OPTUNA'])
+        
+        criteria = nn.MSELoss()
+        # criteria = nn.CrossEntropyLoss()
+
+        # instantiate the logger
+        logger = TensorBoardLogger("logs/imageDiffusion/", name="optuna")
+
+        # check if SAMPLE_EVERY is smaller than max_epochs
+
+        if config['OPTUNA']['TRAINER']['max_epochs'] <= config['OPTUNA']['MODEL']['SAMPLE_EVERY']:
+            print('max_epochs should be greater than SAMPLE_EVERY')
+            config['OPTUNA']['MODEL']['SAMPLE_EVERY'] = config['OPTUNA']['TRAINER']['max_epochs'] - 1
+
+        # Create the model
+        model = MODEL(criteria, **config['OPTUNA']['MODEL'])
+
+        # instantiate the trainer
+        trainer = Trainer(
+            logger=logger,
+            **config['OPTUNA']['TRAINER'],
+            enable_checkpointing=False,
+            # val_check_interval=0.5,
+            callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss"),
+                        # pl.callbacks.ModelCheckpoint(monitor='val_loss'),
+                        pl.callbacks.early_stopping.EarlyStopping(monitor='val_loss')
+                    ]
+        )
+
+        # fit the model
+        trainer.fit(model, dm)
+
+        # hyperparameters = dict(
+        #     TIMESTEPS = config['OPTUNA']['MODEL']['TIMESTEPS'],
+        #     NOISE_SCHEDULE_METHOD = config['OPTUNA']['MODEL']['NOISE_SCHEDULE_METHOD'],
+        #     EPSILON = config['OPTUNA']['MODEL']['EPSILON'],
+        #     BETA_START = config['OPTUNA']['MODEL']['BETA_START'],
+        #     BETA_END = config['OPTUNA']['MODEL']['BETA_END'],
+        # )
+
+        # test the model
+        # trainer.test(model, dm.test_dataloader())
+        stage = 'test'
+        val_loss = trainer.callback_metrics[f'{stage}_loss'].item()
+        fid = trainer.callback_metrics[f'{stage}_fid'].item()
+        diversity = trainer.callback_metrics[f'{stage}_diversity'].item()
+        multi_modality = trainer.callback_metrics[f'{stage}_multi_modality'].item()
+
+        # logging hyperparameters
+        logger.log_hyperparams(config['OPTUNA']['MODEL'], 
+                               metrics={
+                                       'hp_metric': val_loss,
+                                       'val_loss_final': val_loss,
+                                       'fid_final': fid,
+                                       'diversity_final': diversity,
+                                        'multi_modality_final': multi_modality
+                                 })
+
+
+        return val_loss
+    
+ 
+    pruner = optuna.pruners.MedianPruner() # median pruner
+        # create the study
+    # storage_location_base = 
+    study = optuna.create_study(direction="minimize",
+                                study_name='latentDiffusion',
+                                storage='sqlite:///latentDiffusion.db',
+                                load_if_exists=True)
+                                # pruner=pruner)
+                                
+    # study.optimize(objective, n_trials=100)
+    study.optimize(objective, 
+                   n_trials=config['OPTUNA']['OPTIMIZE']['n_trials'], 
+                   timeout=config['OPTUNA']['OPTIMIZE']['timeout'],
+                   show_progress_bar=True)
+                    
+
+    print("Number of finished trials: {}".format(len(study.trials)))
+
+    print("Best trial:")
+    trial = study.best_trial
+
+    print("  Value: {}".format(trial.value))
+
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
 
 if __name__ == "__main__":
     # add arguments for model and mode
@@ -47,32 +166,37 @@ if __name__ == "__main__":
             model, trainer = train(dm, criteria, config, logger, VAE)
             test(dm, trainer, model, logger, config, save_latent=True)
 
-        elif args.mode == 'optuna': optuna_VAE(VAE, dm, config)
+        elif args.mode == 'optuna': 
+            optuna_VAE(VAE, dm, config)
         
     elif args.model == 'imageDiffusion':
         from modules.imageDiffusion import ImageDiffusionModule, _calculate_FID_SCORE
-        config = load_config('Diffusion')
+        
+        
+        config = load_config('Diffusion', verbose=False)
 
         if args.mode == 'build':
+            print('Build mode not implemented for imageDiffusion')
             pass
 
         elif args.mode == 'train':
+            print_dict(config['TRAIN'])
             dm = MNISTDataModule(**config[args.mode.upper()]['DATA'], verbose=False)
             dm.setup()
 
-            # if args.mode == 'build':
+            # if args.mode == 'build':\
+            config['TRAIN']['MODEL']['BATCH_SIZE'] = config['TRAIN']['DATA']['BATCH_SIZE']
             plModule = ImageDiffusionModule(criteria=nn.MSELoss(), **config['TRAIN']['MODEL'])
 
             # load from checkpoint
-            ckpt_path = None
-            if config['TRAIN']['TRAINER'].get('continue_training', False):
-                parent_log_dir = 'logs/imageDiffusion/train/'
-                checkpoint = get_ckpt(parent_log_dir)
-                ckpt_path = checkpoint['ckpt_path']
+            # ckpt_path = None
+            # if config['TRAIN']['TRAINER'].get('continue_training', False):
+            parent_log_dir = 'logs/imageDiffusion/train/'
+            checkpoint = get_ckpt(parent_log_dir)
+            ckpt_path = checkpoint.get('ckpt_path', None) if not checkpoint is None else None
 
             logger = pl.loggers.TensorBoardLogger("logs/imageDiffusion", name="train")
-            trainer = pl.Trainer(max_epochs=400,
-                                logger=logger,)
+            trainer = pl.Trainer(logger=logger, **config['TRAIN']['TRAINER'])
             trainer.fit(plModule, dm, ckpt_path=ckpt_path)
 
         elif args.mode == 'inference':
@@ -118,6 +242,10 @@ if __name__ == "__main__":
                 if count > 3:
                     break
 
+        elif args.mode == 'optuna':
+            dm = MNISTDataModule(**config[args.mode.upper()]['DATA'], verbose=False)
+            dm.setup()
+            optuna_sweep(ImageDiffusionModule, dm, config)
 
     elif args.model == 'latentDiffusion':
         

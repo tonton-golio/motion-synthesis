@@ -26,6 +26,7 @@ def load_or_save_fig(savepath, deactivate=False, darkmode=False):
                 plt.axis('off')
                 if darkmode:
                     fig.set_facecolor('black')
+                plt.tight_layout()
                 return fig
             else:
                 fig = func(*args, **kwargs)

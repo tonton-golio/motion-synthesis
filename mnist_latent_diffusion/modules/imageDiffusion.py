@@ -9,6 +9,7 @@ import torchvision
 import matplotlib.pyplot as plt
 
 from torch import Tensor
+# from metrics import obtain_metrics
 # from torcheval.metrics import FrechetInceptionDistance as FID
 
 # implement tghe following:
@@ -17,8 +18,6 @@ def get_index_from_list(vals, t, x_shape):
     batch_size = t.shape[0]
     out = vals.gather(-1, t)
     return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
-
-
 
 def _calculate_frechet_distance(
         mu1: Tensor,
@@ -59,7 +58,6 @@ def _calculate_frechet_distance(
 
         return fid
 
-
 def _calculate_FID_SCORE(images_real, images_synthetic):
     images_real = images_real.view(images_real.size(0), -1).T
     images_synthetic = images_synthetic.view(images_synthetic.size(0), -1).T
@@ -70,6 +68,7 @@ def _calculate_FID_SCORE(images_real, images_synthetic):
     mu_synthetic = images_synthetic.mean(dim=1)
     sigma_synthetic = torch.cov(images_synthetic)
     return _calculate_frechet_distance(mu_real, sigma_real, mu_synthetic, sigma_synthetic)
+
 
 class ChannelShuffle(nn.Module):
     def __init__(self,groups):
@@ -297,6 +296,8 @@ class Unet(nn.Module):
 
         self.dropout=nn.Dropout(0.1)
         self.verbose = verbose
+
+        self.tanh = nn.Tanh()
     def forward(self,x,t, y):
         """
         Changes we wanna make:
@@ -327,6 +328,7 @@ class Unet(nn.Module):
             x=decoder_block(x, shortcut, t, y)
             x=self.dropout(x)
         x=self.final_conv(x)
+        # x = self.tanh(x)
 
         return x
 
@@ -389,16 +391,17 @@ class ImageDiffusion(nn.Module):
     
     def forward(self, x, y, noise):
         # x:NCHW
+        noise = noise
         t = torch.randint(0, self.timesteps, (x.shape[0],)).to(x.device)
         x_t = self._forward_diffusion(x, t, noise)
         return self.model(x_t, t=t, y=y)
 
     @torch.no_grad()
-    def sampling(self,n_samples,clipped_reverse_diffusion=True,device="mps", y=True, tqdm_disable=True):
+    def sampling(self,n_samples,clipped_reverse_diffusion=False,device="mps", y=True, tqdm_disable=True):
         x_t = torch.randn( (n_samples, *self.shape[1:]), device=device, dtype=torch.float32)
         hist = []
         hist.append(x_t)
-
+        # print('x_t:', torch.min(x_t), torch.max(x_t)  )
         if y:
             y = torch.randint(0, 10, (n_samples,)).to(device)
         else:
@@ -407,15 +410,21 @@ class ImageDiffusion(nn.Module):
         for i in tqdm(range(self.timesteps-1,-1,-1),desc="Sampling", disable=tqdm_disable):
             noise=torch.randn_like(x_t).to(device)
             t=torch.tensor([i for _ in range(n_samples)], device=device, dtype=torch.int64)
-
+            # print('noise:', torch.min(noise), torch.max(noise)  )
             if clipped_reverse_diffusion:
                 x_t=self._reverse_diffusion_with_clip(x_t, y, t, noise)
+                # print('With Clip:', torch.min(x_t), torch.max(x_t) )
             else:
                 x_t=self._reverse_diffusion(x_t, y, t, noise)
+                # print('Without Clip:', torch.min(x_t), torch.max(x_t) )
 
-            hist.append(x_t)
+            hist.append((x_t+1.)/2.) #[-1,1] to [0,1]
 
-        # x_t=(x_t+1.)/2. #[-1,1] to [0,1]
+        
+        # print(torch.min(x_t), torch.max(x_t))
+        print('min', torch.min(x_t), 'max', torch.max(x_t))
+        x_t=(x_t+1.)/2. #[-1,1] to [0,1]
+        print('min', torch.min(x_t), 'max', torch.max(x_t))
 
         hist=torch.stack(hist,dim=0)
 
@@ -468,7 +477,7 @@ class ImageDiffusion(nn.Module):
             x_t - ((1.0 - alpha_t) / sqrt_one_minus_alpha_cumprod_t) * pred
         )
 
-        if t.min() > 0:
+        if t.float().min() > 0:
             alpha_t_cumprod_prev = self.alphas_cumprod.gather(-1, t - 1).reshape(
                 x_t.shape[0], 1, 1, 1)
             std = torch.sqrt(
@@ -478,6 +487,7 @@ class ImageDiffusion(nn.Module):
             std = 0.0
 
         return mean + std * noise
+
 
     @torch.no_grad()
     def _reverse_diffusion_with_clip(self, x_t, y, t, noise): 
@@ -494,7 +504,7 @@ class ImageDiffusion(nn.Module):
         x_0_pred=torch.sqrt(1. / alpha_t_cumprod)*x_t-torch.sqrt(1. / alpha_t_cumprod - 1.)*pred
         x_0_pred.clamp_(-1., 1.)
 
-        if t.min()>0:
+        if t.float().min()>0:
             alpha_t_cumprod_prev=self.alphas_cumprod.gather(-1,t-1).reshape(x_t.shape[0],1,1,1)
             mean= (beta_t * torch.sqrt(alpha_t_cumprod_prev) / (1. - alpha_t_cumprod))*x_0_pred +\
                  ((1. - alpha_t_cumprod_prev) * torch.sqrt(alpha_t) / (1. - alpha_t_cumprod))*x_t
@@ -562,8 +572,9 @@ class ImageDiffusionModule(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         loss = self._common_step(batch, stage="val")
-        self.log('val_loss', loss, prog_bar=True, on_step=True, on_epoch=False,)
-
+        # print('val_loss', loss)
+        # self.log('val_loss', loss, prog_bar=True, on_step=True, on_epoch=False,)
+        self.log('val_loss', loss, prog_bar=True)
         # check_noise_level
         if batch_idx == 0 and self.current_epoch == 0:
             self.check_noise_level(batch, N=12)
@@ -578,81 +589,155 @@ class ImageDiffusionModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         
-        if self.current_epoch % self.sample_every == 0:
-
-            # Simplify y value assignment
-            y = self.current_epoch >= 0
+        if ((self.current_epoch % self.sample_every) == 0) and self.current_epoch > 0:
             
-            # Sample from model
-            sample, hist, y_flags = self.model.sampling(256, y=y, clipped_reverse_diffusion=self.clipped_reverse_diffusion)
+            print('\n\nRUNNING OUTTRO\n\n')
+            print('self.current_epoch', self.current_epoch) 
+            print('self.sample_every', self.sample_every)
+            self.outro(stage='val')
+
+    def on_test_epoch_end(self):
+        self.outro(stage='test')
             
-            # throw away some samples in hist so we only have 8
-            hist = hist[:, :16]
-            y_flags = y_flags[:16]
+    def outro(self, stage='val'):
+        # Simplify y value assignment
+        y = self.current_epoch >= 0
+        
+        # Sample from model
+        sample, hist, y_flags = self.model.sampling(256, y=y, clipped_reverse_diffusion=self.clipped_reverse_diffusion)
+        
+        # throw away some samples in hist so we only have 8
+        
+        hist = hist[:, :16]
+        y_flags_short = y_flags[:16]
+
+
+        # Ensure hist is not empty and prepare it for plotting
+        time_steps = torch.arange(self.model.timesteps + 1)
+        nt = 8
+        time_steps = time_steps[::len(time_steps) // nt]
+        hist = hist[::len(hist) // nt].squeeze().cpu()
+        # Create a figure with subplots
+        rows, cols = hist.shape[:2]
+        fig, ax = plt.subplots(rows, cols, figsize=(10, 10 * rows / cols))
+        # set title
+        fig.suptitle(f'Samples from model at epoch {self.current_epoch}', fontsize=16)
+        
+        for i in range(rows):
+            for j in range(cols):
+                ax[i, j].imshow(hist[i, j], cmap='gray')
+                ax[i, j].set_xticks([])
+                ax[i, j].set_yticks([])
+        
+        # Set top row titles to y_flags_short
+        if y_flags_short is not None and len(y_flags_short) == cols:
+            for i, flag in enumerate(y_flags_short):
+                ax[0, i].set_title(f'y={flag.item()}')
+
+        # show time step on the left
+        for i, step in enumerate(time_steps):
+            ax[i, 0].set_ylabel(f't={step.item()}')
+
+                
+        self.logger.experiment.add_figure(f'hist', fig,  global_step=self.global_step)
+        plt.close()
+
+        # calculate FID score
+        try:
+            with torch.no_grad():
+                # calculate FID
+                # self.fid.update(torch.clip(sample.repeat(1, 3, 1, 1), 0,1),
+                #                 is_real=False)
+
+                # fid_score = self.fid.compute()
+                self.synthetic_samples.append(sample.repeat(1, 3, 1, 1))
+
+                # cut to same length
+                if len(self.real_samples) > len(self.synthetic_samples):
+                    self.real_samples = self.real_samples[:len(self.synthetic_samples)]
+                elif len(self.synthetic_samples) > len(self.real_samples):
+                    self.synthetic_samples = self.synthetic_samples[:len(self.real_samples)]
+
+                # calculate FID score
+                fid_score = _calculate_FID_SCORE(torch.cat(self.real_samples, dim=0).detach().cpu(), torch.cat(self.synthetic_samples, dim=0).detach().cpu())
+
+                # empty the samples
+                self.real_samples = []
+                self.synthetic_samples = []
+
+                self.log(f'{stage}_fid', fid_score, prog_bar=True, on_step=False, on_epoch=True,)
+
+        except Exception as e:
+            print(e)
+            print('FID score calculation failed')
+
+
+        # calculate Diversity score
+        def matrix_norm(A, B):
+            # return np.mean([np.linalg.norm(a-b) for a, b in zip(A, B)])
+            return torch.mean(torch.norm(A - B, dim=(1, 2))).item()
+
+        def get_div(data, labels=None):
+        
+            if labels == None:
+                ims1, ims2 = data[:len(data)//2], data[len(data)//2:]
+                return matrix_norm(ims1, ims2)
             
+            else:
+                classes = set(labels)
+                # print('classes', classes)
+                # print('data shape', data.shape)
+                # print('labels shape', labels.shape)
+                # print('data', data)
+                # print('labels', labels)
+                res = {}
+                for class_ in classes:
+                    ims = [data[i] for i in range(len(data)) if labels[i] == class_]
+                    ims1, ims2 = ims[:len(ims)//2], ims[len(ims)//2:]
+                    ims1 = torch.stack(ims1)
+                    ims2 = torch.stack(ims2)
+                    # print('ims1', ims1.shape)
+                    # print('ims2', ims2.shape)
+                    ims2 = ims2[:len(ims1)]
+                    # print('ims1', ims1.shape)
+                    # print('ims2', ims2.shape)
 
+                    res[int(class_)] = matrix_norm(ims1, ims2)
+                    # print('class', class_, 'res', res[int(class_)] )
 
-            # Ensure hist is not empty and prepare it for plotting
-            time_steps = torch.arange(self.model.timesteps + 1)
-            nt = 8
-            time_steps = time_steps[::len(time_steps) // nt]
-            hist = hist[::len(hist) // nt].squeeze().cpu()
-            # Create a figure with subplots
-            rows, cols = hist.shape[:2]
-            fig, ax = plt.subplots(rows, cols, figsize=(10, 10 * rows / cols))
-            # set title
-            fig.suptitle(f'Samples from model at epoch {self.current_epoch}', fontsize=16)
+                # combine all classes
+                # print('\n\n')
+                # print('res:', res)
+                # print('\n\n')
+                res = sum([v for k, v in res.items()])/len(res)
+                return res
             
-            for i in range(rows):
-                for j in range(cols):
-                    ax[i, j].imshow(hist[i, j], cmap='gray')
-                    ax[i, j].set_xticks([])
-                    ax[i, j].set_yticks([])
-            
-            # Set top row titles to y_flags
-            if y_flags is not None and len(y_flags) == cols:
-                for i, flag in enumerate(y_flags):
-                    ax[0, i].set_title(f'y={flag.item()}')
+        try:
+            # get diversity score
+            diversity_score = get_div(sample)
+            self.log(f'{stage}_diversity', diversity_score, prog_bar=True, on_step=False, on_epoch=True,)
 
-            # show time step on the left
-            for i, step in enumerate(time_steps):
-                ax[i, 0].set_ylabel(f't={step.item()}')
+        except Exception as e:
+            print(e)
+            print('Diversity score calculation failed')
 
-                    
-            self.logger.experiment.add_figure(f'hist', fig,  global_step=self.global_step)
-            plt.close()
 
-            try:
-                with torch.no_grad():
-                    # calculate FID
-                    # self.fid.update(torch.clip(sample.repeat(1, 3, 1, 1), 0,1),
-                    #                 is_real=False)
 
-                    # fid_score = self.fid.compute()
-                    self.synthetic_samples.append(sample.repeat(1, 3, 1, 1))
+        # calculate multi_modality score
+        # try:
+        # get multi_modality score
+        multi_modality = get_div(sample, y_flags)
+        self.log(f'{stage}_multi_modality', multi_modality, prog_bar=True, on_step=False, on_epoch=True,)
+        # except Exception as e:
+        #     print(e)
+        #     print('Multi_modality score calculation failed')
 
-                    # cut to same length
-                    if len(self.real_samples) > len(self.synthetic_samples):
-                        self.real_samples = self.real_samples[:len(self.synthetic_samples)]
-                    elif len(self.synthetic_samples) > len(self.real_samples):
-                        self.synthetic_samples = self.synthetic_samples[:len(self.real_samples)]
-
-                    # calculate FID score
-                    fid_score = _calculate_FID_SCORE(torch.cat(self.real_samples, dim=0).detach().cpu(), torch.cat(self.synthetic_samples, dim=0).detach().cpu())
-
-                    # empty the samples
-                    self.real_samples = []
-                    self.synthetic_samples = []
-
-                    self.log('fid', fid_score, prog_bar=True, on_step=False, on_epoch=True,)
-
-            except Exception as e:
-                print(e)
-                print('FID score calculation failed')
         
     def test_step(self, batch, batch_idx):
         loss = self._common_step(batch, stage="test")
-        self.log('test_loss', loss, prog_bar=True, on_step=True, on_epoch=False,)
+        self.log('test_loss', loss)
+
+        return loss
 
 
     @torch.no_grad()
@@ -678,6 +763,6 @@ class ImageDiffusionModule(pl.LightningModule):
         # return torch.optim.AdamW(self.parameters(), lr=self.lr)
         # decrease lr by 0.1 every 10 epochs
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=.1, verbose=False)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=.5, verbose=True)
         return [optimizer], [scheduler]
 

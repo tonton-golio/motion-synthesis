@@ -1,26 +1,25 @@
 # Description: Configuration file for the project
 BASE:
   DATA:
-    BATCH_SIZE: 512
+    BATCH_SIZE: 16
     ROTAION: 0
     SCALE: 0
     TRANSLATE_X: 0
     TRANSLATE_Y: 0
     SHEAR: 0
-    NORMALIZE_MEAN: 0.5
-    NORMALIZE_STD: 0.5
+    NORMALIZE_MEAN: 0.0
+    NORMALIZE_STD: 1.
     BOOL: False
     NO_NORMALIZE: False
   MODEL:
     CLIPPED_REVERSE_DIFFUSION: true
-    LEARNING_RATE: 0.001
-    SAMPLE_EVERY: 5
-    TIMESTEPS: 1000
-    TIME_EMBEDDING_DIM: 24
-    NOISE_SCHEDULE_METHOD: 'linear'
+    LEARNING_RATE: 0.002
+    TIMESTEPS: 600
+    TIME_EMBEDDING_DIM: 32
+    NOISE_SCHEDULE_METHOD: 'cosine'
     EPSILON: 0.0008
     BETA_START: 0.0001
-    BETA_END: 0.01
+    BETA_END: 0.001
     BASE_DIM: 32
 
 BUILD:
@@ -35,21 +34,29 @@ BUILD:
     enable_checkpointing: false
     # detect_anomaly: true
     # CONTINUE_TRAINING: False
-    fast_dev_run: False
-
-TRAIN:
-  TRAINER:
-    max_epochs: 100
-    log_every_n_steps: 4
-    continue_training: true
     fast_dev_run: true
 
+TRAIN:
+  MODEL:
+    SAMPLE_EVERY: 1
+  # DATA:
+  #   MAX_SAMPLES: 4000
+  TRAINER:
+    max_epochs: 300
+    log_every_n_steps: 20
+    fast_dev_run: false
+
 OPTUNA:
+  MODEL:
+    SAMPLE_EVERY: 9
+  # DATA:
+    # MAX_SAMPLES: 10000
   # vary: KL loss weight, latent dropout rate
   TRAINER:
-    max_epochs: 5
-    log_every_n_steps: 100
+    max_epochs: 10
+    # log_every_n_steps: 50
     fast_dev_run: False
   OPTIMIZE:
-    n_trials: 3
-    timeout: 240
+    n_trials: 100
+    timeout: 10800 # = 60*60*3
+

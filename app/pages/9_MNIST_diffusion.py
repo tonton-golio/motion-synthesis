@@ -9,7 +9,7 @@ import os
 import torchviz
 from home import embed_pdf
 
-from subpages.mnist.noise_schedule import mnist_noise_schedule_setup
+from app.subpages.noise_schedule import mnist_noise_schedule_setup
 
 # Intro and title
 """
@@ -153,7 +153,7 @@ with tabs['Losses & Metrics']:
         plot_scalar(ea, 'train_loss')
 
     with cols[2]:
-        plot_scalar(ea, 'fid')
+        plot_scalar(ea, 'val_fid')
 
         im = ea.Images('hist')
         # show image
@@ -197,35 +197,40 @@ with tabs['Inference']:
         return x_t_All, hist_all, y_all
     checkpoint
 
-    if 'x_t_All' not in st.session_state or st.session_state.checkpoint_num != checkpoint['version_num']:
-        st.session_state.checkpoint_num = checkpoint['version_num']
-        st.session_state.x_t_All, st.session_state.hist_all, st.session_state.y_all = load_model_and_get_samples(checkpoint)
+    
+    if st.button('Load model and get samples'):    
+        if 'x_t_All' not in st.session_state or st.session_state.checkpoint_num != checkpoint['version_num']:
+            st.session_state.checkpoint_num = checkpoint['version_num']
+            st.session_state.x_t_All, st.session_state.hist_all, st.session_state.y_all = load_model_and_get_samples(checkpoint)
 
-    cols = st.columns([1, 1])
+        cols = st.columns([1, 1])
 
-    with cols[0]:
+        with cols[0]:
 
-        y = st.select_slider('Select label', options=list(range(10)))  # ask user for input
-        matches = torch.where(st.session_state.y_all == y)[0]  #select index, random where it fits
-        if len(matches) == 0:
-            st.write('No matches found for y')
-    with cols[1]:
-        if len(matches) > 0:
-            idx = matches[torch.randint(0, len(matches), (1,))].item()
-            # x_t, hist, y = plModule.model.sampling(20, clipped_reverse_diffusion=False, y=True, device='mps', tqdm_disable=False)
-            # x_t = x_t_All[idx]
-            # hist = hist_all[idx]
-            # y = y_all[idx]
+            y = st.select_slider('Select label', options=list(range(10)))  # ask user for input
+            matches = torch.where(st.session_state.y_all == y)[0]  #select index, random where it fits
+            if len(matches) == 0:
+                st.write('No matches found for y')
+        with cols[1]:
+            if len(matches) > 0:
+                idx = matches[torch.randint(0, len(matches), (1,))].item()
+                # x_t, hist, y = plModule.model.sampling(20, clipped_reverse_diffusion=False, y=True, device='mps', tqdm_disable=False)
+                # x_t = x_t_All[idx]
+                # hist = hist_all[idx]
+                # y = y_all[idx]
 
-            x_t = st.session_state.x_t_All[idx]
-            hist = st.session_state.hist_all[idx]
-            y = st.session_state.y_all[idx]
+                x_t = st.session_state.x_t_All[idx]
+                hist = st.session_state.hist_all[idx]
+                y = st.session_state.y_all[idx]
 
-            fig, ax = plt.subplots(1, 1, figsize=(5, 6))
-            ax.imshow(x_t.squeeze().detach().cpu().numpy(), cmap='gray')
-            ax.set_title(f'Sample from model, with label y={y.item()}')
-            ax.set_xticks([])
-            ax.set_yticks([])
-            
-            st.pyplot(fig)
-            plt.close(fig)
+                fig, ax = plt.subplots(1, 1, figsize=(5, 6))
+                ax.imshow(x_t.squeeze().detach().cpu().numpy(), cmap='gray')
+                ax.set_title(f'Sample from model, with label y={y.item()}')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                
+                st.pyplot(fig)
+                plt.close(fig)
+
+
+    

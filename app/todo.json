@@ -109,6 +109,14 @@
       {
         "task": "TIDY motion autoencoder",
         "completed": false
+      },
+      {
+        "task": "Implement latent sampling in mnist VAE",
+        "completed": false
+      },
+      {
+        "task": "Add Network tab to all model pages",
+        "completed": false
       }
     ]
   },
@@ -117,6 +125,37 @@
     "completed": false,
     "old": false,
     "subtasks": []
+  },
+  {
+    "task": "model tuning",
+    "completed": false,
+    "old": false,
+    "subtasks": [
+      {
+        "task": "tune MNIST VAE",
+        "completed": false
+      },
+      {
+        "task": "tune MNIST diffusion",
+        "completed": true
+      },
+      {
+        "task": "tune pose VAEs",
+        "completed": false
+      },
+      {
+        "task": "tune motion VAEs",
+        "completed": false
+      },
+      {
+        "task": "tune motion latent diffusion",
+        "completed": false
+      },
+      {
+        "task": "tune image latent diffusion",
+        "completed": false
+      }
+    ]
   },
   {
     "task": "implement clip in motion latent diffusion",
@@ -142,6 +181,12 @@
     ]
   },
   {
+    "task": "Use clip to classify MNIST diffusion outputs",
+    "completed": false,
+    "old": false,
+    "subtasks": []
+  },
+  {
     "task": "Renew thesis contract",
     "completed": true,
     "old": true,
@@ -159,10 +204,6 @@
         "completed": true
       }
     ]
-  },
-  {
-    "task" : "Use clip to classify MNIST diffusion outputs",
-    "completed": false
   },
   {
     "task": "Motion latent diffusion",

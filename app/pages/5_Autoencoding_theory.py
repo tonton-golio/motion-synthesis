@@ -13,6 +13,12 @@ from utils import load_or_save_fig
 
 tab_names = [
     'General',
+        # under general, discuss the central method
+        # talk about intrinsic dimensionality
+        # show a schema of an autoencoder
+        # discuss the latent space
+        # reparametrization trick
+        
     'Reconstruction Error (RE)',
     'KL Divergence (KL)',
     'Inverse spatial entropy (ISE)'
