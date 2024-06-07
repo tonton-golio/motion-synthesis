@@ -8,6 +8,7 @@ sys.path.append('../')
 from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 from matplotlib import gridspec
 
+
 from utils import load_or_save_fig
 
 st.set_page_config(
@@ -157,67 +158,10 @@ with tabs['Noise Schedule']:
     import math
     from matplotlib import gridspec
 
-    class VarianceSchedule(nn.Module):
+    from subpages.diffusion_intro import plot_variance_schedule_image_series, plot_variance_schedule_hists, prep_image
 
-        def __init__(self, timesteps, method="cosine", **kwargs):
-            super(VarianceSchedule, self).__init__()
-            self.timesteps = timesteps
+    from utils import VarianceSchedule
 
-            if method == "cosine":
-                st.write('using cosine, with epsilon:', kwargs.get("epsilon", 0.008))
-                betas = self._cosine_variance_schedule(timesteps, epsilon=kwargs.get("epsilon", 0.008))
-            elif method == "linear":
-                betas = self._linear_variance_schedule(timesteps, 
-                                                    beta_start=kwargs.get("beta_start", 1e-4),
-                                                    beta_end=kwargs.get("beta_end", 0.02))
-            elif method == "square":
-                betas = self._sqr_variance_schedule(timesteps, 
-                                                    beta_start=kwargs.get("beta_start", 1e-4),
-                                                    beta_end=kwargs.get("beta_end", 0.02))
-            else:
-                raise NotImplementedError
-    
-        
-            alphas = 1.0 - betas
-            alphas_cumprod = torch.cumprod(alphas, dim=-1)
-
-            self.register_buffer("betas", betas)
-            self.register_buffer("alphas", alphas)
-            self.register_buffer("alphas_cumprod", alphas_cumprod)
-            self.register_buffer("sqrt_alphas_cumprod", torch.sqrt(alphas_cumprod))
-            self.register_buffer("sqrt_one_minus_alphas_cumprod", torch.sqrt(1.0 - alphas_cumprod))
-
-        def _cosine_variance_schedule(self, timesteps, epsilon=0.008):
-            steps = torch.linspace(0, timesteps, steps=timesteps + 1, dtype=torch.float32)
-            f_t = (
-                torch.cos(((steps / timesteps + epsilon) / (1.0 + epsilon)) * math.pi * 0.5)
-                ** 2
-            )
-            betas = torch.clip(1 - f_t[1:] / f_t[:timesteps], 0.0, 0.999)
-            betas = betas / torch.max(betas)
-            
-            return betas
-        
-        def _linear_variance_schedule(self, timesteps, beta_start=1e-4, beta_end=0.02):
-            betas = torch.linspace(beta_start, beta_end, steps=timesteps + 1, dtype=torch.float32) + .02
-            betas = torch.clip(betas[1:] , 0.0, 0.999)
-            return betas
-        
-        def _sqr_variance_schedule(self, timesteps, beta_start=1e-4, beta_end=0.02):
-            steps = torch.linspace(beta_start**0.5, beta_end**0.5, steps=timesteps + 1, dtype=torch.float32)
-            f_t = steps**2
-            betas = torch.clip(f_t[1:] , 0.0, 0.999)
-            return betas
-
-        
-        def forward(self, x, noise, t, clip=True):
-
-            x_t = self.sqrt_alphas_cumprod[t] * x + self.sqrt_one_minus_alphas_cumprod[t] * noise
-            
-            if clip:
-                x_t = torch.clip(x_t, 0.0, 1.0)
-            return x_t
-        
     def make_grid(ds, nrow=3, ncols=8):
         ims = np.array([ds[i][0].squeeze() for i in range(nrow * ncols)])
         fig, axes = plt.subplots(nrow, ncols, figsize=(2*ncols, 2*nrow))
@@ -299,6 +243,19 @@ with tabs['Noise Schedule']:
                 ax[j,i].imshow(im_noisy, cmap='gray_r')
                 ax[j,i].axis('off')
         st.pyplot(fig)
+
+
+    img_path = 'assets/example_images/cat.png'
+
+    # fig_imgs, fig_hist = plot_variance_schedule(img_path, vs)
+    img = prep_image(img_path)
+    vs = VarianceSchedule(6, epsilon=0.08, method='cosine')
+    fig_imgs = plot_variance_schedule_image_series(img, vs, kl=True, noise_type='normal')
+    st.pyplot(fig_imgs)
+    
+    """
+    Above the images along the noise schedule, I've noted the KL divergence between the noised image and the noise distribution. This is a measure of how much the noised image differs from the original image.
+    """
 
     
     if False:
@@ -407,24 +364,7 @@ with tabs['Noise Schedule']:
     if False:
         plot_noising_schedule(ims[:1], VS)
 
-    """
-    We see our noise schedule, but how do we determine whether it adds noise too fast, to slow, or just right?
-
-    We want the last image to be pure noise!
-
-    To identify whether an image is pure noise, we use the 2d formulation of the Shannon Entropy as per (https://arxiv.org/pdf/1609.01117.pdf). The way to do that is:
-    1. Compute the spatial derivative of the image (along both x and y axis)
-    2. Combine each spatial derivative to obtain the 2d derivative
-    3. Compute the Shannon entropy of the 2d derivative, in the normal fashion
-        $$
-        H = -\sum p(x) \log_2 p(x)
-        $$
-
-    where $p(x)$ is the probability of pixel value $x$ in the 2d derivative. The more complete formulation from the paper is:
-    $$
-    H(\\nabla f)  = -\sum_{j=1}^J\sum_{i=1}^I p_{i,j} \log_2(p_{i,j})
-    $$
-    """
+    
 
     if False:
         shannon_entropy_2d(ims[0], plot=True)
@@ -439,22 +379,13 @@ with tabs['Noise Schedule']:
     if False:
         plot_noising_schedule2(ims[:5], VS)
 
-    """Now to figure out what value of Shannon entropy corresponds to pure noisem, we calculate the metric for pure noise images:"""
+    
+
 
     if False:
         pure_noise = torch.randn_like(ims[0])
         shannon_entropy_2d(pure_noise, plot=True, title1='pure noise')
 
-    """
-    We find that for noiseless images, that is, images corresponding to T = 0, the measured Shannon entropy (2d) is around 6.5 to 7.5. When we take an image of pure noise, and compute the Shannon entropy, we see values around 8.8. This means that we can use the Shannon entropy as a metric to determine if an image is pure noise or not.
-    """
-
-
-    """
-    ---
-    # lets do some statistics
-    For a range of $t\in T$, we want to compute the Shannon entropy of the images. We can then make a errror bar plot of the results.
-    """
     if False:
         num_images = 1000
         nt = 20
@@ -519,16 +450,16 @@ with tabs['Noise Schedule']:
 
 with tabs['Vector/image entropy']:
 
-    from entropy_demo import vector_entropy_demo, image_entropy_demo
+    # from entropy_demo import vector_entropy_demo, image_entropy_demo
 
-    fig = vector_entropy_demo(10)
+    # fig = vector_entropy_demo(10)
     r"""
     ### Vector Entropy
     For a vector of unit length living in n-dimensional space, we can calculate the entropy of the distribution of values in the vector. Basically, we measure how closely it aligns with a basis vector in its space of definition.
 
     So, a vector with with its magnitude spread across its components has maximum entropy, while a vector with all its magnitude concentrated in a single component has minimum entropy.
     """
-    st.pyplot(fig)
+    # st.pyplot(fig)
 
 # Metrics
 with tabs['Metrics']:

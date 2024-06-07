@@ -13,6 +13,7 @@ from torch import Tensor
 # from torcheval.metrics import FrechetInceptionDistance as FID
 
 # implement tghe following:
+from scipy.linalg import sqrtm
 
 def get_index_from_list(vals, t, x_shape):
     batch_size = t.shape[0]
@@ -50,11 +51,16 @@ def _calculate_frechet_distance(
         eigenvals = torch.linalg.eigvals(sigma_mm)
 
         # Take the square root of each eigenvalue and take its sum
-        sqrt_eigenvals_sum = eigenvals.sqrt().real.sum(dim=-1)
+        # sqrt_eigenvals_sum = eigenvals.sqrt().real.sum(dim=-1)
+
+        # covmean
+        covmean = sqrtm(sigma1.matmul(sigma2))
+
+        covmean = covmean.real
 
         # Calculate the FID using the squared distance between the means,
         # the sum of the traces of the covariance matrices, and the sum of the square roots of the eigenvalues
-        fid = mean_diff_squared + trace_sum - 2 * sqrt_eigenvals_sum
+        fid = mean_diff_squared + trace_sum - 2 * covmean.trace()
 
         return fid
 
@@ -553,6 +559,7 @@ class ImageDiffusionModule(pl.LightningModule):
     def forward(self, data,):
         
         x, y = data
+        # print('x.mean and std', x.mean(), x.std())
         if self.current_epoch < 0:
             y = None
         noise = torch.randn_like(x)
@@ -608,35 +615,37 @@ class ImageDiffusionModule(pl.LightningModule):
         
         # throw away some samples in hist so we only have 8
         
-        hist = hist[:, :16]
-        y_flags_short = y_flags[:16]
+        n_images = 12
+        hist = hist[:, :n_images]
+        y_flags_short = y_flags[:n_images]
 
 
         # Ensure hist is not empty and prepare it for plotting
         time_steps = torch.arange(self.model.timesteps + 1)
-        nt = 8
+        nt = 24
         time_steps = time_steps[::len(time_steps) // nt]
         hist = hist[::len(hist) // nt].squeeze().cpu()
         # Create a figure with subplots
-        rows, cols = hist.shape[:2]
+        cols, rows = hist.shape[:2]
         fig, ax = plt.subplots(rows, cols, figsize=(10, 10 * rows / cols))
         # set title
         fig.suptitle(f'Samples from model at epoch {self.current_epoch}', fontsize=16)
         
         for i in range(rows):
             for j in range(cols):
-                ax[i, j].imshow(hist[i, j], cmap='gray')
+                ax[i, j].imshow(hist[j, i], cmap='gray')
                 ax[i, j].set_xticks([])
                 ax[i, j].set_yticks([])
         
         # Set top row titles to y_flags_short
-        if y_flags_short is not None and len(y_flags_short) == cols:
+        if y_flags_short is not None and len(y_flags_short) == rows:
             for i, flag in enumerate(y_flags_short):
-                ax[0, i].set_title(f'y={flag.item()}')
+                if i %2 == 0:
+                    ax[i, 0].set_ylabel(f'y={flag.item()}')
 
         # show time step on the left
         for i, step in enumerate(time_steps):
-            ax[i, 0].set_ylabel(f't={step.item()}')
+            ax[0, i].set_title(f't={step.item()}')
 
                 
         self.logger.experiment.add_figure(f'hist', fig,  global_step=self.global_step)

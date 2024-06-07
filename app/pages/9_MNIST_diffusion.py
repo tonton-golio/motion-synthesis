@@ -190,11 +190,12 @@ with tabs['Inference']:
             hparams = yaml.safe_load(file)
 
         clipped_reverse_diffusion = hparams.get('CLIPPED_REVERSE_DIFFUSION', False)
-
-        count = 0
         x_t_All, hist_all, y_all = plModule.model.sampling(20, clipped_reverse_diffusion=clipped_reverse_diffusion, y=True, device='mps', tqdm_disable=False)
 
         return x_t_All, hist_all, y_all
+    
+
+    
     checkpoint
 
     
