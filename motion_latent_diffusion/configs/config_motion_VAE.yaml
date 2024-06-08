@@ -1,6 +1,6 @@
 TRAIN:
   DATA:
-    tiny: 100
+    tiny: -1
   
   MODEL_1:
     nhead: 6
@@ -47,7 +47,7 @@ TRAIN:
       ROOT_L2: 0.0
       POSE0_L2: 10.0
       MOTION_L2: 1.0
-      MOTIONRELATIVE_L2: .1
+      MOTIONRELATIVE_L2: 10.
 
   TRAINER:
     max_epochs: 1000
@@ -78,7 +78,7 @@ BASE:
     latent_dim: 1024
 
     # logging
-    save_animations_freq: 5
+    save_animations_freq: 1
 
 
   DATA:

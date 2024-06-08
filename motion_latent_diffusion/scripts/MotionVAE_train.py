@@ -84,7 +84,7 @@ def test(dm , trainer, model, logger, config, save_latent=False):
         latent_test = latent_test.view(-1, latent_dim)
         latent_val = latent_val.view(-1, latent_dim)
 
-        projection, reducer = plotUMAP(latent_test, latent_dim, KL_weight, logger.log_dir, show=False, max_points=5000)
+        projection, reducer = plotUMAP(latent_test, latent_dim, KL_weight, logger.log_dir, labels=action_group_test, show=False, max_points=5000)
         
         save_for_diffusion(save_path=logger.log_dir+'/saved_latent', 
                            model = model, 

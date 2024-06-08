@@ -486,7 +486,7 @@ for c in clusters:
 
 df['action_group'] = df['action_mapped_2'].apply(lambda x: group_mapper.get(x, 'Other'))
 
-fig, ax = plt.subplots(1, 1, figsize=(8, 4))
+fig, ax = plt.subplots(1, 1, figsize=(35, 5))
 df['action_group'].value_counts().plot(kind='bar', ax=ax)
 plt.xticks(rotation=45)
 plt.title("Action groups")
@@ -496,5 +496,29 @@ plt.grid()
 plt.tight_layout()
 st.pyplot(fig)
 
+"""
+Nice, then we will just label encode both the actions and the action groups and we are good to go!
 
-df.to_csv("../motion_latent_diffusion/text_backup/texts_grouped.csv", index=False)
+
+"""
+action_group_mapper = dict(zip(range(len(df.action_group.unique())), df.action_group.unique()))
+action_group_mapper_inv = {v: k for k, v in action_group_mapper.items()}
+
+# do the same for action_mapped_2
+
+action_mapped_2_mapper = dict(zip(range(len(df.action_mapped_2.unique())), df.action_mapped_2.unique()))
+action_mapped_2_mapper_inv = {v: k for k, v in action_mapped_2_mapper.items()}
+# action_mapped_2_mapper_inv
+
+df['action_group_num'] = df['action_group'].apply(lambda x: action_group_mapper_inv[x])
+df['action_mapped_2_num'] = df['action_mapped_2'].apply(lambda x: action_mapped_2_mapper_inv[x])
+
+df
+
+if st.radio("Save the data?", ['No', 'Yes']) == 'Yes':
+    # save df
+    df.to_csv("../motion_latent_diffusion/text_backup/texts_grouped.csv", index=False)
+
+    # save the mappers
+    np.save("../motion_latent_diffusion/text_backup/action_group_mapper.npy", action_group_mapper)
+    np.save("../motion_latent_diffusion/text_backup/action_mapped_2_mapper.npy", action_mapped_2_mapper)

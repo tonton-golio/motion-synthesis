@@ -428,7 +428,7 @@ def plot_3d_motion_frames_multiple(
 def print_scientific(x):
     return "{:.2e}".format(x)
 
-def plotUMAP(latent, latent_dim, KL_weight,  save_path, show=False, max_points=5000):
+def plotUMAP(latent, latent_dim, KL_weight,  save_path, labels=None, show=False, max_points=5000):
     import umap
     print('\n\nPLotting UMAP...')
     if latent.shape[0] > max_points:
@@ -442,10 +442,15 @@ def plotUMAP(latent, latent_dim, KL_weight,  save_path, show=False, max_points=5
     projection = reducer.fit_transform(latent.cpu().detach().numpy())
     
     fig = plt.figure()
-    plt.scatter(projection[:, 0], projection[:, 1], 
-                #c=labels.cpu().numpy(), cmap='tab10', 
-                alpha=0.5, s=4)
-    plt.colorbar()
+    if labels is not None:  
+        plt.scatter(projection[:, 0], projection[:, 1], 
+                    c=labels.cpu().numpy(), 
+                    alpha=0.5, s=4)
+    else:
+        plt.scatter(projection[:, 0], projection[:, 1], 
+                    #c=labels.cpu().numpy(), cmap='tab10', 
+                    alpha=0.5, s=4)
+    
     plt.title(f'UMAP projection of latent space (LD={latent_dim}, KL={print_scientific(KL_weight)})')
     
     if save_path is not None:
@@ -458,19 +463,21 @@ def plotUMAP(latent, latent_dim, KL_weight,  save_path, show=False, max_points=5
 
 def prep_save(model, data_loader, log_dir=None):
     latent, texts = list(), list()
-    action_group, action = list(), list()
+    action_groups, actions = list(), list()
     for batch in tqdm(data_loader):
         x_, text, action_group, action = batch  
         z = model.encode(x_).squeeze()
         latent.append(z.detach())
         texts.append(text.detach())
-        action_group.append(action_group)
-        action.append(action)
+        action_groups.append(action_group)
+        actions.append(action)
 
     latent = torch.cat(latent, dim=0)
     texts = torch.cat(texts, dim=0)
+    action_groups = torch.cat(action_groups, dim=0)
+    actions = torch.cat(actions, dim=0)
 
-    return latent, texts, action_group, action
+    return latent, texts, action_groups, actions
     
 def save_for_diffusion(save_path, model=None, **kwargs):
     """

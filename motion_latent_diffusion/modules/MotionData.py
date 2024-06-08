@@ -57,9 +57,11 @@ class MotionDataset(Dataset):
         df = pd.read_csv(path_grouped)
         self.df = df
 
-        self.action_group = [df[df['fname'] == f+'.txt']['action_group'].values[0] for f in self.filenames_short]
-        self.action = [df[df['fname'] == f+'.txt']['action_mapped_2'].values[0] for f in self.filenames_short]
+        self.action_group = [df[df['fname'] == f+'.txt']['action_group_num'].values[0] for f in self.filenames_short]
+        self.action = [df[df['fname'] == f+'.txt']['action_mapped_2_num'].values[0] for f in self.filenames_short]
 
+        self.action_group = torch.from_numpy(np.array(self.action_group)).long()
+        self.action = torch.from_numpy(np.array(self.action)).long()
 
     def __len__(self):
         return len(self.filenames)
