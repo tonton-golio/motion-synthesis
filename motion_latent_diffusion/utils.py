@@ -456,68 +456,21 @@ def plotUMAP(latent, latent_dim, KL_weight,  save_path, show=False, max_points=5
         plt.show()
     return fig
 
-def prep_save(model, data_loaders, enable_y=False, log_dir=None):
+def prep_save(model, data_loader, log_dir=None):
     latent, texts = list(), list()
-    counter = 0
-
-    # if size is too big
-    path = log_dir+'/saved_latent/tmp'
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-    for data_loader in data_loaders:
-        for batch in tqdm(data_loader):
-            x_, text = batch
-            z = model.encode(x_).squeeze()
-            latent.append(z.detach())
-            texts.append(text.detach())
-
-            # if len(latent) > 10:
-            #     print('Saving latent space... as it is too large')
-            #     latent = torch.cat(latent, dim=0)  # maybe detach
-            #     texts = torch.cat(texts, dim=0)
-
-            #     kwargs_save = {
-            #         f'z_{counter}': latent,
-            #         f'texts_{counter}': texts,
-            #     }
-            #     # save_for_diffusion(save_path=log_dir+'/saved_latent', **kwargs_save)  # todo do this in a tmp folder
-                
-            #     save_for_diffusion(save_path=path, **kwargs_save)
-            #     latent, texts = list(), list()
-            #     counter += 1
+    action_group, action = list(), list()
+    for batch in tqdm(data_loader):
+        x_, text, action_group, action = batch  
+        z = model.encode(x_).squeeze()
+        latent.append(z.detach())
+        texts.append(text.detach())
+        action_group.append(action_group)
+        action.append(action)
 
     latent = torch.cat(latent, dim=0)
     texts = torch.cat(texts, dim=0)
-    # kwargs_save = {
-    #     f'z_{counter}': latent,
-    #     f'texts_{counter}': texts,
-    # }
-    # # save_for_diffusion(save_path=log_dir+'/saved_latent', **kwargs_save)
-    # save_for_diffusion(save_path=path, **kwargs_save)
-    
-    # # latent = torch.cat([
-    # #     torch.load(f'{log_dir}/saved_latent/z_{i}.pt') for i in range(counter+1)
-    # # ], dim=0)
-    # # texts = torch.cat([
-    # #     torch.load(f'{log_dir}/saved_latent/texts_{i}.pt') for i in range(counter+1)
-    # # ], dim=0)
 
-    # latent = torch.cat([torch.load(f'{path}/z_{i}.pt') for i in range(counter+1)], dim=0)
-    # texts = torch.cat([torch.load(f'{path}/texts_{i}.pt') for i in range(counter+1)], dim=0)
-
-        
-
-
-    # make covariance matrix of latent space
-    # cov = torch.cov(latent.T)
-    # cov_fig = plt.figure()
-    # plt.imshow(cov.cpu().detach().numpy())
-    # plt.colorbar()
-    # plt.title('Covariance matrix of latent space')
-    # plt.savefig(f'{log_dir}/covariance_matrix.png')
-    # plt.close(cov_fig)
-    return latent, texts
+    return latent, texts, action_group, action
     
 def save_for_diffusion(save_path, model=None, **kwargs):
     """

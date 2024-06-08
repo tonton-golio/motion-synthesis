@@ -197,7 +197,7 @@ class TargetMLP(nn.Module):
         return y_emb
         
 class EncoderBlock(nn.Module):
-    def __init__(self,in_channels,out_channels,time_embedding_dim, target_embedding_dim, verbose=False):
+    def __init__(self,in_channels,out_channels,time_embedding_dim, target_embedding_dim, verbose=False, dp_rate=0.1):
         super().__init__()
 
         self.conv_init_0=nn.Sequential(ConvBnSiLu(in_channels,in_channels,3,1,1))
@@ -216,6 +216,7 @@ class EncoderBlock(nn.Module):
         self.verbose = verbose
 
         self.act = nn.SiLU()
+        self.dropout = nn.Dropout(dp_rate)
     
     def forward(self,x,t=None, y=None):
 
@@ -228,6 +229,7 @@ class EncoderBlock(nn.Module):
         x = self.conv_init_0(x)
         if self.verbose: print('ENCODER: aft. conv_init_0:', 'x:', x.shape,'\tt:', t.shape, '\ty:', y.shape)
         x = self.conv_cs0(x)
+        x = self.dropout(x)
         if self.verbose: print('ENCODER: aft. conv_cs0:', 'x:', x.shape,'\tt:', t.shape, '\ty:', y.shape)
         # add target to x
         y = self.target_mlp(y)
@@ -236,7 +238,7 @@ class EncoderBlock(nn.Module):
         x = self.act(x)
         x = self.conv_cs1(x)
         x_shortcut = x.clone()  # we clone before downsampling
-
+        x = self.dropout(x)
         if self.verbose: print('ENCODER: aft. conv_cs1:', 'x:', x.shape, 't:', t.shape, 'y:', y.shape)
         # downsample
         x=self.conv1(x)
@@ -244,7 +246,7 @@ class EncoderBlock(nn.Module):
         return [x, x_shortcut]
         
 class DecoderBlock(nn.Module):
-    def __init__(self,in_channels,out_channels,time_embedding_dim, target_embedding_dim):
+    def __init__(self,in_channels,out_channels,time_embedding_dim, target_embedding_dim, dp_rate=0.1):
         super().__init__()
         self.upsample=nn.Upsample(scale_factor=2,mode='bilinear',align_corners=False)
         self.conv0=nn.Sequential(*[ResidualBottleneck(in_channels,in_channels) for i in range(3)],
@@ -257,17 +259,20 @@ class DecoderBlock(nn.Module):
         self.conv2=ResidualBottleneck(in_channels//2,out_channels//2)
 
         self.act = nn.SiLU()
+        self.dropout = nn.Dropout(dp_rate)
 
     def forward(self,x,x_shortcut,t=None, y=None):
         x=self.upsample(x)
         x=torch.cat([x,x_shortcut],dim=1)
         x=self.conv0(x)
+        x=self.dropout(x)
         t = self.time_mlp(t)
         y = self.target_mlp(y)
         x = x+t
         x = self.act(x)
 
         x=self.conv1(x)
+        x=self.dropout(x)
         x = x + y
         x = self.act(x)
         x=self.conv2(x)
@@ -289,18 +294,19 @@ class Unet(nn.Module):
         self.time_embedding=nn.Embedding(timesteps,time_embedding_dim)
         targets = 10
         target_embedding_dim = 10
+        self.dp_rate = 0.2
 
         self.target_embedding=nn.Embedding(targets,target_embedding_dim)
 
-        self.encoder_blocks=nn.ModuleList([EncoderBlock(c[0],c[1],time_embedding_dim, target_embedding_dim, verbose=verbose) for c in channels])
-        self.decoder_blocks=nn.ModuleList([DecoderBlock(c[1],c[0],time_embedding_dim, target_embedding_dim) for c in channels[::-1]])
+        self.encoder_blocks=nn.ModuleList([EncoderBlock(c[0],c[1],time_embedding_dim, target_embedding_dim, verbose=verbose, dp_rate=self.dp_rate) for c in channels])
+        self.decoder_blocks=nn.ModuleList([DecoderBlock(c[1],c[0],time_embedding_dim, target_embedding_dim, dp_rate=self.dp_rate) for c in channels[::-1]])
     
         self.mid_block=nn.Sequential(*[ResidualBottleneck(channels[-1][1],channels[-1][1]) for i in range(2)],
                                         ResidualBottleneck(channels[-1][1],channels[-1][1]//2))
 
         self.final_conv=nn.Conv2d(in_channels=channels[0][0]//2,out_channels=out_channels,kernel_size=1)
-
-        self.dropout=nn.Dropout(0.1)
+        
+        self.dropout=nn.Dropout(self.dp_rate)
         self.verbose = verbose
 
         self.tanh = nn.Tanh()
@@ -640,12 +646,13 @@ class ImageDiffusionModule(pl.LightningModule):
         # Set top row titles to y_flags_short
         if y_flags_short is not None and len(y_flags_short) == rows:
             for i, flag in enumerate(y_flags_short):
-                if i %2 == 0:
-                    ax[i, 0].set_ylabel(f'y={flag.item()}')
+                
+                    ax[i, 0].set_ylabel(f'y={flag.item()}', rotation=0, labelpad=20, fontsize=10)
 
         # show time step on the left
         for i, step in enumerate(time_steps):
-            ax[0, i].set_title(f't={step.item()}')
+            if i %3 == 0:
+                ax[0, i].set_title(f't={step.item()}')
 
                 
         self.logger.experiment.add_figure(f'hist', fig,  global_step=self.global_step)

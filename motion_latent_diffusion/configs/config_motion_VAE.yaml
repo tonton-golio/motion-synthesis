@@ -1,6 +1,6 @@
 TRAIN:
   DATA:
-    tiny: -1
+    tiny: 100
   
   MODEL_1:
     nhead: 6

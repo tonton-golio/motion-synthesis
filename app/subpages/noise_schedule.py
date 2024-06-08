@@ -257,12 +257,15 @@ import streamlit as st
 
 from utils import load_or_save_fig
 
+from utils import kl_score, VarianceSchedule
+from subpages.diffusion_intro import prep_image
+
 deactivate = False
 
-class VarianceSchedule(nn.Module):
+class VarianceSchedule123(nn.Module):
 
     def __init__(self, timesteps, method="cosine", **kwargs):
-        super(VarianceSchedule, self).__init__()
+        super(VarianceSchedule123, self).__init__()
         self.timesteps = timesteps
 
         if method == "cosine":
@@ -373,28 +376,31 @@ def plot_noise_levels(schedules, colors = ["red", "orange", "salmon"], linestyle
     plt.tight_layout()
     return fig
 
-@load_or_save_fig("assets_produced/3_Diffusion_theory/noise_grid.png", deactivate=deactivate)
+@load_or_save_fig("assets_produced/3_Diffusion_theory/noise_grid.png", deactivate=False)
 def plot_noising_grid(T, schedules, example_img):
 
-    n_imgs = 8
+    n_imgs = 6
 
     ts = torch.linspace(0, T-1, n_imgs, dtype=torch.int32)
     noised = {m : {
         t.item() : schedules[m](example_img, t) for t in ts} for m in schedules.keys()}
 
     # Example usage
-    fig, ax = plt.subplots(3, n_imgs, figsize=(8, 6))
-    fig.suptitle("Variance schedule for different methods")
+    fig, ax = plt.subplots(3, n_imgs, figsize=(12, 7))
+    fig.suptitle("Variance schedule for different methods", fontsize=17)
 
     for i, m in enumerate(schedules.keys()):
         for j, t in enumerate(ts):
-            im = noised[m][t.item()].squeeze().permute(1, 2, 0).detach().numpy()
+            im = noised[m][t.item()]
+            kl = kl_score(im)
+            im = im.detach().numpy()
             H = shannon_entropy_2d(im)
-            ax[i,j].imshow(im)
-            ax[i,j].set_title(f"t={t}, H={H:.2f}", fontsize=8)
+            
+            ax[i,j].imshow(im, cmap='gray')
+            ax[i,j].set_title(f"t={t}, KL={kl:.2f}", fontsize=10)
             ax[i,j].axis("off")
 
-        ax[i,0].text(-200, 800, m, fontsize=12, fontweight='bold', rotation=90)
+        ax[i,0].text(-30, 80, m, fontsize=15, fontweight='bold', rotation=90)
 
     plt.tight_layout()
     return fig
@@ -449,13 +455,13 @@ def NoiseScheduleDemo():
     
     T = 641
     methods = ["linear", "square", "cosine"]
-    schedules = {m : VarianceSchedule(T, epsilon=0.008, 
+    schedules = {m : VarianceSchedule(T, epsilon=0.00008, 
                                     beta_start=1e-6, 
-                                    beta_end=0.02, 
+                                    beta_end=0.01, 
                                     method=m) 
                                     for m in methods}
-    example_img = plt.imread("assets/example_images/cat.png")
-    example_img = torch.tensor(example_img).permute(2, 0, 1).float()
+    img_path = "assets/example_images/cat.png"
+    example_img = prep_image(img_path)
     # st.write(example_img.shape)
     # st.write(example_img)
     colors = ["red", "orange", "salmon"]

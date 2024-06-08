@@ -1047,7 +1047,7 @@ class MotionVAE(pl.LightningModule):
         return pose0, velocity_relative, root_travel, motion_less_root, velocity
 
     def _common_step(self, batch, batch_idx):
-        motion_seq, text = batch
+        motion_seq, text, action_group, action = batch
         recon, z, mu, logvar = self(motion_seq)
         
         pose0_pred, vel_rel_pred, root_trvl_pred, motion_rel_pred, vel_pred = self.decompose_recon(recon)

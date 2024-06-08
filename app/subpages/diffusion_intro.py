@@ -30,7 +30,7 @@ def plot_variance_schedule_image_series(img, vs, noise_type='uniform', kl=False)
     T = vs.timesteps
     fig_imgs, axes_imgs = plt.subplots(1, T+1, figsize=(10, 5))
    
-    noised = {i+1:    vs(img, i, noise=None, clip=False, noise_type=noise_type) for i in range(T)}
+    noised = {i+1:    vs(img, i, clip=False, noise_type=noise_type) for i in range(T)}
     noised[0] = img
 
     for i in range(T+1):
@@ -63,7 +63,7 @@ def plot_variance_schedule_image_series_normal(img, vs):
 def plot_variance_schedule_hists(img, vs, noise_type='normal'):
     T = vs.timesteps    
     # apply noise
-    noised = {i+1:    vs(img, i, noise=None, clip=False, noise_type=noise_type) for i in range(T)}
+    noised = {i+1:    vs(img, i, clip=False, noise_type=noise_type) for i in range(T)}
     noised[0] = img
 
     x = torch.linspace(-1, 1, steps=1000)
@@ -87,7 +87,7 @@ def plot_variance_schedule_hists(img, vs, noise_type='normal'):
         axes_hist[i].set_title(f'$x_{i}$')
         
         #axes_hist[i].plot(x, kde, label='KDE', color='blue', lw=1)
-        axes_hist[i].set_xlim(-1, 1)
+        axes_hist[i].set_xlim(-1.15, 1.15)
         axes_hist[i].set_yticks([.05])
         axes_hist[i].set_xticks([-1, 0, 1])
 

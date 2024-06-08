@@ -117,12 +117,12 @@ class VarianceSchedule(nn.Module):
         return betas
 
 
-    def forward(self, x, t, noise=None, clip=False, multiplier=0.25, noise_type='normal'):
+    def forward(self, x, t, clip=False, noise_type='normal'):
         A, B = self.alphas_cumprod[t], self.sqrt_one_minus_alphas_cumprod[t]
         if noise_type == 'normal':
-            noise = torch.randn_like(x) if noise is None else noise
+            noise = torch.randn_like(x)# if noise is None else noise
         elif noise_type == 'uniform':
-            noise = (torch.rand_like(x) - 0.5)*2 if noise is None else noise
+            noise = (torch.rand_like(x) - 0.5)*2# if noise is None else noise
         # x_t = self.sqrt_alphas_cumprod[t] * x + self.sqrt_one_minus_alphas_cumprod[t] * noise
         x_t = A * x + B * noise
         if clip:

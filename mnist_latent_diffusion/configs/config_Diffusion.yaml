@@ -1,7 +1,7 @@
 # Description: Configuration file for the project
 BASE:
   DATA:
-    BATCH_SIZE: 4
+    BATCH_SIZE: 32
     ROTAION: 0
     SCALE: 0
     TRANSLATE_X: 0

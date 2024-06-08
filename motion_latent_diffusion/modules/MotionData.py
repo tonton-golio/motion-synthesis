@@ -1,10 +1,10 @@
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
-import tiktoken
 import torch
-import glob
+import pandas as pd
 from utils import pad_crop
+
 
 # DATASETS
 class MotionDataset(Dataset):
@@ -51,24 +51,25 @@ class MotionDataset(Dataset):
         text_encs = [np.load(f) for f in self.filenames_text_enc]
         self.text_encs = torch.from_numpy(np.array(text_encs)).long()
 
+        # load text group and text short
+        self.filenames_short = [f.split('/')[-1].split('.')[0] for f in self.filenames]
+        path_grouped = 'text_backup/texts_grouped.csv'
+        df = pd.read_csv(path_grouped)
+        self.df = df
+
+        self.action_group = [df[df['fname'] == f+'.txt']['action_group'].values[0] for f in self.filenames_short]
+        self.action = [df[df['fname'] == f+'.txt']['action_mapped_2'].values[0] for f in self.filenames_short]
+
+
     def __len__(self):
         return len(self.filenames)
 
     def __getitem__(self, idx):
-        # file_name = self.filenames[idx]
-        # motion_seq = np.load(file_name)
-        # motion_seq = pad_data(motion_seq, self.sequence_length)
         motion_seq = self.motion_seqs[idx]
-
         text_enc = self.text_encs[idx]
-
-        return motion_seq, text_enc
-
-    def reconstruct(pose0, velocity_relative):
-        motion_less_root = np.cumsum(
-            np.concatenate([pose0, velocity_relative], dim=0), dim=0
-        )
-        return motion_less_root
+        action_group = self.action_group[idx]
+        action = self.action[idx]
+        return motion_seq, text_enc, action_group, action
 
 class MotionDataModule1(pl.LightningDataModule):
     def __init__(self, **cfg):
