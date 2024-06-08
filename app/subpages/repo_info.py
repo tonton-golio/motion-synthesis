@@ -19,19 +19,20 @@ def count_in_file(file_path):
 
 def count_lines_in_folder(folder, exclude):
     
-    total = {'lines': 0, 'words': 0, 'chars': 0, 'functions': 0}
+    total = {'lines': 0, 'words': 0, 'chars': 0, 'functions': 0, 'files': 0, 'py_files': 0}
     for root, _, files in os.walk(folder):
         
         # check each of the exclude strings in the root
         if any([e in root for e in exclude]):
             continue
-        
         for file in files:
             if file.endswith('.py'):
                 file_path = os.path.join(root, file)
                 counts = count_in_file(file_path)
                 for key in counts:
                     total[key] += counts[key]
+                total['py_files'] += 1
+            total['files'] += 1
 
     return total
 
