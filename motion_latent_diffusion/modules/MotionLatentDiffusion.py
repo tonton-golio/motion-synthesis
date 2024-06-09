@@ -95,7 +95,7 @@ class SimpleModel(nn.Module):
         self.dropout = dp_rate
 
         self.time_embedding = nn.Embedding(timesteps, time_embedding_dim)
-        self.target_embedding = nn.Embedding(target_size+1, target_embedding_dim, sparse=False)
+        # self.target_embedding = nn.Embedding(target_size+1, target_embedding_dim, sparse=False)
         self.nhead = kwargs.get("nhead", 10)
         self.num_transformer_layers = kwargs.get("num_transformer_layers", 3)
         self.dim_feedforward = kwargs.get("dim_feedforward", 512)
@@ -108,13 +108,15 @@ class SimpleModel(nn.Module):
             hidden_dim=time_embedding_dim*2,
             out_dim=time_embedding_dim)
         
-        self.target_transformer = TextTransformer(
-            target_embedding_dim=target_embedding_dim, 
-            nhead=self.nhead, 
-            num_layers=self.num_transformer_layers, 
-            dim_feedforward=self.dim_feedforward, 
-            dropout=self.dropout, 
-            activation=self.transformer_activation)  # todo: use CLIP instead of transformer
+        self.target_mlp = MLP(
+            in_dim=target_embedding_dim,
+            hidden_dim=target_embedding_dim*2,
+            out_dim=target_embedding_dim,
+            nhidden=nhidden,
+            activation=nn.SiLU(),
+            dropout=dp_rate
+        )
+            
         
         self.fc = MLP(
             in_dim=latent_dim + time_embedding_dim + target_embedding_dim,
@@ -145,16 +147,9 @@ class SimpleModel(nn.Module):
             print('t (after mlp)', t.shape)
 
         # target embedding
-        y = self.target_embedding(y)  # (batchsize, target_embedding_dim)
+        y = self.target_mlp(y)
         if self.verbose:
-            print('y (after target embedding)', y.shape)
-        y = self.target_transformer(y)
-        if self.verbose:
-            print('y (after target transformer)', y.shape)
-
-        y = y[:, -1, :]          # select the last timestep
-        if self.verbose:
-            print('y (after selecting the last timestep)', y.shape)
+            print('y (after mlp)', y.shape)
 
         x = torch.cat([x, t, y], dim=1)
         if self.verbose:
@@ -314,13 +309,12 @@ class MotionLatentDiffusion(pl.LightningModule):
     def __init__(
         self,
         decode,
-        idx2word,
+        scaler,
         verbose = False,
         **kwargs,
     ):
         super().__init__()
         self.verbose = verbose
-        self.idx2word = idx2word
         self.lr = kwargs.get("lr", 0.001)
         self.model = LatentDiffusionModel(
             latent_dim=kwargs.get("latent_dim", 8),
@@ -336,6 +330,8 @@ class MotionLatentDiffusion(pl.LightningModule):
         self.noise_multiplier = kwargs.get("noise_multiplier", .1)
         # self.save_hyperparameters()
         self.decode = decode
+        self.scaler = scaler
+        self.timesteps = kwargs.get("timesteps", 100)
 
     def forward(self, data):
         x, y = data
@@ -356,6 +352,8 @@ class MotionLatentDiffusion(pl.LightningModule):
         self.log(
             "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
         )
+        # torch.clip_grad_norm_(self.model.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -376,13 +374,12 @@ class MotionLatentDiffusion(pl.LightningModule):
                 # make image by decoding latent space
                 x, y = batch
                 # print(x.shape, y.shape)
-                pred_clean = x-pred_noise
-                x_dirty = x + noise
+                
+                x_t_train = self.model._forward_diffusion(x, torch.tensor(self.timesteps-1).to('mps').unsqueeze(0), torch.randn_like(x) * self.noise_multiplier)
 
-                raw_reconstruction = self.decode(x_dirty)
-                reconstruction = self.decode(pred_clean)
-                sample = self.decode(x_t)
-                # print('reconstruction', reconstruction.shape)
+
+                sample = self.decode(torch.tensor(self.scaler.inverse_transform(x_t.cpu().detach().numpy())).to('mps'))
+                sample_pure_noise = self.decode(torch.tensor(self.scaler.inverse_transform(x_t_train.cpu().detach().numpy())).to('mps'))
 
                 # raw_and_recon = torch.cat([raw_reconstruction[:8], reconstruction[:8], ])
 
@@ -392,12 +389,13 @@ class MotionLatentDiffusion(pl.LightningModule):
                 path_base = self.logger.log_dir + f"/animations/recon_{self.current_epoch}"
 
 
-                for data, name in zip([raw_reconstruction, reconstruction, sample], ['dirty', 'clean', 'sample']):
+                for data, name in zip([sample, sample_pure_noise], ['sample', 'sample_pure_noise', ]):
                     rand_idx = torch.randint(0, data.shape[0], (1,))
-
+                    data_selected = data[rand_idx].cpu().detach().numpy().squeeze()
+                    print(name, data_selected.shape)
                     plot_3d_motion_animation(
-                                data = data[rand_idx].cpu().detach().numpy(),
-                                title = translate(y[0], self.idx2word),
+                                data = data_selected,
+                                title = 'blank',
                                 figsize=(10, 10),
                                 fps=20,
                                 radius=2,

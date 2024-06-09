@@ -39,15 +39,15 @@ TRAIN:
     seq_len: 160
 
 
-    learning_rate: 0.000001
-    clip_grad_norm: .01
+    learning_rate: 0.0000001
+    clip_grad_norm: .02
     LOSS:
-      DIVERGENCE_KL: 0.0000001
+      DIVERGENCE_KL: 0.000003
       VELOCITY_L2: 0.0
       ROOT_L2: 0.0
-      POSE0_L2: 10.0
+      POSE0_L2: 1.0
       MOTION_L2: 1.0
-      MOTIONRELATIVE_L2: 10.
+      MOTIONRELATIVE_L2: 3.
 
   TRAINER:
     max_epochs: 1000

@@ -23,3 +23,25 @@ st.image('assets/17_Motion_VAE_final/groups_highlighted.png')
 """
 This gives us confidence, that the `Motion VAE` model has learned a sufficiently good latent representation of the actions. Thus we should be ready to train a diffusion model on this latent space.
 """
+
+st.divider()
+# latent distribution and scaling
+"""
+## Latent distribution and scaling
+
+"""
+st.columns((1,2,1))[1].image('assets/17_Motion_VAE_final/latent_component_distribution.png')
+
+"""
+I it already centered around zero for all latent components across the training set.
+"""
+cols = st.columns(2)
+with cols[1]:
+
+    st.image('assets/17_Motion_VAE_final/latent_distributions_with_various_scalers.png')
+
+with cols[0]:
+
+    """
+    However, we could maybe use the MaxAbsScaler, as it seems to give the best results. This is shown in the Figure on the right. The MaxAbsScaler scales the data such that the absolute maximum value of each feature is scaled to unit size. This is useful for the case where the data is already centered around zero, as is the case here.
+    """

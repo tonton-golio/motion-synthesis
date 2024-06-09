@@ -297,13 +297,13 @@ def plot_3d_motion_animation(
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
     # cut tail, if equal
-    # print(data.shape)
+    print(data.shape)
     for i in range(data.shape[0]-1):
         # if i > 100:
             if (data[i] == data[i+1]).all():
                 data = data[:i]
                 break
-    # print(data.shape)
+    print(data.shape)
 
     if velocity:
         data = np.cumsum(data, axis=0)
@@ -464,6 +464,7 @@ def plotUMAP(latent, latent_dim, KL_weight,  save_path, labels=None, show=False,
 def prep_save(model, data_loader, log_dir=None):
     latent, texts = list(), list()
     action_groups, actions = list(), list()
+    # fnames = list()
     for batch in tqdm(data_loader):
         x_, text, action_group, action = batch  
         z = model.encode(x_).squeeze()
@@ -471,6 +472,7 @@ def prep_save(model, data_loader, log_dir=None):
         texts.append(text.detach())
         action_groups.append(action_group)
         actions.append(action)
+        # fnames.append(fname)
 
     latent = torch.cat(latent, dim=0)
     texts = torch.cat(texts, dim=0)

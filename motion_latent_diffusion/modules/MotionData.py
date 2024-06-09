@@ -21,9 +21,10 @@ class MotionDataset(Dataset):
         # self.enc = tiktoken.encoding_for_model("gpt-4")
         # self.max_text_len = 100
 
-        self.path_text_enc = "../stranger_repos/HumanML3D/HumanML3D/texts_enc/simple/"
-        self.idx2word = np.load(f"{self.path_text_enc}idx2word.npz", allow_pickle=True)[ "arr_0"]
-        self.word2idx = np.load(f"{self.path_text_enc}word2idx.npz", allow_pickle=True)["arr_0"]
+        # self.path_text_enc = "../stranger_repos/HumanML3D/HumanML3D/texts_enc/simple/"
+        self.path_text_enc = "data/CLIP/"
+        # self.idx2word = np.load(f"{self.path_text_enc}idx2word.npz", allow_pickle=True)[ "arr_0"]
+        # self.word2idx = np.load(f"{self.path_text_enc}word2idx.npz", allow_pickle=True)["arr_0"]
 
         
         filenames = np.loadtxt(file_list_path, delimiter=",", dtype=str)
@@ -49,7 +50,7 @@ class MotionDataset(Dataset):
 
         # load text encodings
         text_encs = [np.load(f) for f in self.filenames_text_enc]
-        self.text_encs = torch.from_numpy(np.array(text_encs)).long()
+        self.text_encs = torch.from_numpy(np.array(text_encs)).float()
 
         # load text group and text short
         self.filenames_short = [f.split('/')[-1].split('.')[0] for f in self.filenames]
@@ -71,7 +72,8 @@ class MotionDataset(Dataset):
         text_enc = self.text_encs[idx]
         action_group = self.action_group[idx]
         action = self.action[idx]
-        return motion_seq, text_enc, action_group, action
+        # fname = self.filenames_short[idx]
+        return motion_seq, text_enc, action_group, action#, fname
 
 class MotionDataModule1(pl.LightningDataModule):
     def __init__(self, **cfg):
@@ -91,7 +93,7 @@ class MotionDataModule1(pl.LightningDataModule):
             for i in ["_train", "_val", "_test"]
         ]
 
-        self.idx2word = self.train_ds.idx2word
+        # self.idx2word = self.train_ds.idx2word
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

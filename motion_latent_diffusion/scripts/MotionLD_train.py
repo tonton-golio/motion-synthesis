@@ -128,8 +128,14 @@ def latent_picker(path, cfg_name='config', show=True):
 
 def load_latent(data_version, y_name='/y.pt'):
     path = data_version['paths']['saved_latent']
-    z = torch.load(path + '/z.pt').to(torch.device('mps'))
-    y = torch.load(path + y_name).to(torch.device('mps'))
+    z_test = torch.load(path + '/latent_test.pt').to(torch.device('mps'))
+    z_train = torch.load(path + '/latent_train.pt').to(torch.device('mps'))
+    z_val = torch.load(path + '/latent_val.pt').to(torch.device('mps'))
+    
+    text_test = torch.load(path + '/texts_test.pt')
+    text_train = torch.load(path + '/texts_train.pt')
+    text_val = torch.load(path + '/texts_val.pt')
+    
     autoencoder = torch.load(path + '/model.pth').to(torch.device('mps'))
     projector = torch.load(path + '/projector.pt')
     projection = torch.load(path + '/projection.pt')
@@ -138,7 +144,17 @@ def load_latent(data_version, y_name='/y.pt'):
     # checkpoint = torch.load(data_version['paths']['checkpoints'][0])
     # autoencoder.load_state_dict(checkpoint['autoencoder_state_dict'])
 
-    return z, y , autoencoder, projector, projection
+    return dict(
+        z_train=z_train,
+        z_val=z_val,
+        z_test=z_test,
+        texts_train=text_train,
+        texts_val=text_val,
+        texts_test=text_test,
+        autoencoder=autoencoder,
+        projector=projector,
+        projection=projection
+    )
 
 class LatentDecoder:
     def __init__(self, autoencoder, VAE_version):
@@ -183,16 +199,24 @@ def train(VAE_version = 'VAE5'):
         os.makedirs(logger.log_dir + '/animations')
     # load latent vectors
     data_version, version = latent_picker(f'logs/MotionVAE/{VAE_version}/train/', cfg_name='hparams')
-    z, texts , autoencoder, projector, projection = load_latent(data_version, y_name='/texts.pt')
+    res_loaded = load_latent(data_version, y_name='/texts.pt')
 
-    # text mapping
-    idx2word = np.load('../stranger_repos/HumanML3D/HumanML3D/texts_enc/simple/idx2word.npz', allow_pickle=True)['arr_0'].item()
-    word2idx = np.load('../stranger_repos/HumanML3D/HumanML3D/texts_enc/simple/word2idx.npz', allow_pickle=True)['arr_0'].item()
-    test_translate(texts, 'a person is walking', word2idx, idx2word)
+    z_train = res_loaded['z_train']
+    z_val = res_loaded['z_val']
+    z_test = res_loaded['z_test']
+    texts_train = res_loaded['texts_train']
+    texts_val = res_loaded['texts_val']
+    texts_test = res_loaded['texts_test']
+    autoencoder = res_loaded['autoencoder']
+
+
 
     # data module
-    data_module = LatentMotionData(z, texts, **cfg["DATA"])
+    data_module = LatentMotionData(z_train, z_val, z_test, texts_train, texts_val, texts_test, **cfg["DATA"]) 
+                                  
     data_module.setup()
+
+    scaler = data_module.scaler
     
     # decoder
     decoder = LatentDecoder(autoencoder, VAE_version)
@@ -200,7 +224,7 @@ def train(VAE_version = 'VAE5'):
     # model
     model = MotionLatentDiffusion(
         decode=decoder,
-        idx2word=idx2word,
+        scaler=scaler,
         latent_dim=data_module.latent_dim,
         **cfg["MODEL"]
     )
