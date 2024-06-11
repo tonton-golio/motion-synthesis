@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
+st.set_page_config(layout="centered")
 df = pd.read_csv("../motion_latent_diffusion/text_backup/texts.csv")
 df.rename(columns={"Unnamed: 0": "fname"}, inplace=True)
 

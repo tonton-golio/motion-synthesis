@@ -24,6 +24,8 @@ def train(model_name='VAE1', build=False):
     if cfg['FIT']['load_checkpoint'] and not build:
         path = logger.log_dir.split("version_")[0]
         ckpt = get_ckpt(path)
+
+    
       
     datamodule = DM(**cfg['DATA'])
 
@@ -31,9 +33,9 @@ def train(model_name='VAE1', build=False):
     cfg['MODEL']['seq_len'] = cfg['DATA']['seq_len']
     model = VAE(model_name, verbose = False if not build else True, **cfg['MODEL'])
 
-    new_path = 'logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700_renamed.ckpt'
-    cpkt_loaded = torch.load(new_path, map_location='mps')
-    model.load_state_dict(cpkt_loaded)
+    # new_path = 'logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700.ckpt'
+    # cpkt_loaded = torch.load(new_path, map_location='mps')
+    # model.load_state_dict(cpkt_loaded)
 
 
     print_header(f"Training {model_name}")
@@ -74,9 +76,9 @@ def test(dm , trainer, model, logger, config, save_latent=False):
         # dataloaders = [dm.test_dataloader(), dm.train_dataloader(), dm.val_dataloader()]
         # latent, texts = prep_save(model, dataloaders, enable_y=False, log_dir=logger.log_dir)
 
-        latent_train, texts_train, action_group_train, action_train = prep_save(model, dm.train_dataloader(), log_dir=logger.log_dir)
-        latent_test, texts_test, action_group_test, action_test = prep_save(model, dm.test_dataloader(), log_dir=logger.log_dir)
-        latent_val, texts_val, action_group_val, action_val = prep_save(model, dm.val_dataloader(), log_dir=logger.log_dir)
+        latent_train, texts_train, action_group_train, action_train, file_nums_train = prep_save(model, dm.train_dataloader(), log_dir=logger.log_dir)
+        latent_test, texts_test, action_group_test, action_test, file_nums_test = prep_save(model, dm.test_dataloader(), log_dir=logger.log_dir)
+        latent_val, texts_val, action_group_val, action_val, file_nums_val = prep_save(model, dm.val_dataloader(), log_dir=logger.log_dir)
 
 
         latent_dim = torch.prod(torch.tensor(latent_train.shape[1:]))
@@ -93,13 +95,17 @@ def test(dm , trainer, model, logger, config, save_latent=False):
                            latent_train = latent_train,
                             latent_test = latent_test,
                             latent_val = latent_val,
-                            texts_train = texts_train,
-                            texts_test = texts_test,
-                            texts_val = texts_val,
+                            clip_train = texts_train,
+                            clip_test = texts_test,
+                            clip_val = texts_val,
                             action_group_train = action_group_train,
                             action_group_test = action_group_test,
                             action_group_val = action_group_val,
                             action_train = action_train,
                             action_test = action_test,
                             action_val = action_val,
+                            file_nums_train = file_nums_train,
+                            file_nums_test = file_nums_test,
+                            file_nums_val = file_nums_val
+                            
                             )

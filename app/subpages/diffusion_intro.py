@@ -6,7 +6,7 @@ from torch import nn
 from torchvision import transforms
 import numpy as np
 
-from utils import load_or_save_fig, VarianceSchedule, kl_score
+from app.utils_app import load_or_save_fig, VarianceSchedule, kl_score
 deactivate = True
 
 

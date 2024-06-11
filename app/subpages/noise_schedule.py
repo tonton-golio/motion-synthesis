@@ -255,9 +255,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from utils import load_or_save_fig
+from app.utils_app import load_or_save_fig
 
-from utils import kl_score, VarianceSchedule
+from app.utils_app import kl_score, VarianceSchedule
 from subpages.diffusion_intro import prep_image
 
 deactivate = False

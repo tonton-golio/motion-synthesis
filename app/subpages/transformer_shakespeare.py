@@ -244,7 +244,7 @@ def load_model(n_embed, n_head, n_layer, device, block_size, small=False):
     m.load_state_dict(torch.load(f'assets/1_NN_fundamentals_and_architectures/shakespear_model_{suffix}.pth'))
     return m,  decode, encode
 
-def render():
+def render(run=False):
     torch.manual_seed(1337)
     small = True
     
@@ -311,25 +311,26 @@ def render():
             
         """)
 
+    if run:
 
-    with cols[1]:
-        ss = st.session_state
-        train_ = False
+        with cols[1]:
+            ss = st.session_state
+            train_ = False
 
-        if train_:
-            st.write('**Training the model**')
-            ss.m, ss.decode, ss.encode = train(n_embed, n_head, n_layer, device, block_size, batch_size, small)
+            if train_:
+                st.write('**Training the model**')
+                ss.m, ss.decode, ss.encode = train(n_embed, n_head, n_layer, device, block_size, batch_size, small)
 
-        if 'm' not in ss:
-            st.write('**Loading the model**')
-            ss.m, ss.decode, ss.encode = load_model(n_embed, n_head, n_layer, device, block_size, small)
-            
-        m, decode, encode = ss.m, ss.decode, ss.encode
+            if 'm' not in ss:
+                st.write('**Loading the model**')
+                ss.m, ss.decode, ss.encode = load_model(n_embed, n_head, n_layer, device, block_size, small)
+                
+            m, decode, encode = ss.m, ss.decode, ss.encode
 
-        # inference
-        st.write('**Ready to generate Shakespearean text!**')
-        input_text = st.text_input('Enter text:', 
-                                   'Muffin,')
+            # inference
+            st.write('**Ready to generate Shakespearean text!**')
+            input_text = st.text_input('Enter text:', 
+                                    'Muffin,')
 
-        out = m.generate(torch.tensor(encode(input_text)).unsqueeze(0).to(device) , 1000)
-        st.write(decode(out[0].tolist()))
+            out = m.generate(torch.tensor(encode(input_text)).unsqueeze(0).to(device) , 1000)
+            st.write(decode(out[0].tolist()))

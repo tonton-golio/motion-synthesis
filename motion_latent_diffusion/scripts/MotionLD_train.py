@@ -126,15 +126,19 @@ def latent_picker(path, cfg_name='config', show=True):
 
         return data[version], version
 
-def load_latent(data_version, y_name='/y.pt'):
+def load_latent(data_version):
     path = data_version['paths']['saved_latent']
     z_test = torch.load(path + '/latent_test.pt').to(torch.device('mps'))
     z_train = torch.load(path + '/latent_train.pt').to(torch.device('mps'))
     z_val = torch.load(path + '/latent_val.pt').to(torch.device('mps'))
     
-    text_test = torch.load(path + '/texts_test.pt')
-    text_train = torch.load(path + '/texts_train.pt')
-    text_val = torch.load(path + '/texts_val.pt')
+    text_test = torch.load(path + '/clip_test.pt')
+    text_train = torch.load(path + '/clip_train.pt')
+    text_val = torch.load(path + '/clip_val.pt')
+
+    file_num_test = torch.load(path + '/file_nums_test.pt')
+    file_num_train = torch.load(path + '/file_nums_train.pt')
+    file_num_val = torch.load(path + '/file_nums_val.pt')
     
     autoencoder = torch.load(path + '/model.pth').to(torch.device('mps'))
     projector = torch.load(path + '/projector.pt')
@@ -151,6 +155,9 @@ def load_latent(data_version, y_name='/y.pt'):
         texts_train=text_train,
         texts_val=text_val,
         texts_test=text_test,
+        file_nums_train=file_num_train,
+        file_nums_val=file_num_val,
+        file_nums_test=file_num_test,
         autoencoder=autoencoder,
         projector=projector,
         projection=projection
@@ -199,7 +206,7 @@ def train(VAE_version = 'VAE5'):
         os.makedirs(logger.log_dir + '/animations')
     # load latent vectors
     data_version, version = latent_picker(f'logs/MotionVAE/{VAE_version}/train/', cfg_name='hparams')
-    res_loaded = load_latent(data_version, y_name='/texts.pt')
+    res_loaded = load_latent(data_version)
 
     z_train = res_loaded['z_train']
     z_val = res_loaded['z_val']
@@ -207,19 +214,33 @@ def train(VAE_version = 'VAE5'):
     texts_train = res_loaded['texts_train']
     texts_val = res_loaded['texts_val']
     texts_test = res_loaded['texts_test']
+
+    file_num_train = res_loaded['file_nums_train']
+    file_num_val = res_loaded['file_nums_val']
+    file_num_test = res_loaded['file_nums_test']
+
     autoencoder = res_loaded['autoencoder']
 
 
 
     # data module
-    data_module = LatentMotionData(z_train, z_val, z_test, texts_train, texts_val, texts_test, **cfg["DATA"]) 
+    data_module = LatentMotionData(z_train, z_val, z_test, 
+                                   texts_train, texts_val, texts_test, 
+                                   file_num_train, file_num_val, file_num_test,
+                                   **cfg["DATA"]) 
                                   
     data_module.setup()
 
     scaler = data_module.scaler
+
+    # save scaler
+    torch.save(scaler, logger.log_dir + '/scaler.pt')
     
     # decoder
     decoder = LatentDecoder(autoencoder, VAE_version)
+
+    # save decoder
+    torch.save(decoder, logger.log_dir + '/decoder.pt')
 
     # model
     model = MotionLatentDiffusion(
@@ -235,6 +256,8 @@ def train(VAE_version = 'VAE5'):
 
     # test
     trainer.test(model, data_module)
+    torch.save(model, logger.log_dir + '/model.pt')
+
 
 def predict(text_input, translate_inv, word2idx, model, decoder):
     # predict text input

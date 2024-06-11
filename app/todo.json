@@ -164,7 +164,7 @@
     "subtasks": [
       {
         "task": "Watch video about CLIP",
-        "completed": false
+        "completed": true
       },
       {
         "task": "Skim read CLIP paper",
@@ -172,7 +172,7 @@
       },
       {
         "task": "Implement CLIP in motion latent diffusion",
-        "completed": false
+        "completed": true
       },
       {
         "task": "Write short section about CLIP in app (diffusion theory)/thesis",

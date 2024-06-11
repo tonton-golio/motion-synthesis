@@ -12,7 +12,7 @@
 
 TRAINER:
   fast_dev_run: false
-  max_epochs: 100
+  max_epochs: 1000
   enable_checkpointing: True
   log_every_n_steps: 100
   accelerator: mps
@@ -20,18 +20,18 @@ TRAINER:
 MODEL:
   hidden_dim: 1024
   nhidden: 5
-  timesteps: 20
-  time_embedding_dim: 16
+  timesteps: 5
+  time_embedding_dim: 4
   target_embedding_dim: 512
   epsilon: 0.0008
   dp_rate: 0.1
-  noise_multiplier: 1
+  noise_multiplier: 3.
 
-  lr: 0.0005
+  lr: 0.00001
   verbose: false
 
 DATA:
-  batch_size: 4
+  batch_size: 8
 
   # shuffle: false
 

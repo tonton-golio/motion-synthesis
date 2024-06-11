@@ -44,13 +44,20 @@ def find_logs(path = f"../motion_latent_diffusion/logs/MotionLD/VAE1/", cfg_name
                 cfg_file = file
                 break
         
-        video_paths = []  # get projection image
-        for file in contents:
-            # if 'projection' in file and file.endswith('.png'):
-            #     projection = file
-            #     break
-            if file.endswith('.mp4'):
-                video_paths.append(file)
+        
+        try:
+            video_paths = os.listdir(f"{base_path}/animations/")
+            video_paths = [os.path.join('animations', video_path) for video_path in video_paths]
+            # video_paths
+        except:
+            video_paths = []
+            for file in contents:
+                # if 'projection' in file and file.endswith('.png'):
+                #     projection = file
+                #     break
+                if file.endswith('.mp4'):
+                    video_paths.append(file)
+        
         if not video_paths:
             # st.write(f"No videos found for version {version_num}"   )
             bad_versions.append(version_num)
@@ -63,6 +70,8 @@ def find_logs(path = f"../motion_latent_diffusion/logs/MotionLD/VAE1/", cfg_name
                 'config' : os.path.join(base_path, cfg_file),
                 'video_paths_dirty' : [os.path.join(base_path, video_path) for video_path in video_paths if 'dirty' in video_path],
                 'video_paths_clean' : [os.path.join(base_path, video_path) for video_path in video_paths if 'clean' in video_path],
+                'video_paths_sample' : [os.path.join(base_path, video_path) for video_path in video_paths if 'sample' in video_path],
+                'pure_noise' : [os.path.join(base_path, video_path) for video_path in video_paths if 'pure_noise' in video_path],
                 # 'video_paths_s
                 'checkpoints' : checkpoints,
                 'log' : base_path,
@@ -79,17 +88,27 @@ def find_logs(path = f"../motion_latent_diffusion/logs/MotionLD/VAE1/", cfg_name
 
 with tabs['LD_VAE1']:
     ld_data = find_logs()
-    st.write(ld_data)
+    # st.write(ld_data)
 
     idx = st.selectbox("Select version", list(ld_data.keys()))
 
     st.write(f"Selected version: {idx}")
-
+    ld_data[idx]
     cols = st.columns((1, 1, 1))
     with cols[0]:
         # st.write(f"Config file: {ld_data[idx]['config']}")
         # show a video
-        st.video(ld_data[idx]['video_paths_dirty'][0])
+        try:
+            st.video(ld_data[idx]['video_paths_dirty'][0])
+            st.video(ld_data[idx]['video_paths_clean'][0])
+        except:
+            st.video(ld_data[idx]['video_paths_sample'][0])
+            st.video(ld_data[idx]['pure_noise'][0])
+
+        
+
+        
+
         
         
         

@@ -30,7 +30,7 @@ st.divider()
 ## Latent distribution and scaling
 
 """
-st.columns((1,2,1))[1].image('assets/17_Motion_VAE_final/latent_component_distribution.png')
+st.columns((1,2,1))[1].image('assets/17_Motion_VAE_final/latent_component_distribution_106.png')
 
 """
 I it already centered around zero for all latent components across the training set.
@@ -38,7 +38,7 @@ I it already centered around zero for all latent components across the training 
 cols = st.columns(2)
 with cols[1]:
 
-    st.image('assets/17_Motion_VAE_final/latent_distributions_with_various_scalers.png')
+    st.image('assets_produced/17_Motion_VAE_final/latent_distributions_with_various_scalers_108.png')
 
 with cols[0]:
 

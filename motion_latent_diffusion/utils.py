@@ -294,6 +294,8 @@ def plot_3d_motion_animation(
     velocity=False,
     save_path_2=None,):
     #     matplotlib.use('Agg')
+    print("Plotting 3D motion animation")
+    print(data.shape)
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
     # cut tail, if equal
@@ -465,21 +467,24 @@ def prep_save(model, data_loader, log_dir=None):
     latent, texts = list(), list()
     action_groups, actions = list(), list()
     # fnames = list()
+    file_nums = list()
     for batch in tqdm(data_loader):
-        x_, text, action_group, action = batch  
+        x_, text, action_group, action, file_num = batch  
         z = model.encode(x_).squeeze()
         latent.append(z.detach())
         texts.append(text.detach())
         action_groups.append(action_group)
         actions.append(action)
         # fnames.append(fname)
+        file_nums.append(file_num)
 
     latent = torch.cat(latent, dim=0)
     texts = torch.cat(texts, dim=0)
     action_groups = torch.cat(action_groups, dim=0)
     actions = torch.cat(actions, dim=0)
+    file_nums = torch.cat(file_nums, dim=0)
 
-    return latent, texts, action_groups, actions
+    return latent, texts, action_groups, actions, file_nums
     
 def save_for_diffusion(save_path, model=None, **kwargs):
     """

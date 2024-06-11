@@ -9,7 +9,7 @@ import streamlit as st
 tab_names = [
 	'Results summary',
     'Latent Space',
-	'VAE weights',
+	#'VAE weights',
 ]
 
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}

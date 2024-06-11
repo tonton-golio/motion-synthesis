@@ -6,7 +6,7 @@ import sys
 sys.path.append('../')
 
 
-from utils import load_or_save_fig
+from app.utils_app import load_or_save_fig
 
 
 # Vector Entropy

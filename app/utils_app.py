@@ -4,6 +4,19 @@ import torch
 import torch.nn as nn
 import math
 
+
+def print_header(title='Title', small=False):
+    if not small:
+        print()
+        print('=' * 80)
+        print(title)
+    
+    else:
+        print()
+        print('-' * 80)
+        print(title)
+
+
 def load_or_save_fig(savepath, deactivate=False, darkmode=False):
     """
     Decorator to load an image if it exists, otherwise create and save it.
@@ -173,3 +186,6 @@ def plotUMAP(latent, labels, latent_dim, KL_weight,  save_path, show=False, max_
     elif show:
         plt.show()
     return fig
+
+
+

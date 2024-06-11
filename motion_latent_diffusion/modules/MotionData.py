@@ -54,15 +54,20 @@ class MotionDataset(Dataset):
 
         # load text group and text short
         self.filenames_short = [f.split('/')[-1].split('.')[0] for f in self.filenames]
+        self.file_nums = [int(f.split('/')[-1].split('.')[0].replace("M", "")) for f in self.filenames]
         path_grouped = 'text_backup/texts_grouped.csv'
         df = pd.read_csv(path_grouped)
         self.df = df
+
+        
 
         self.action_group = [df[df['fname'] == f+'.txt']['action_group_num'].values[0] for f in self.filenames_short]
         self.action = [df[df['fname'] == f+'.txt']['action_mapped_2_num'].values[0] for f in self.filenames_short]
 
         self.action_group = torch.from_numpy(np.array(self.action_group)).long()
         self.action = torch.from_numpy(np.array(self.action)).long()
+
+
 
     def __len__(self):
         return len(self.filenames)
@@ -72,8 +77,9 @@ class MotionDataset(Dataset):
         text_enc = self.text_encs[idx]
         action_group = self.action_group[idx]
         action = self.action[idx]
-        # fname = self.filenames_short[idx]
-        return motion_seq, text_enc, action_group, action#, fname
+        # tokens = self.tokens[idx]
+        filenum = self.file_nums[idx]
+        return motion_seq, text_enc, action_group, action, filenum
 
 class MotionDataModule1(pl.LightningDataModule):
     def __init__(self, **cfg):

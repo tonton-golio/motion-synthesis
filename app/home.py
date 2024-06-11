@@ -9,8 +9,8 @@ abstract = """
     """
 
 def todo():
-    from subpages.todo import todo_interface
-    todo_interface()
+    from subpages.todo import todo_interface2, todo_interface
+    todo_interface2()
 
 
 def home():
@@ -47,7 +47,8 @@ if __name__ == '__main__':
     st.set_page_config(page_title='Motion Synthesis from a Text Prompt', page_icon='🕺')
     st.markdown(title)
 
-    tab_names = ['TODO', 'Home', 'Learning Goals', 'Thesis']
+    tab_names = ['TODO', 
+                 'Home', 'Learning Goals', 'Thesis']
 
     tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 

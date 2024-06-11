@@ -237,7 +237,7 @@ class LatentDiffusionModel(nn.Module):
             else:
                 x_t = self._reverse_diffusion(x_t, y, t, noise)
 
-        x_t = (x_t + 1.0) / 2.0  # [-1,1] to [0,1]
+        # x_t = (x_t + 1.0) / 2.0  # [-1,1] to [0,1]
 
         return x_t
 
@@ -333,8 +333,7 @@ class MotionLatentDiffusion(pl.LightningModule):
         self.scaler = scaler
         self.timesteps = kwargs.get("timesteps", 100)
 
-    def forward(self, data):
-        x, y = data
+    def forward(self, x, y):
         if self.verbose:
             print('x', x.shape)
             print('y', y.shape)
@@ -346,7 +345,8 @@ class MotionLatentDiffusion(pl.LightningModule):
         return self.model._reverse_diffusion(x_t, y, t, noise)
 
     def training_step(self, batch, batch_idx):
-        pred_noise, noise = self.forward(batch)
+        x, y, num = batch
+        pred_noise, noise = self.forward(x, y)
         # print('pred_noise', pred_noise.shape)
         loss = nn.functional.mse_loss(pred_noise, noise)
         self.log(
@@ -357,7 +357,8 @@ class MotionLatentDiffusion(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        pred_noise, noise = self.forward(batch)
+        x, y, num = batch
+        pred_noise, noise = self.forward(x, y)
         loss = nn.functional.mse_loss(pred_noise, noise)
 
 
@@ -372,8 +373,16 @@ class MotionLatentDiffusion(pl.LightningModule):
 
             with torch.no_grad():
                 # make image by decoding latent space
-                x, y = batch
+                x, y, file_num = batch
                 # print(x.shape, y.shape)
+                if file_num is not None:
+                    file_num_formatted = str(file_num[:1].item())
+                    file_num_formatted = '0'* (6 - len(file_num_formatted)) + file_num_formatted
+                    path_text = '../stranger_repos/HumanML3D/HumanML3D/texts'
+                    with open(f"{path_text}/{file_num_formatted}.txt", 'r') as f:
+                        text = f.read().split('\n')[0].split('#')[0]
+
+
                 
                 x_t_train = self.model._forward_diffusion(x, torch.tensor(self.timesteps-1).to('mps').unsqueeze(0), torch.randn_like(x) * self.noise_multiplier)
 
@@ -389,13 +398,14 @@ class MotionLatentDiffusion(pl.LightningModule):
                 path_base = self.logger.log_dir + f"/animations/recon_{self.current_epoch}"
 
 
+
                 for data, name in zip([sample, sample_pure_noise], ['sample', 'sample_pure_noise', ]):
                     rand_idx = torch.randint(0, data.shape[0], (1,))
                     data_selected = data[rand_idx].cpu().detach().numpy().squeeze()
                     print(name, data_selected.shape)
                     plot_3d_motion_animation(
                                 data = data_selected,
-                                title = 'blank',
+                                title = text,
                                 figsize=(10, 10),
                                 fps=20,
                                 radius=2,
@@ -407,7 +417,8 @@ class MotionLatentDiffusion(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        pred_noise, noise = self.forward(batch)
+        x, y, num = batch
+        pred_noise, noise = self.forward(x, y)
         loss = nn.functional.mse_loss(pred_noise, noise) / self.noise_multiplier
         self.log(
             "test_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True

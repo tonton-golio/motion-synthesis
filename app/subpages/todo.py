@@ -92,6 +92,46 @@ def todo_interface():
             update_entry(data, old=True)
 
     
+def todo_interface2():
+    st.write("""
+    We have a couple different categories of tasks:
+             
+    ### App
+        - [] Make comprehensive TODO list
+        - [x] Implement motion synthesis inference mode in the app
+        - [] Clean up diffusion theory page
+        - [] add math to KL divergence page
+        - [] fix MNIST diffusion page
+        - [] Build out of MNIST VAE page
+        - [] fix folder numbers in assets and assets_produced
+             
+
+    ### Manuscript
+        - [] improved data-flow chart
+        - [] combine figure 3 + 4, and 5 + 6
+        - [] Rewrite section on **Parameterizing the noise schedule**, it should be clear that we first tried shannon, but went for KL instead.
+        - [] remove mnist images in theory section
+        - [] add subsection CLIP to theory section
+        - [] remove subsubsections in Metrics
+
+    ### MNIST Tuning
+        - [x] MNIST diffusion model
+        - [] MNIST VAE -> 3 latent spaces with different KL weights --> just 1
+        - [] MNIST LD 
+
+    ### Pose encoding
+        - [] cluster poses
+
+    ### Motion Tuning
+        - [] Tune VAE6
+        - [] tune LD for both VAE6 and VAE1
+     
+    ### Model Functionality
+        - [] implement loss scaled percentage plot
+        - [] Enable motion LD continue from checkpoint
+    
+    """)
+    
 
 if __name__ == "__main__":
     st.title("Thesis TODO List")

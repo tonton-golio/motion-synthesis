@@ -4,7 +4,7 @@ import numpy as np
 import seaborn as sns
 import umap
 from sklearn.metrics import pairwise_distances
-from utils import load_or_save_fig
+from app.utils_app import load_or_save_fig
 # Title and intro
 """
 # Autoencoding Theory

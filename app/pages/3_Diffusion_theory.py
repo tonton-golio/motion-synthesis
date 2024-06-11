@@ -9,7 +9,7 @@ from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 from matplotlib import gridspec
 
 
-from utils import load_or_save_fig
+from app.utils_app import load_or_save_fig
 
 st.set_page_config(
     page_title="Diffusion Theory",
@@ -28,7 +28,7 @@ tab_names = [
     'Vector/image entropy',
     'Metrics',
     'Time Embedding',
-    'CLIP',
+    #'CLIP',
 ]
 tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
@@ -160,7 +160,7 @@ with tabs['Noise Schedule']:
 
     from subpages.diffusion_intro import plot_variance_schedule_image_series, plot_variance_schedule_hists, prep_image
 
-    from utils import VarianceSchedule
+    from app.utils_app import VarianceSchedule
 
     def make_grid(ds, nrow=3, ncols=8):
         ims = np.array([ds[i][0].squeeze() for i in range(nrow * ncols)])

@@ -1013,17 +1013,32 @@ class MotionVAE(pl.LightningModule):
                 "recon_vs_true", im_arr, global_step=self.global_step
             )
         
-    def save_animations_func(self, recon_seq, motion_seq):
+    def save_animations_func(self, recon_seq, motion_seq, file_num=None):
         self.folder = self.logger.log_dir
         self.subfolder = f"{self.folder}/animations"
         if not os.path.exists(self.subfolder):  # check if subfolder exists
             os.makedirs(self.subfolder)
-
+            print('running save_animations_func')
+        print('recon_seq:', recon_seq.shape)
+        print('motion_seq:', motion_seq.shape)
         fname = f"{self.subfolder}/recon_epoch{self.current_epoch}.mp4"
+        recon_seq = recon_seq.squeeze()
+        motion_seq = motion_seq.squeeze()
+
+        if file_num is not None:
+            file_num_formatted = str(file_num.item())
+            file_num_formatted = '0'* (6 - len(file_num_formatted)) + file_num_formatted
+            path_text = '../stranger_repos/HumanML3D/HumanML3D/texts'
+            with open(f"{path_text}/{file_num_formatted}.txt", 'r') as f:
+                text = f.read().split('\n')[0].split('#')[0]
+
+        else:
+            text = "None"
+
         try:
             
             plot_3d_motion_animation(
-                recon_seq, "recon", figsize=(10, 10), fps=20, radius=2, save_path=fname, velocity=False,)
+                recon_seq, text, figsize=(10, 10), fps=20, radius=2, save_path=fname, velocity=False,)
             plt.close()
             shutil.copyfile(fname, f"{self.folder}/recon_latest.mp4")  # copy file to latest
         except Exception as e:
@@ -1033,7 +1048,7 @@ class MotionVAE(pl.LightningModule):
 
         if self.current_epoch == 0:
             plot_3d_motion_animation(
-                motion_seq, "true", figsize=(10, 10), fps=20, radius=2, save_path=f"{self.folder}/recon_true.mp4", velocity=False)
+                motion_seq, text, figsize=(10, 10), fps=20, radius=2, save_path=f"{self.folder}/recon_true.mp4", velocity=False)
             plt.close()
 
     def decompose_recon(self, motion_seq):
@@ -1047,7 +1062,7 @@ class MotionVAE(pl.LightningModule):
         return pose0, velocity_relative, root_travel, motion_less_root, velocity
 
     def _common_step(self, batch, batch_idx):
-        motion_seq, text, action_group, action = batch
+        motion_seq, text, action_group, action, file_num = batch
         recon, z, mu, logvar = self(motion_seq)
         
         pose0_pred, vel_rel_pred, root_trvl_pred, motion_rel_pred, vel_pred = self.decompose_recon(recon)
@@ -1056,30 +1071,31 @@ class MotionVAE(pl.LightningModule):
         loss_data = {
             "VELOCITYRELATIVE_L2": {
                 "true": vel_rel_gt,
-                "rec": vel_rel_pred,
+                "rec": vel_rel_pred
             },
             'VELOCITY_L2': {
                 'true': vel_gt,
                 'rec': vel_pred
             },
-
             "ROOT_L2": {
                 "true": root_trvl_gt,
-                "rec": root_trvl_pred,
+                "rec": root_trvl_pred
             },  
             "POSE0_L2": {
                 "true": pose0_gt,
-                "rec": pose0_pred,
+                "rec": pose0_pred
             }, 
             "MOTION_L2": {
                 "true": motion_seq,
-                "rec": recon,
+                "rec": recon
             }, 
             "MOTIONRELATIVE_L2": {
                 "true": motion_rel_gt,
-                "rec": motion_rel_pred,
+                "rec": motion_rel_pred
             }, 
-            'DIVERGENCE_KL': {'mu': mu, 'logvar': logvar}
+            'DIVERGENCE_KL': {
+                'mu': mu, 
+                'logvar': logvar}
         }
 
         total_loss, losses_scaled, losses_unscaled = self.loss_function(loss_data)
@@ -1090,6 +1106,7 @@ class MotionVAE(pl.LightningModule):
             motion_seq=motion_seq,
             recon_seq=recon,
             text=text,
+            file_num=file_num,
         )
 
     def training_step(self, batch, batch_idx):
@@ -1110,11 +1127,14 @@ class MotionVAE(pl.LightningModule):
         # self.log_dict(loss)
         self.log("total_loss_val", res["total_loss"])
         
-        self.val_outputs['motion_seq'] = res['motion_seq'][0]
-        self.val_outputs['recon_seq'] = res['recon_seq'][0]
+        rand_idx = torch.randint(0, len(res["motion_seq"]), (1,))
+        print('rand_idx:', rand_idx)    
+        self.val_outputs['motion_seq'] = res['motion_seq'][rand_idx]
+        self.val_outputs['recon_seq'] = res['recon_seq'][rand_idx]
+        self.val_outputs['file_num'] = res['file_num'][rand_idx]
 
     def on_validation_epoch_end(self):
-        motion_seq, recon_seq = self.val_outputs['motion_seq'], self.val_outputs['recon_seq']
+        motion_seq, recon_seq, file_num = self.val_outputs['motion_seq'], self.val_outputs['recon_seq'], self.val_outputs['file_num']
         motion_seq = motion_seq.cpu().detach().numpy()
         recon_seq = recon_seq.cpu().detach().numpy()
 
@@ -1126,7 +1146,7 @@ class MotionVAE(pl.LightningModule):
             os.makedirs(self.subfolder)
         
         if (self.save_animations_freq != -1) and (self.current_epoch % self.save_animations_freq == 0):
-            self.save_animations_func(recon_seq, motion_seq)
+            self.save_animations_func(recon_seq, motion_seq, file_num)
 
     def test_step(self, batch, batch_idx):
         res = self._common_step(batch, batch_idx)
