@@ -45,10 +45,10 @@ TRAIN:
       DIVERGENCE_KL: 0.0000001
       VELOCITY_L2: .0 #001 
       ROOT_L2: .0 #01
-      POSE0_L2: 0 #10.
+      POSE0_L2: 10. #10.
       MOTION_L2: 1.0
       MOTIONRELATIVE_L2: 5 #.1
-      VELOCITYRELATIVE_L2: 200.
+      VELOCITYRELATIVE_L2: 20.
 
   TRAINER:
     max_epochs: 1000

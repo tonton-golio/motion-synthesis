@@ -25,19 +25,14 @@ def render():
 
         This gives nicer descriptions, and scales better, but it is still limited by the captions we can scrape from the internet.
 
-        On openAIs website presentation of CLIP: https://openai.com/index/clip/
-        they show the above stated problems.
+        Instead what CLIP does, is embed images and text into the same space, a joint embedding. In the text space, interpolation is done very well by transformers, and since our space is unified, we can trust the model to generate unseen class-combinations. This is demonstrated in \cite{zhang2022contrastive}, where we see great performance of CLIP on hand drawn sketches of objects, which are unseen class-combinations. This tells us that CLIP is able to learn the abstraction of an object, and not just the object itself.
         """)
 
 
     st.write(r"""
-    Instead what CLIP does, is embed images and text into the same space, a joint embedding.
-    In the text space, interpolation is done very well by transformers, and since our space is unified, we can trust the model to generate unseen class-combinations.
-    Meaning it scales well!
+    
 
-    CLIP is trained on 400M image-caption pairs.
-
-    The way it is trained is that we have a VisionTransformerEncoder and a TextTransformerEncoder, we pass them and image and a text respectively, and train the model to maximize the dot product between the two embeddings, i.e., we want them to be close in the joint space. Additionally, we train the model to minimize the dot product between the image and all other texts, and the text and all other images.
+    CLIP is trained on 400M image-caption pairs, and the way it is trained is that we have a VisionTransformerEncoder and a TextTransformerEncoder, we pass them and image and a text respectively, and train the model to maximize the dot product between the two embeddings, i.e., we want them to be close in the joint space. Additionally, we train the model to minimize the dot product between the image and all other texts, and the text and all other images.
 
     A batch of $n$ images and $n$ texts, yields $2n$ vectors, $p$ and $q$, respectively, both of latent dimension, $d$. We compute the dot product between all pairs of vectors, to build the similarity matrix, $S$, I would expect square root of the dimension, $d$, in the denominator included for variance stabilization, similarly to the softmax-scaling in the transformer.
     """)
@@ -101,3 +96,10 @@ def render():
     inputs = processor(text, return_tensors="pt", padding=True)
     outputs = model(**inputs)
             """)
+    
+
+    st.divider()
+
+    st.image('assets_produced/17_CLIP/label_similarity.png', caption='Label similarity')
+    st.image('assets_produced/17_CLIP/class_similarity.png', caption='Class similarity')
+    st.image('assets_produced/17_CLIP/label_projection.png', caption='Label projection')

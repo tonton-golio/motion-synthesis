@@ -39,6 +39,7 @@ cols = st.columns(2)
 with cols[1]:
 
     st.image('assets_produced/17_Motion_VAE_final/latent_distributions_with_various_scalers_108.png')
+    st.image('assets_produced/17_Motion_VAE_final/latent_distributions_with_various_scalers_128.png')
 
 with cols[0]:
 

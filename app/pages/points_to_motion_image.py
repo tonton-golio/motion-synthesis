@@ -128,12 +128,12 @@ with cols[0]:
     st.write('**Camera settings**')
     subcols = st.columns(2)
     with subcols[0]:
-        elev = st.slider("Elevation", -180, 180, 110)
+        elev = st.slider("Elevation", -180, 180, 0)
         min_x = st.slider("Min X", -2., 0., -1.)
         min_y = st.slider("Min Y", 0., 2., 0.)
         min_z = 0#st. slider("Min Z", -2., 0., -1.)
     with subcols[1]:
-        azim = st.slider("Azimuth", -180, 180, -90)
+        azim = st.slider("Azimuth", -180, 180, -0)
         max_x = st.slider("Max X", 0., 2., 1.)
         max_y = st.slider("Max Y", 0., 2., 1.)
         max_z = 1.2#st.slider("Max Z", 0., 2., 1.)
