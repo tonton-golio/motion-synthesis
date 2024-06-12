@@ -46,13 +46,14 @@ def shannon_entropy_2d(im, return_all=False):
     return H
 
 # demos
+#@load_or_save_fig('assets_produced/3_Diffusion_theory/shannon_entropy_scale_dependence_plot.png', deactivate=deactivate)
 def shannon_entropy_scale_dependence_plot():
     vec_lengths = np.logspace(2, 6, 50, dtype=int)
     H1_size = [shannon_entropy_binned(torch.randn(length),
                                     ) for length in vec_lengths]
 
     fig, ax = plt.subplots(2, 1, figsize=(5, 8))
-    ax[0].scatter(vec_lengths, H1_size, marker='x', label='Shannon entropy (H1)')
+    ax[0].scatter(vec_lengths, H1_size, marker='x', label='Shannon entropy (H1)', color='orangered')
     ax[0].set_title('Shannon entropy of Gaussian noise vectors of different lengths')
     ax[0].set_xscale('log')
     ax[0].set_xlabel('Vector length')
@@ -65,14 +66,14 @@ def shannon_entropy_scale_dependence_plot():
     from scipy.optimize import curve_fit
     popt, _ = curve_fit(func, vec_lengths, H1_size)
     y = func(x, *popt)
-    ax[0].plot(x, y, label=f'fit: {popt[0]:.2f}log2(x-{popt[2]:.2f}) + {popt[1]:.2f}', color='red')
+    ax[0].plot(x, y, label=f'fit: {popt[0]:.2f}log2(x-{popt[2]:.2f}) + {popt[1]:.2f}', color='purple')
     ax[0].legend()
 
 
     H1_size_normalized_by_length = np.array(H1_size) / func(vec_lengths, *popt)
 
     # fig, ax = plt.subplots(1, 1, figsize=(5, 4))
-    ax[1].scatter(vec_lengths, H1_size_normalized_by_length, marker='x', label='Shannon entropy (H1) normalized by length')
+    ax[1].scatter(vec_lengths, H1_size_normalized_by_length, marker='x', label='Shannon entropy (H1) normalized by length', color='orangered')
     ax[1].set_title('Shannon entropy of Gaussian noise vectors of different lengths')
     ax[1].set_xscale('log')
     ax[1].set_xlabel('Vector length')
@@ -171,9 +172,7 @@ def compare_noise_metrics():
 
 def measure_noise_level_page():
     # Introduction
-    st.write("""
-    # Measure Noise Level
-    
+    st.write("""    
     To gain information, in reagards to the level of noise in a sample, we explore the use of three metrics: Shannon entropy, its extension to 2d, and the Kullback-Leibler (KL) divergence.
     """)
 

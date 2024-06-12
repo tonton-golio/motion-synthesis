@@ -9,7 +9,7 @@ import os
 import torchviz
 from home import embed_pdf
 
-from app.subpages.noise_schedule import mnist_noise_schedule_setup
+# from app.subpages.noise_schedule import mnist_noise_schedule_setup
 
 # Intro and title
 """
@@ -77,8 +77,8 @@ if 'ims' not in st.session_state:
 ims = st.session_state.ims
 
 # Noise schedule
-with tabs['Noise schedule set-up']:
-    mnist_noise_schedule_setup(ims)
+# with tabs['Noise schedule set-up']:
+#     mnist_noise_schedule_setup(ims)
 
 # Network
 with tabs['Network']:
