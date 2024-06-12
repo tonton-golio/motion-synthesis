@@ -1,6 +1,8 @@
 # Byte-compiled / optimized / DLL files
 
+*.npy
 *.mp4
+*.png
 tb_logs*
 logs/
 logs_old/
