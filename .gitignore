@@ -3,6 +3,15 @@
 *.npy
 *.mp4
 *.png
+*.pages
+*.pdf
+*.csv
+*.db
+*.txt
+*.gif
+*.toml
+*.pth
+report_and_presentation/
 tb_logs*
 logs/
 logs_old/
