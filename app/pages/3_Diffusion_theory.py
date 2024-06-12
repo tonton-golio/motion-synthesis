@@ -24,8 +24,8 @@ st.set_page_config(
 """
 tab_names = [
     'Introduction',
+    'Measuring noise-level',
     'Noise Schedule',
-    'Vector/image entropy',
     'Metrics',
     'Time Embedding',
     #'CLIP',
@@ -147,16 +147,15 @@ def image_entropy_demo(ims):
         col.pyplot(fig)
 
 
-# Time Embedding
-with tabs['Time Embedding']:
-    from subpages.time_embedding import time_embedding_page
-    time_embedding_page()
-
-
-
 with tabs['Introduction']:
     from subpages.diffusion_intro import diffusion_intro
     diffusion_intro()
+
+
+with tabs['Measuring noise-level']:
+
+    from subpages.measure_noise_level import measure_noise_level_page
+    measure_noise_level_page()
 
 
 # Noise Schedule
@@ -446,7 +445,6 @@ with tabs['Noise Schedule']:
         st.pyplot(fig)
 
 
-
 with tabs['Noise Schedule']:
     from subpages.noise_schedule import NoiseScheduleDemo
     fig1, fig2, fig3 = NoiseScheduleDemo()
@@ -455,19 +453,6 @@ with tabs['Noise Schedule']:
     # st.pyplot(fig4)
     st.pyplot(fig3)
 
-
-with tabs['Vector/image entropy']:
-
-    # from entropy_demo import vector_entropy_demo, image_entropy_demo
-
-    # fig = vector_entropy_demo(10)
-    r"""
-    ### Vector Entropy
-    For a vector of unit length living in n-dimensional space, we can calculate the entropy of the distribution of values in the vector. Basically, we measure how closely it aligns with a basis vector in its space of definition.
-
-    So, a vector with with its magnitude spread across its components has maximum entropy, while a vector with all its magnitude concentrated in a single component has minimum entropy.
-    """
-    # st.pyplot(fig)
 
 # Metrics
 with tabs['Metrics']:
@@ -727,6 +712,11 @@ with tabs['Metrics']:
 
         fid_score = _calculate_FID_SCORE(images_real, images_synthetic)
         fid_score
+
+# Time Embedding
+with tabs['Time Embedding']:
+    from subpages.time_embedding import time_embedding_page
+    time_embedding_page()
 
 
 
