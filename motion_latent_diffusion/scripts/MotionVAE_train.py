@@ -25,17 +25,15 @@ def train(model_name='VAE1', build=False):
         path = logger.log_dir.split("version_")[0]
         ckpt = get_ckpt(path)
 
-    
-      
     datamodule = DM(**cfg['DATA'])
 
     # make dict of hyperparameters
     cfg['MODEL']['seq_len'] = cfg['DATA']['seq_len']
     model = VAE(model_name, verbose = False if not build else True, **cfg['MODEL'])
 
-    # new_path = 'logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700.ckpt'
-    # cpkt_loaded = torch.load(new_path, map_location='mps')
-    # model.load_state_dict(cpkt_loaded)
+    new_path = 'logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700.ckpt'
+    cpkt_loaded = torch.load(new_path, map_location='mps')
+    model.load_state_dict(cpkt_loaded)
 
 
     print_header(f"Training {model_name}")

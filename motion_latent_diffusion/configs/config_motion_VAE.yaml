@@ -34,21 +34,21 @@ TRAIN:
     dropout: 0.20
 
   MODEL_BASE:
-    dropout: 0.10
+    dropout: 0.1
     
     seq_len: 160
 
 
-    learning_rate: 0.000_00001
-    clip_grad_norm: .01
+    learning_rate: 0.000_000_000_1
+    clip_grad_norm: .1
     LOSS:
-      DIVERGENCE_KL: 0.0000001
+      DIVERGENCE_KL: 0.000_000_01
       VELOCITY_L2: .0 #001 
-      ROOT_L2: .0 #01
-      POSE0_L2: 10. #10.
-      MOTION_L2: 1.0
-      MOTIONRELATIVE_L2: 5 #.1
-      VELOCITYRELATIVE_L2: 20.
+      ROOT_L2: .01 #01
+      POSE0_L2: 0.01 #10.
+      MOTION_L2: 0.0
+      MOTIONRELATIVE_L2: 2. #.1
+      VELOCITYRELATIVE_L2: 5.
 
   TRAINER:
     max_epochs: 1000

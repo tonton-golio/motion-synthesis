@@ -5,48 +5,37 @@ from utils import print_header
 # transform
 from sklearn.preprocessing import StandardScaler, MaxAbsScaler
 
+import numpy as np
+
+class NoScaler:
+    def fit(self, data):
+        return self
+    def transform(self, data):
+        return data
+    def fit_transform(self, data):
+        return data
+    def inverse_transform(self, data):
+        return data
+
 class LatentMotionData(pl.LightningDataModule):
-    def __init__(self, z_train, z_val, z_test, texts_train, texts_val, texts_test, file_num_train, file_num_val, file_num_test, batch_size=32):
+    def __init__(self, z_train, z_val, z_test, texts_train, texts_val, texts_test, file_num_train, file_num_val, file_num_test, batch_size=32, **kwargs):
         super().__init__()
-        # print('z shape:', z.shape)  # this is (n, z_dim)
-        # print('texts shape:', texts.shape) # this is (n, 3, text_len) -> 3 is for the 3 different texts
-
-
-        # self.z = z.repeat(3, 1)  # repeat z for each text
-        # self.texts = texts.view(-1, texts.shape[-1])  # flatten texts
-        # # print('z shape:', self.z.shape)  # this is (n*3, z_dim)
-        # # print('texts shape:', self.texts.shape) # this is (n*3, text_len)
-        # self.batch_size = batch_size
-        # self.latent_dim = z.shape[-1]
-
-        self.z_train = z_train.repeat(3, 1).cpu().numpy()
-        self.z_val = z_val.repeat(3, 1).cpu().numpy()
-        self.z_test = z_test.repeat(3, 1).cpu().numpy()
-
-        self.texts_train = texts_train.view(-1, texts_train.shape[-1])
-        self.texts_val = texts_val.view(-1, texts_val.shape[-1])
-        self.texts_test = texts_test.view(-1, texts_test.shape[-1])
-
-        self.file_num_train = file_num_train.repeat(3).cpu().numpy()
-        self.file_num_val = file_num_val.repeat(3).cpu().numpy()
-        self.file_num_test = file_num_test.repeat(3).cpu().numpy()
-
-        for z in [self.z_train, self.z_val, self.z_test]:
-            print_header('z')
-            print(f"""
-                    z shape: {z.shape}
-                    z mean: {z.mean()}
-                    z std: {z.std()}
-                    z min: {z.min()}
-                    z max: {z.max()}
-                    """)
-
-        scaler = StandardScaler()
-        # scaler = MaxAbsScaler()
-        self.z_train = scaler.fit_transform(self.z_train)
-        self.z_val = scaler.transform(self.z_val)
-        self.z_test = scaler.transform(self.z_test)
         
+
+        self.batch_size = batch_size
+        self.latent_dim = z_train.shape[-1]
+        self.z_limit = kwargs.get('z_limit', 5.0)
+        self.scale = kwargs.get('scale', False)
+
+        self.z_train, self.texts_train, self.file_num_train = self.prepare_data_(z_train, texts_train, file_num_train)
+        self.z_val, self.texts_val, self.file_num_val = self.prepare_data_(z_val, texts_val, file_num_val)
+        self.z_test, self.texts_test, self.file_num_test = self.prepare_data_(z_test, texts_test, file_num_test)
+
+        self.scaler = self.fit_scaler(self.z_train) if self.scale else NoScaler()
+        self.z_train = self.transform_data(self.z_train, self.scaler)
+        self.z_val = self.transform_data(self.z_val, self.scaler)
+        self.z_test = self.transform_data(self.z_test, self.scaler)
+
         self.z_train = torch.tensor(self.z_train).float().to('mps')
         self.z_val = torch.tensor(self.z_val).float().to('mps')
         self.z_test = torch.tensor(self.z_test).float().to('mps')
@@ -55,26 +44,42 @@ class LatentMotionData(pl.LightningDataModule):
         self.file_num_val = torch.tensor(self.file_num_val).long()
         self.file_num_test = torch.tensor(self.file_num_test).long()
 
-
         for z in [self.z_train, self.z_val, self.z_test]:
-            print_header('z')
-            print(f"""
-                    z shape: {z.shape}
-                    z mean: {z.mean()}
-                    z std: {z.std()}
-                    z min: {z.min()}
-                    z max: {z.max()}
-                    """)
+            self.print_stats(z)
 
-
-        self.scaler = scaler
-        self.batch_size = batch_size
-
-        print('z_train shape:', self.z_train.shape)  # this is (n, z_dim)
+        print('z_train shape:', self.z_train.shape)
         print('texts_train shape:', self.texts_train.shape)
         print('file_num_train shape:', self.file_num_train.shape)
 
-        self.latent_dim = z_train.shape[-1]
+    def prepare_data_(self, z, texts, file_num):
+        
+        # repeat data for each text
+        z = z.repeat(3, 1).cpu().numpy()
+        texts = texts.view(-1, texts.shape[-1])
+        file_num = file_num.repeat(3).cpu().numpy()
+        
+        # remove outliers        
+        bad_idx = (np.abs(z)>self.z_limit).max(axis=1).astype(bool)
+        print(f"Removing {bad_idx.sum()} outliers")
+
+        z, texts, file_num = z[~bad_idx], texts[~bad_idx], file_num[~bad_idx]
+        return z, texts, file_num
+
+    def fit_scaler(self, data):
+        scaler = StandardScaler()
+        return scaler.fit(data)
+
+    def transform_data(self, data, scaler):
+        return scaler.transform(data)
+
+    def print_stats(self, data):
+        print(f"""
+        z shape: {data.shape}
+        z mean: {data.mean()}
+        z std: {data.std()}
+        z min: {data.min()}
+        z max: {data.max()}
+        """)
    
     def setup(self, stage=None):
         

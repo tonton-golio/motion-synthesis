@@ -294,18 +294,18 @@ def plot_3d_motion_animation(
     velocity=False,
     save_path_2=None,):
     #     matplotlib.use('Agg')
-    print("Plotting 3D motion animation")
-    print(data.shape)
+    # print("Plotting 3D motion animation")
+    # print(data.shape)
     data = data.copy().reshape(len(data), -1, 3)  # (seq_len, joints_num, 3)
 
     # cut tail, if equal
-    print(data.shape)
+    # print(data.shape)
     for i in range(data.shape[0]-1):
         # if i > 100:
             if (data[i] == data[i+1]).all():
                 data = data[:i]
                 break
-    print(data.shape)
+    # print(data.shape)
 
     if velocity:
         data = np.cumsum(data, axis=0)

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import glob
 import torch
 from utils import test_translate
+from utils import get_ckpt
 
 import pytorch_lightning as pl
 from modules.LatentMotionData import LatentMotionData
@@ -251,8 +252,14 @@ def train(VAE_version = 'VAE5'):
     )
 
     # train
+    
+    ckpt = None
+    if cfg['FIT']['load_checkpoint']:
+        path = logger.log_dir.split("version_")[0]
+        ckpt = get_ckpt(path)
+
     trainer = pl.Trainer(**cfg["TRAINER"], logger=logger)
-    trainer.fit(model, data_module)
+    trainer.fit(model, data_module, ckpt_path=ckpt)
 
     # test
     trainer.test(model, data_module)

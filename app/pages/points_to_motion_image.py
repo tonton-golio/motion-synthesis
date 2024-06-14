@@ -107,14 +107,14 @@ with cols[0]:
     mirrored = st.checkbox("Mirrored", False)
     vnum = st.number_input("Version", 1, 60, 1)
     v = '0'* (6-len(str(vnum))) + str(vnum)
-
+    v = v if not mirrored else f'M{v}'
     # load data
     text_path = f'../stranger_repos/HumanML3D/HumanML3D/texts/{v}.txt'
     joints_path = f'../stranger_repos/HumanML3D/HumanML3D/new_joints/{v}.npy'
     with open(text_path, 'r') as f:
         text = f.read()
         text = text.split('#')[0]
-
+    
     x = np.load(joints_path)
     x.shape
 
@@ -124,7 +124,7 @@ with cols[0]:
     num_images = st.slider("Number of images", 1, 30, 30)
 
 
-with cols[0]:
+with cols[1]:
     st.write('**Camera settings**')
     subcols = st.columns(2)
     with subcols[0]:
@@ -135,12 +135,12 @@ with cols[0]:
     with subcols[1]:
         azim = st.slider("Azimuth", -180, 180, -0)
         max_x = st.slider("Max X", 0., 2., 1.)
-        max_y = st.slider("Max Y", 0., 2., 1.)
+        max_y = st.slider("Max Y", 0., 4., 1.)
         max_z = 1.2#st.slider("Max Z", 0., 2., 1.)
 
 
-fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-init_3d_plot(ax, fig, "Pose 3D", radius=1.5, elev=elev, azim=azim, miny=min_y, maxy=max_y, minx=min_x, maxx=max_x, minz=min_z, maxz=max_z)
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(20, 8))
+init_3d_plot(ax, fig, text, elev=elev, azim=azim, miny=min_y, maxy=max_y, minx=min_x, maxx=max_x, minz=min_z, maxz=max_z)
 min_ = np.min(x.reshape(-1,3), axis=0)
 max_ = np.max(x.reshape(-1,3), axis=0)
 # plot_xzPlane(ax, -1, 1, 0, 0, 2)
@@ -166,7 +166,6 @@ for i, alpha in zip(frames_to_plot, alphas):
     
     plot_3d_pose(x, i, ax, alpha=alpha)
 
+plt.tight_layout()
 
-with cols[1]:
-
-    st.pyplot(fig)
+st.pyplot(fig)
