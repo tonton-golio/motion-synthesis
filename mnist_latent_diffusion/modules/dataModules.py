@@ -144,6 +144,14 @@ class LatentSpaceDataModule(pl.LightningDataModule):
             self.X = self.X.float()
             self.scaler = None
 
+        print('X:',
+              '\n\tshape:', self.X.shape,
+                '\n\tmin:', self.X.min().item(),
+                '\n\tmax:', self.X.max().item(),
+                '\n\tmean:', self.X.mean().item(),
+                '\n\tstd:', self.X.std().item(),)
+        
+
         # inverse transform
         # self.X = self.scaler.inverse_transform(self.X)
         

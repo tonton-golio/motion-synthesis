@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import os
 
 # logging utils (plotting)
 def plot_3d_pose(data, index, ax=None, **kwargs):
@@ -103,39 +104,60 @@ def plot_trajec(trajec, index, ax):
 
 cols = st.columns(2)
 with cols[0]:
-    # selector
-    mirrored = st.checkbox("Mirrored", False)
-    vnum = st.number_input("Version", 1, 60, 1)
-    v = '0'* (6-len(str(vnum))) + str(vnum)
-    v = v if not mirrored else f'M{v}'
-    # load data
-    text_path = f'../stranger_repos/HumanML3D/HumanML3D/texts/{v}.txt'
-    joints_path = f'../stranger_repos/HumanML3D/HumanML3D/new_joints/{v}.npy'
-    with open(text_path, 'r') as f:
-        text = f.read()
-        text = text.split('#')[0]
-    
-    x = np.load(joints_path)
-    x.shape
-
-    # swap x,z,y to z,x,y
-    x = x[:, :, [0, 2,1]]
-
+    data_source = st.radio("Data source", ['HumanML3D', 'VAE', 'LD'])
     num_images = st.slider("Number of images", 1, 30, 30)
+
+    if data_source == 'HumanML3D':
+        # selector
+        mirrored = st.checkbox("Mirrored", False)
+        vnum = st.number_input("Version", 1, 60, 1)
+        # vnum = int('010727')
+        v = '0'* (6-len(str(vnum))) + str(vnum)
+        v = v if not mirrored else f'M{v}'
+        # load data
+        text_path = f'../stranger_repos/HumanML3D/HumanML3D/texts/{v}.txt'
+        joints_path = f'../stranger_repos/HumanML3D/HumanML3D/new_joints/{v}.npy'
+        with open(text_path, 'r') as f:
+            text = f.read()
+            text = text.split('#')[0]
+        
+
+
+        x = np.load(joints_path)
+        x.shape
+
+        # swap x,z,y to z,x,y
+        x = x[:, :, [0, 2,1]]
+
+    elif data_source == 'VAE':
+        pass
+    elif data_source == 'LD':
+        # look for files in : app/assets_produced/30_Motion_Latent_Diffusion_Inference/
+        files = os.listdir('../app/assets_produced/30_Motion_Latent_Diffusion_Inference/')
+        files = [f for f in files if f.endswith('.npy')]
+        file = st.selectbox("Select file", files)
+        x = np.load(f'../app/assets_produced/30_Motion_Latent_Diffusion_Inference/{file}')
+        x.shape
+        x = np.concatenate([x[:, :, 0:1], x[:, :, 2:3], x[:, :, 1:2]], axis=-1)
+        text = ' '.join(file.split('.')[0].split('_'))
+
+
+    
+
 
 
 with cols[1]:
     st.write('**Camera settings**')
     subcols = st.columns(2)
     with subcols[0]:
-        elev = st.slider("Elevation", -180, 180, 0)
-        min_x = st.slider("Min X", -2., 0., -1.)
-        min_y = st.slider("Min Y", 0., 2., 0.)
+        elev = st.slider("Elevation", -180, 180, 0, step=5)
+        min_x = st.slider("min x", -2., 0., -1., step=0.2)
+        min_y = st.slider("min y", -2., 2., 0., step=0.2)
         min_z = 0#st. slider("Min Z", -2., 0., -1.)
     with subcols[1]:
-        azim = st.slider("Azimuth", -180, 180, -0)
-        max_x = st.slider("Max X", 0., 2., 1.)
-        max_y = st.slider("Max Y", 0., 4., 1.)
+        azim = st.slider("Azimuth", -180, 180, -0, step=5)
+        max_x = st.slider("max x", 0., 2., 1., step=0.2)
+        max_y = st.slider("max y", 0., 4., 1., step=0.2)
         max_z = 1.2#st.slider("Max Z", 0., 2., 1.)
 
 
@@ -149,7 +171,9 @@ plot_trajec(x[:, 0, :2], 0, ax)
 
 alphas = np.linspace(0.5, 1, x.shape[0])
 
-frames_to_plot = np.linspace(0, x.shape[0], num_images, endpoint=False, dtype=int)
+T = st.slider("Time", 0, x.shape[0], x.shape[0])
+
+frames_to_plot = np.linspace(0, T, num_images, endpoint=False, dtype=int)
 alphas = alphas[frames_to_plot]
 alphas/=alphas.max()
 alphas[alphas<1] = (alphas[alphas<1]+0.5)/2

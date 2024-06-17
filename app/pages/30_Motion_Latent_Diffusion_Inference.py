@@ -54,7 +54,9 @@ model_path = f'../motion_latent_diffusion/logs/MotionLD/VAE1/version_{V}/model.p
 model = torch.load(model_path)
 
 model.eval()
-x_t = model.model.sampling(clip, clipped_reverse_diffusion=False, device='cpu')
+x_t = model.model.sampling(clip, clipped_reverse_diffusion=False, device='cpu', 
+                           noise_mul=1.0
+                           )
 
 x_t.shape
 

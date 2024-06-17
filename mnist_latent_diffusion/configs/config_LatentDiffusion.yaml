@@ -1,33 +1,33 @@
 # Description: Configuration file for the project
 BASE:
   DATA:
-    BATCH_SIZE: 128
-    SCALE: True
+    BATCH_SIZE: 32
+    SCALE: false
   MODEL:
-    HIDDEN_DIM: 256
+    HIDDEN_DIM: 128
     N_HIDDEN: 5
-    TIMESTEPS: 5  # 1 for navigate to cluster, 1 for close range correction
-    TIME_EMBEDDING: 5
-    EPSILON: 0.001
+    TIMESTEPS: 50  # 1 for navigate to cluster, 1 for close range correction
+    TIME_EMBEDDING: 10
+    EPSILON: 0.002
     ACTIVATION: leaky_relu
     OUT_ACTIVATION: None
-    LEARNING_RATE: 0.0001
-    NOISE: 1
+    lr: 0.001
+    NOISE: 10.0
     LOAD: False  #"epoch=9-step=140.ckpt"  TODO: load doesn't work
     USE_LABEL_FOR_DECODER: False
   LOSS:
-    NOISE_L2: 1 #1.
+    NOISE_L2: 1. #1.
     CLASS_BCE: 0.
     RECON_L2: 100.
   TRAINER:
-    max_epochs: 200
+    max_epochs: 2000
     log_every_n_steps: 100
     # overfit_batches: 0
     # CONTINUE_TRAINING: True
 
 TRAIN:
   TRAINER:
-    max_epochs: 200
+    max_epochs: 2000
 
 
 # hvad jeg er i tvivl om:

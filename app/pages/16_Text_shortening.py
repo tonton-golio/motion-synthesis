@@ -28,6 +28,7 @@ with cols[0]:
 
 with cols[1]:
     fname = df.iloc[idx].fname
+    fname  # 010727.txt
     st.video(path_animations + fname.split('.')[0] + '.mp4')
 
 
@@ -161,7 +162,7 @@ n_api_requests = 30_623
 n_tokens = 3_564_773
 cost = 1.82 # USD
 f"""
-We have decrease our number of indentifiers from `{len(df)}` to `{len(vc)}`. But we still want to reduce the number of unique `actions` further.
+We have decrease our number of identifiers from `{len(df)}` to `{len(vc)}`. But we still want to reduce the number of unique `actions` further.
 
 This is great value for money, as we have made `{n_api_requests}` API requests and processed `{n_tokens}` tokens for a total cost of `{cost}` USD.
 """
