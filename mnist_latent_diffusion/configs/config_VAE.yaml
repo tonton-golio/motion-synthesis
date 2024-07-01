@@ -18,13 +18,13 @@ BASE:
     LATENT_DIM: 8
     # MUL_KL_PER_EPOCH: 1
     LATENT_DROP_OUT_RATE: 0.0
-    DROPOUT: 0.2
-    UMAP_FREQ: 10  # if -1 disable
-    RECON_FREQ: 2  # if -1 disable
+    DROPOUT: 0.1
+    UMAP_FREQ: 1  # if -1 disable
+    RECON_FREQ: 1  # if -1 disable
     COV_FREQ: 50  # if -1 disable
   LOSS:
     RECONSTRUCTION_L2: 1.
-    DIVERGENCE_KL: 0.000_000_1
+    DIVERGENCE_KL: 0.000_0001
 
 BUILD:
   DATA:

@@ -18,28 +18,29 @@ TRAINER:
   accelerator: mps
 
 MODEL:
-  hidden_dim: 2048
+  hidden_dim: 1024
   nhidden: 4
-  timesteps: 10
-  time_embedding_dim: 4
-  target_embedding_dim: 512
+  timesteps: 100
+  time_embedding_dim: 32
+  target_embedding_dim: 256
   epsilon: 0.0008
-  dp_rate: 0.15
-  noise_multiplier: 3.0
+  dp_rate: 0.05
+  noise_multiplier: .5
 
-  lr: 0.00001
-  z_limit: 2.0
+  lr: 0.00002
+  z_limit: 3.0
 
 
   verbose: false
 
 DATA:
-  batch_size: 64
+  batch_size: 4
+  scale: false
 
   # shuffle: false
 
   
-  # tiny: false
+  tiny: 4000
 
 FIT:
   load_checkpoint: false

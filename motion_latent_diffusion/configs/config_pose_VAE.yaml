@@ -8,10 +8,10 @@ TRAIN:
     verbose: false
     dropout: 0.10
     input_dim: 66
-    latent_dim: 48
-    learning_rate: 0.0001
+    latent_dim: 10
+    learning_rate: 0.0002
     LOSS:
-      DIVERGENCE_KL: 0.00000001
+      DIVERGENCE_KL: 0.0000001
       MSE_L2: 1.
 
   MODEL_LINEAR:
@@ -19,12 +19,12 @@ TRAIN:
     
   MODEL_GRAPH:
     c_in: 3
-    c_hidden: 64
-    c_out: 32
-    n_layers: 4
+    c_hidden: 32
+    c_out: 8
+    n_layers: 6
 
   MODEL_CONV:
-    dim_mults: [1, 2, 1]
+    dim_mults: [4, 2]
 
   TRAINER:
     accelerator: "mps"
@@ -33,4 +33,4 @@ TRAIN:
     max_epochs: 50
 
   FIT:
-    load_checkpoint: true
+    load_checkpoint: false

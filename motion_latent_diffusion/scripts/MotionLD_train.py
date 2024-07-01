@@ -206,7 +206,7 @@ def train(VAE_version = 'VAE5'):
     if not os.path.exists(f'logs/MotionLD/{VAE_version}/animations'):
         os.makedirs(logger.log_dir + '/animations')
     # load latent vectors
-    data_version, version = latent_picker(f'logs/MotionVAE/{VAE_version}/train/', cfg_name='hparams')
+    data_version, version = latent_picker(f'logs/MotionVAE/{VAE_version}/train/', cfg_name='hparams', show=False)
     res_loaded = load_latent(data_version)
 
     z_train = res_loaded['z_train']
@@ -221,6 +221,9 @@ def train(VAE_version = 'VAE5'):
     file_num_test = res_loaded['file_nums_test']
 
     autoencoder = res_loaded['autoencoder']
+
+    projector = res_loaded['projector']
+    projection = res_loaded['projection']
 
 
 
@@ -247,6 +250,8 @@ def train(VAE_version = 'VAE5'):
     model = MotionLatentDiffusion(
         decode=decoder,
         scaler=scaler,
+        projection=projection,
+        projector=projector,
         latent_dim=data_module.latent_dim,
         **cfg["MODEL"]
     )

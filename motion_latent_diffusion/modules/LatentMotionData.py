@@ -26,6 +26,9 @@ class LatentMotionData(pl.LightningDataModule):
         self.latent_dim = z_train.shape[-1]
         self.z_limit = kwargs.get('z_limit', 5.0)
         self.scale = kwargs.get('scale', False)
+        self.tiny = kwargs.get('tiny', False)
+
+        print('self scale:', self.scale)
 
         self.z_train, self.texts_train, self.file_num_train = self.prepare_data_(z_train, texts_train, file_num_train)
         self.z_val, self.texts_val, self.file_num_val = self.prepare_data_(z_val, texts_val, file_num_val)
@@ -63,6 +66,8 @@ class LatentMotionData(pl.LightningDataModule):
         print(f"Removing {bad_idx.sum()} outliers")
 
         z, texts, file_num = z[~bad_idx], texts[~bad_idx], file_num[~bad_idx]
+        if self.tiny:
+            z, texts, file_num = z[:self.tiny], texts[:self.tiny], file_num[:self.tiny]
         return z, texts, file_num
 
     def fit_scaler(self, data):

@@ -50,7 +50,7 @@ class TargetMLP(nn.Module):
         return self.mlp(t)
 
 
-class SimpleModel(nn.Module):
+class SimpleModel_old(nn.Module):
     def __init__(
         self,
         latent_dim,
@@ -124,13 +124,90 @@ class SimpleModel(nn.Module):
             print('t', t.shape)
             print('y', y.shape)
 
-        cat = torch.cat([x, y, t], dim=-1)
 
         if self.verbose:
             print('cat', cat.shape)
                 
         return self.fc_noise(cat)
-    
+
+class SimpleModel(nn.Module):
+    def __init__(
+        self,
+        latent_dim,
+        hidden_dim,
+        nhidden=5,
+        timesteps=10,
+        time_embedding_dim=64,
+        dp_rate=0.1,
+        verbose=False,
+    ):
+        super(SimpleModel, self).__init__()
+        self.verbose = verbose
+        time_ed = self.time_embedding_dim = time_embedding_dim
+        targ_ed = self.target_embedding_dim = 10
+        self.time_embedding = nn.Embedding(timesteps, time_embedding_dim)
+        dropout = nn.Dropout(dp_rate)
+
+        self.time_mlp=TimeMLP(
+            in_dim=time_ed, 
+            hidden_dim=time_ed*2,
+            out_dim=latent_dim)
+        
+        self.target_mlp=TargetMLP(
+            embedding_dim=targ_ed,
+            hidden_dim=targ_ed*2,
+            out_dim=latent_dim,
+            nhidden=3
+        )
+
+        self.fc_1 = nn.Sequential(
+            nn.Linear(latent_dim, hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_dim, latent_dim),
+            nn.LeakyReLU(),
+        )
+
+        self.fc_2 = nn.Sequential(
+            nn.Linear(latent_dim, hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LeakyReLU(),
+            dropout,
+            nn.Linear(hidden_dim, latent_dim),
+            nn.LeakyReLU(),
+        )
+
+        self.fc_3 = nn.Sequential(
+            nn.Linear(latent_dim, hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LeakyReLU(),
+            dropout,
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_dim, latent_dim),
+            nn.Linear(latent_dim, latent_dim)
+        )
+
+    def forward(self, x, y, t):
+        if self.verbose:
+            print('x', x.shape)
+            print('y', y.shape)
+            print('t', t.shape)
+
+        t = self.time_embedding(t)  # embed time
+        t = self.time_mlp(t)  # dim is hidden_dim
+        x = x + self.fc_2(x+t)
+
+        y = self.target_mlp(y)  # dim is hidden_dim
+        # print('y', y.shape, 't', t.shape, 'x', x.shape)
+        x = y + self.fc_1(x+y)
+        
+
+        return self.fc_3(x)
+
 class LatentDiffusion(nn.Module):
     def __init__(
         self,
@@ -148,7 +225,7 @@ class LatentDiffusion(nn.Module):
         self.latent_dim = latent_dim
 
         # betas = self._cosine_variance_schedule(timesteps, epsilon)
-        betas = self._linear_variance_schedule(timesteps, beta_start=1e-4, beta_end=0.02)
+        betas = self._linear_variance_schedule(timesteps, beta_start=1e-3, beta_end=0.3)
         # print('betas', betas.shape)
 
         alphas = 1.0 - betas
@@ -237,17 +314,27 @@ class LatentDiffusion(nn.Module):
 
         pred_noise-> pred_mean and pred_std
         """
+        x_t_copy = x_t.clone()
         pred_noise = self.model(x_t, y, t)
         alpha_t = self.alphas[t][:, None]
         beta_t = self.betas[t][:, None]
+        srqt_alphas_cumprod_t = self.sqrt_alphas_cumprod[t][:, None]
         sqrt_one_minus_alpha_cumprod_t = self.sqrt_one_minus_alphas_cumprod[t][:, None]
-        x_t_copy = x_t.clone()
-        x_t = 1 / torch.sqrt(alpha_t) * (x_t - ((1-alpha_t) / sqrt_one_minus_alpha_cumprod_t) * pred_noise) + torch.sqrt(beta_t) * noise
+        alpha_t_cumprod=self.alphas_cumprod.gather(-1,t).reshape(x_t.shape[0],1)
+        mean = (1.0 / torch.sqrt(alpha_t)) * (
+            x_t - ((1.0 - alpha_t) / sqrt_one_minus_alpha_cumprod_t) * pred_noise
+        )
 
-        # replace x_t with origional if t=0
-        x_t = torch.where(t[:, None] == 0, x_t_copy, x_t)
+        if t.float().min() > 0:
+            alpha_t_cumprod_prev = self.alphas_cumprod.gather(-1, t - 1).reshape(
+                x_t.shape[0], 1)
+            std = torch.sqrt(
+                beta_t * (1.0 - alpha_t_cumprod_prev) / (1.0 - alpha_t_cumprod)
+            )
+        else:
+            std = 0.0
 
-        return x_t
+        return mean + std * noise
 
 
 # make pl model
@@ -258,7 +345,7 @@ class LatentDiffusionModule(pl.LightningModule):
         scaler=None,
         criteria=None,
         classifier=None,
-        projectors={},
+        projector=None,
         projection=None,
         labels=None,
         verbose=False,
@@ -287,7 +374,7 @@ class LatentDiffusionModule(pl.LightningModule):
 
         self.criteria = criteria
         self.classifier = classifier
-        self.projector = projectors
+        self.projector = projector
         self.projection = projection
         self.labels = labels[:5000]
 
@@ -306,7 +393,7 @@ class LatentDiffusionModule(pl.LightningModule):
         # print('starting training step')
         res = self._common_step(batch, stage="train")
         # clip gradients
-        torch.nn.utils.clip_grad_norm_(self.parameters(), .01)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), .2)
         # print('done training step')
         return res["loss"]
 
@@ -406,8 +493,8 @@ class LatentDiffusionModule(pl.LightningModule):
             # Simplify y value assignment            
             # Sample from model
             # print('starting sampling')
-            n_samples = 6
-            n_time_steps_show = 4
+            n_samples = 12
+            n_time_steps_show = 8
             sample, hist, y_flags = self.model.sampling(n_samples, device='mps', tqdm_disable=True)
             # print('done sampling')    
 
@@ -419,7 +506,7 @@ class LatentDiffusionModule(pl.LightningModule):
             if self.projector is not None:
                 fig_prj, ax_prj = plt.subplots(1, 1, figsize=(10, 10))
                 hist = self.apply_scaler(hist, inverse=True, return_tensor_type=True)
-                hist_prj = self.apply_projector(hist)
+                hist_prj = self.apply_projector(hist, self.projector)
                 # print('hist_prj', hist_prj.shape)
                 # plot the latent space
                 # make sure lengths are the same
@@ -429,55 +516,55 @@ class LatentDiffusionModule(pl.LightningModule):
                     self.projection = self.projection[:len(self.labels)]
 
 
-                scat = ax_prj.scatter(self.projection[:, 0], self.projection[:, 1], c=self.labels, s=10, alpha=0.5, cmap='tab10')
+                scat = ax_prj.scatter(self.projection[:, 0], self.projection[:, 1], c=self.labels, s=10, alpha=0.5, cmap='Dark2')
                 plt.colorbar(scat)
                 for i in range(hist_prj.shape[1]):
                     ax_prj.plot(hist_prj[:, i, 0], hist_prj[:,i, 1], c='r', alpha=1, ls='--')
-
+                plt.tight_layout()
                 self.logger.experiment.add_figure(f'hist latent projected', fig_prj,  global_step=self.global_step)
 
                 plt.close()
 
                 # now with PCA
-                pca = PCA(n_components=2)
-                hist_pca = pca.fit_transform(hist.view(-1, hist.shape[-1]).detach().cpu().numpy())
+                # pca = PCA(n_components=2)
+                # hist_pca = pca.fit_transform(hist.view(-1, hist.shape[-1]).detach().cpu().numpy())
 
-                hist_pca = hist_pca.reshape(hist.shape[0], hist.shape[1], -1)
-                y_flags = y_flags.detach().cpu().numpy()
-                print('hist_pca', hist_pca.shape)
-                print('y_flags', y_flags.shape)
+                # hist_pca = hist_pca.reshape(hist.shape[0], hist.shape[1], -1)
+                # y_flags = y_flags.detach().cpu().numpy()
+                # print('hist_pca', hist_pca.shape)
+                # print('y_flags', y_flags.shape)
 
-                fig_pca, ax_pca = plt.subplots(1, 1, figsize=(12, 7))
-                scat = ax_pca.scatter(hist_pca[:, :, 0].flatten(), hist_pca[:, :, 1].flatten(),
-                                      #c=y_flags,
-                                      s=10, alpha=0.5, cmap='tab10')
-                for i in range(hist_pca.shape[0]):
-                    # if i == 0:
-                    #     alpha = 1
-                    #     lw = 2
-                    #     label = 'first trajectory'
-                    # else:
-                    #     alpha = 0.5
-                    #     label = None
-                    #     lw = .5
-                    plot_kwargs = {
-                        'main': {'alpha': 1, 'lw': 2, 'label': 'main'},
-                        'other': {'alpha': 0.5, 'lw': 1, 'label': None, 'ls': '--'}
+                # fig_pca, ax_pca = plt.subplots(1, 1, figsize=(12, 7))
+                # scat = ax_pca.scatter(hist_pca[:, :, 0].flatten(), hist_pca[:, :, 1].flatten(),
+                #                       #c=y_flags,
+                #                       s=10, alpha=0.5, cmap='tab10')
+                # for i in range(hist_pca.shape[0]):
+                #     # if i == 0:
+                #     #     alpha = 1
+                #     #     lw = 2
+                #     #     label = 'first trajectory'
+                #     # else:
+                #     #     alpha = 0.5
+                #     #     label = None
+                #     #     lw = .5
+                #     plot_kwargs = {
+                #         'main': {'alpha': 1, 'lw': 2, 'label': 'main'},
+                #         'other': {'alpha': 0.5, 'lw': 1, 'label': None, 'ls': '--'}
 
-                    }['main' if i == 0 else 'other']
-                    if i > 2:continue
-                    ax_pca.plot(hist_pca[i, :, 0], hist_pca[i, :, 1], **plot_kwargs)
+                #     }['main' if i == 0 else 'other']
+                #     if i > 2:continue
+                #     ax_pca.plot(hist_pca[i, :, 0], hist_pca[i, :, 1], **plot_kwargs)
                     
 
-                    # plot points for start and finish
-                    ax_pca.scatter(hist_pca[i, 0, 0], hist_pca[i, 1, 0], c='black', s=200, alpha=1)
-                    ax_pca.scatter(hist_pca[i, 0, -1], hist_pca[i, 1, -1], c='r', s=2000, alpha=.4)
-                    # ax_pca.text(hist_pca[i, 0], hist_pca[i, 1], f'{y_flags[i].item()}', fontsize=12)
-                    break
+                #     # plot points for start and finish
+                #     ax_pca.scatter(hist_pca[i, 0, 0], hist_pca[i, 1, 0], c='black', s=200, alpha=1)
+                #     ax_pca.scatter(hist_pca[i, 0, -1], hist_pca[i, 1, -1], c='r', s=2000, alpha=.4)
+                #     # ax_pca.text(hist_pca[i, 0], hist_pca[i, 1], f'{y_flags[i].item()}', fontsize=12)
+                #     break
 
-                plt.colorbar(scat)
-                plt.title('PCA of latent space')
-                self.logger.experiment.add_figure(f'hist latent pca', fig_pca,  global_step=self.global_step)
+                # plt.colorbar(scat)
+                # plt.title('PCA of latent space')
+                # self.logger.experiment.add_figure(f'hist latent pca', fig_pca,  global_step=self.global_step)
 
 
 
@@ -535,14 +622,14 @@ class LatentDiffusionModule(pl.LightningModule):
             #         ax[i, j].axis('off')
             for i in range(rows):
                 for j in range(cols):
-                    axes[i, j].imshow(hist[i, j].detach().cpu().numpy(), cmap='gray')
+                    axes[i, j].imshow(hist[i, j].detach().cpu().numpy(), cmap='gray_r')
                     axes[i, j].set_xticks([])
                     axes[i, j].set_yticks([])
-
-                    axes[i, j].set_title(f'y={y_flags[j].item()}')
+                    if i == 0:
+                        axes[i, j].set_title(f'y={y_flags[j].item()}')
                 axes[i, 0].set_ylabel(f't={timesteps_hist[i].item()}')
                     
-            
+            plt.tight_layout()
             # # Set top row titles to y_flags
             # if y_flags is not None and len(y_flags) == cols:
             #     for i, flag in enumerate(y_flags):
@@ -566,12 +653,12 @@ class LatentDiffusionModule(pl.LightningModule):
         # return torch.optim.AdamW(self.parameters(), lr=self.lr)
         # decrease lr by 0.1 every 10 epochs
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.5, verbose=True)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=.8, verbose=True)
         return [optimizer], [scheduler]
 
 
     @torch.no_grad()
-    def check_noise_level(self, batch, N=3, nt=10):
+    def check_noise_level(self, batch, N=4, nt=14):
 
         x, y = batch
         print('x', x.shape)

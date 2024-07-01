@@ -6,6 +6,7 @@ import sys
 sys.path.append('..')
 from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 
+from utils_app import VarianceSchedule
 # Intro and title
 """
 # MNIST Data
@@ -106,6 +107,35 @@ with tabs['Transformations']:
     So for sigmoid, we could sent normalize mean to 0.0 and normalize std to 1.0. For tanh, we could set normalize mean to 0.5 and normalize std to 0.5.
     """
 
+    n_samples = 3
+    ims_n = ims[:n_samples].reshape(n_samples, 28, 28)
+    ims_n.shape
+    import torch
+    ims_n = torch.tensor(ims_n, dtype=torch.float32)
+    
+    T = 8
+    noised = []
+    vs = VarianceSchedule(T)
+    for im in ims_n:
+        tmp = []
+        for t in range(T):
+            if t == 0:
+                tmp.append(im)
+            else:
+                tmp.append(vs(im, t))
+        noised.append(torch.stack(tmp)  )
 
+    noised = torch.stack(noised)
+    noised.shape
+
+    fig, axes = plt.subplots(n_samples, T, figsize=(2*T, 2*n_samples))
+    for i, ax in enumerate(axes):
+        for j, a in enumerate(ax):
+            a.imshow(noised[i, j], cmap='gray_r', vmin=0, vmax=1)
+            a.axis('off')
+
+    plt.tight_layout()
+    st.pyplot(fig)
+    
 
     

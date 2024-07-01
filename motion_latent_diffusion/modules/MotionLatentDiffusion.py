@@ -41,31 +41,33 @@ class MLP(nn.Module):
         for _ in range(nhidden-1):
             self.mlp.add_module(f'hidden_{_}', nn.Linear(hidden_dim,hidden_dim))
             self.mlp.add_module(f'activation_{_}', activation)
-            self.mlp.add_module(f'dropout_{_}', nn.Dropout(dropout))
+            #self.mlp.add_module(f'dropout_{_}', nn.Dropout(dropout))
+        # batch norm
+        self.mlp.add_module('bn', nn.BatchNorm1d(hidden_dim))
         self.mlp.add_module('out', nn.Linear(hidden_dim,out_dim))
         
     def forward(self,x):
         x=self.mlp(x)
         return x
     
-class TextTransformer(nn.Module):
-    def __init__(self, target_embedding_dim=5, nhead=10, num_layers=3, dim_feedforward=512, dropout=0.1, activation='relu'):
-        super().__init__()
-        self.text_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=target_embedding_dim,
-                nhead=nhead,
-                dim_feedforward=dim_feedforward,
-                dropout=dropout,
-                activation=activation,
-                batch_first=True
-            ),
-            num_layers=num_layers,
-            norm=nn.LayerNorm(target_embedding_dim)
-        )
+# class TextTransformer(nn.Module):
+#     def __init__(self, target_embedding_dim=5, nhead=10, num_layers=3, dim_feedforward=512, dropout=0.1, activation='relu'):
+#         super().__init__()
+#         self.text_transformer = nn.TransformerEncoder(
+#             nn.TransformerEncoderLayer(
+#                 d_model=target_embedding_dim,
+#                 nhead=nhead,
+#                 dim_feedforward=dim_feedforward,
+#                 dropout=dropout,
+#                 activation=activation,
+#                 batch_first=True
+#             ),
+#             num_layers=num_layers,
+#             norm=nn.LayerNorm(target_embedding_dim)
+#         )
 
-    def forward(self, x):
-        return self.text_transformer(x)
+#     def forward(self, x):
+#         return self.text_transformer(x)
     
 class SinusoidalPositionalEmbedding(nn.Module):
     def __init__(self, d_model, max_len=1000):
@@ -112,19 +114,69 @@ class SimpleModel(nn.Module):
         self.target_embedding_dim = 512  # we use CLIP for target embedding
         
         self.dropout = dp_rate
-
+        
         self.time_embedding = SinusoidalPositionalEmbedding(
             d_model=time_embedding_dim, max_len=timesteps
         )
-
-        self.time_mlp=TimeMLP(
-            in_dim=time_embedding_dim, 
+        self.time_mlp = MLP(
+            in_dim=time_embedding_dim,
             hidden_dim=time_embedding_dim*2,
-            out_dim=time_embedding_dim)
-
+            out_dim=latent_dim,
+            nhidden=1,
+            activation=nn.SiLU(),
+            dropout=0.0)
             
-        self.fc = MLP(
-            in_dim=latent_dim + time_embedding_dim + self.target_embedding_dim,
+        # self.time_mlp=TimeMLP(
+        #     in_dim=time_embedding_dim, 
+        #     hidden_dim=time_embedding_dim*2,
+        #     out_dim=time_embedding_dim)
+        
+        self.target_mlp=MLP(
+            in_dim=self.target_embedding_dim, 
+            hidden_dim=self.target_embedding_dim*2,
+            out_dim=latent_dim,
+            nhidden=2,
+            activation=nn.LeakyReLU(),
+            dropout=dp_rate)
+        
+        # self.target_mlp=TimeMLP(
+        #     in_dim=self.target_embedding_dim, 
+        #     hidden_dim=self.target_embedding_dim*2,
+        #     out_dim=latent_dim)
+        
+        self.latent_mlp=MLP(
+            in_dim=latent_dim, 
+            hidden_dim=latent_dim*2,
+            out_dim=latent_dim,
+            nhidden=1,
+            activation=nn.LeakyReLU(),
+            dropout=dp_rate)
+        
+        # self.latent_mlp=TimeMLP(
+        #     in_dim=latent_dim, 
+        #     hidden_dim=latent_dim*2,
+        #     out_dim=latent_dim)
+            
+        self.fc1 = MLP(
+            in_dim=latent_dim,
+            hidden_dim=hidden_dim,
+            out_dim=latent_dim,
+            nhidden=nhidden,
+            activation=nn.LeakyReLU(),
+            dropout=dp_rate
+        )
+
+        self.fc2 = MLP(
+            in_dim=latent_dim,
+            hidden_dim=hidden_dim,
+            out_dim=latent_dim,
+            nhidden=nhidden,
+            activation=nn.LeakyReLU(),
+            dropout=dp_rate
+        )
+
+        self.fc3 = MLP(
+            in_dim=latent_dim,
             hidden_dim=hidden_dim,
             out_dim=latent_dim,
             nhidden=nhidden,
@@ -134,8 +186,8 @@ class SimpleModel(nn.Module):
 
         # set initial weights
 
-        self.fc.apply(self._init_weights)
-        self.time_mlp.apply(self._init_weights)
+        # self.fc.apply(self._init_weights)
+        # self.time_mlp.apply(self._init_weights)
 
     def _init_weights(self, m):
         if type(m) == nn.Linear:
@@ -158,14 +210,30 @@ class SimpleModel(nn.Module):
         t = self.time_embedding(t)  # (batchsize, time_embedding_dim)
         if self.verbose:
             print('t (after embedding)', t.shape)
-        # t = self.time_mlp(t)  # (batchsize, time_embedding_dim)
-        # if self.verbose:
-        #     print('t (after mlp)', t.shape)
-        
-        x = torch.cat([x, t, y], dim=1)
+        t = self.time_mlp(t)
         if self.verbose:
-            print('after cat: x', x.shape)
-        x = self.fc(x)
+            print('t (after mlp)', t.shape)
+        # target embedding
+        y = self.target_mlp(y)
+        if self.verbose:
+            print('y (after mlp)', y.shape)
+        # latent embedding
+        x = self.latent_mlp(x)
+        if self.verbose:
+            print('x (after mlp)', x.shape)
+
+        # sum
+        x = x + y
+
+        # fc1
+        x = self.fc1(x)
+
+        # fc2
+        x = x + self.fc2(x + t)
+
+        # fc3
+        x = self.fc3(x)
+        
         if self.verbose:
             print('x', x.shape)
         return x
@@ -215,8 +283,6 @@ class LatentDiffusionModel(nn.Module):
             verbose=verbose
         )
 
-
-
         self.rand_texts = []
 
     def forward(self, x, y, noise):
@@ -230,8 +296,8 @@ class LatentDiffusionModel(nn.Module):
         # print('t', t.shape)
         pred_noise = self.model(x_t, y, t)
         # print('pred_noise', pred_noise.shape)
-
-        return pred_noise
+        niose_added = x_t - x
+        return pred_noise, niose_added
 
     @torch.no_grad()
     def sampling(self, texts, noise_mul, clipped_reverse_diffusion=True, device="cuda"):
@@ -241,6 +307,9 @@ class LatentDiffusionModel(nn.Module):
         x_t = torch.randn(
             (n_samples, self.latent_dim)
         ).to(device)
+        
+        history = [x_t.clone()]
+
         for i in tqdm(range(self.timesteps - 1, -1, -1), desc="Sampling"):
             noise = torch.randn_like(x_t) * noise_mul
             t = torch.tensor([i for _ in range(n_samples)]).to(device)
@@ -250,9 +319,11 @@ class LatentDiffusionModel(nn.Module):
             else:
                 x_t = self._reverse_diffusion(x_t, y, t, noise)
 
-        # x_t = (x_t + 1.0) / 2.0  # [-1,1] to [0,1]
+            history.append(x_t.clone())
 
-        return x_t
+        # x_t = (x_t + 1.0) / 2.0  # [-1,1] to [0,1]
+        history = torch.stack(history, dim=1)
+        return x_t, history
 
     def _cosine_variance_schedule(self, timesteps, epsilon=0.008):
         steps = torch.linspace(0, timesteps, steps=timesteps + 1, dtype=torch.float32)
@@ -288,7 +359,41 @@ class LatentDiffusionModel(nn.Module):
 
         pred_noise-> pred_mean and pred_std
         """
-        pred = self.model(x_t, y, t)
+
+        x_t_copy = x_t.clone()
+        pred_noise = self.model(x_t, y, t)
+        return x_t_copy - pred_noise * t/self.timesteps  
+        alpha_t = self.alphas[t][:, None]
+        beta_t = self.betas[t][:, None]
+        srqt_alphas_cumprod_t = self.sqrt_alphas_cumprod[t][:, None]
+        sqrt_one_minus_alpha_cumprod_t = self.sqrt_one_minus_alphas_cumprod[t][:, None]
+
+        # return x_t_copy - sqrt_one_minus_alpha_cumprod_t * pred_noise   
+
+        alpha_t_cumprod=self.alphas_cumprod.gather(-1,t).reshape(x_t.shape[0],1)
+        mean = (1.0 / torch.sqrt(alpha_t)) * (
+            x_t - ((1.0 - alpha_t) / sqrt_one_minus_alpha_cumprod_t) * pred_noise
+        )
+
+        if t.float().max() > 0:
+            alpha_t_cumprod_prev = self.alphas_cumprod.gather(-1, t - 1).reshape(
+                x_t.shape[0], 1)
+            std = torch.sqrt(
+                beta_t * (1.0 - alpha_t_cumprod_prev) / (1.0 - alpha_t_cumprod)
+            )
+        else:
+            std = 0.0
+
+        # insert x_t_copy when t=0
+        x_t = mean + std * noise
+        x_t = torch.where(t == 0, x_t_copy, x_t)
+        return x_t
+
+
+        # x_t_copy = x_t.clone()
+        # pred = self.model(x_t, y, t)
+
+        # return (pred + x_t_copy) / 2.0
 
         alpha_t = self.alphas.gather(-1, t).reshape(x_t.shape[0], 1)  # ,1,1)
         # print('alpha_t', alpha_t.shape)
@@ -315,13 +420,17 @@ class LatentDiffusionModel(nn.Module):
         else:
             std = 0.0
 
-        return mean + std * noise
-
+        # insert x_t_copy when t=0
+        x_t = mean + std * noise
+        x_t = torch.where(t == 0, x_t_copy, x_t)
+        return x_t
 # make pl model
 class MotionLatentDiffusion(pl.LightningModule):
     def __init__(
         self,
         decode,
+        projector,
+        projection, 
         scaler,
         verbose=False,
         **kwargs,
@@ -343,6 +452,9 @@ class MotionLatentDiffusion(pl.LightningModule):
         self.noise_multiplier = kwargs.get("noise_multiplier", .1)
         # self.save_hyperparameters()
         self.decode = decode
+        
+        self.projector = projector
+        self.projection = projection
         self.scaler = scaler
         self.timesteps = kwargs.get("timesteps", 100)
 
@@ -351,7 +463,8 @@ class MotionLatentDiffusion(pl.LightningModule):
             print('x', x.shape)
             print('y', y.shape)
         noise = torch.randn_like(x) * self.noise_multiplier
-        return self.model(x, y, noise), noise
+        pred_noise, noise_added = self.model(x, y, noise)
+        return pred_noise, noise_added
     
     def _reverse_diffusion(self, x_t, y, t):
         noise = torch.randn_like(x_t)
@@ -366,7 +479,7 @@ class MotionLatentDiffusion(pl.LightningModule):
             "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
         )
         # torch.clip_grad_norm_(self.model.parameters(), 1.0)
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), .4)
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), .1)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -382,13 +495,13 @@ class MotionLatentDiffusion(pl.LightningModule):
         if batch_idx == 0 and self.decode is not None:
             rand_idx = torch.randint(0, x.shape[0], (1,))
             rand_y = y[rand_idx]
-            x_t = self.model.sampling(rand_y, clipped_reverse_diffusion=False, device='mps', noise_mul=self.noise_multiplier)
-
+            x_t, history = self.model.sampling(rand_y, clipped_reverse_diffusion=False, device='mps', noise_mul=self.noise_multiplier)
+            print('history', history.shape)
             with torch.no_grad():
                 # make image by decoding latent space
                 x, y, file_num = batch
                 if file_num is not None:
-                    file_num_formatted = str(file_num[:1].item())
+                    file_num_formatted = str(file_num[rand_idx].item())
                     file_num_formatted = '0'* (6 - len(file_num_formatted)) + file_num_formatted
                     path_text = '../stranger_repos/HumanML3D/HumanML3D/texts'
                     with open(f"{path_text}/{file_num_formatted}.txt", 'r') as f:
@@ -400,19 +513,20 @@ class MotionLatentDiffusion(pl.LightningModule):
                     print('x', x.shape)
                     print('t', t.shape)
                     print('noise', noise.shape)
-                x_t_train = self.model._forward_diffusion(x, t, noise)
+                
 
                 x_t = torch.tensor(self.scaler.inverse_transform(x_t.cpu().detach().numpy())).to('mps')
                 sample = self.decode(x_t)
 
+                x_t_train = self.model._forward_diffusion(x, t, noise)
                 sample_pure_noise = self.decode(torch.tensor(self.scaler.inverse_transform(x_t_train.cpu().detach().numpy())).to('mps'))
 
 
                 path_base = self.logger.log_dir + f"/animations/recon_{self.current_epoch}"
 
 
-
                 for data, name in zip([sample, sample_pure_noise], ['sample', 'sample_pure_noise', ]):
+                    print(name, data.shape)
                     rand_idx = torch.randint(0, data.shape[0], (1,))
                     data_selected = data[rand_idx].cpu().detach().numpy().squeeze()
                     #print(name, data_selected.shape)
@@ -427,6 +541,27 @@ class MotionLatentDiffusion(pl.LightningModule):
                             )
                     plt.close()
 
+            # history plot
+            history = history[0] # (n_samples=1, timesteps+1, latent_dim)
+            # unscale
+            history = self.scaler.inverse_transform(history.cpu().detach().numpy())
+            #project
+            history = self.projector.transform(history)
+            # plot
+            fig, ax = plt.subplots(1, 1, figsize=(7, 7))
+            ax.scatter(self.projection[:, 0], self.projection[:, 1], c='black', s=10, label='projection')
+            ax.plot(history[:, 0], history[:, 1], c='red', linewidth=2, label='history')
+            fig.suptitle('Reversed diffusion-path in the latent space')
+            plt.legend()
+            ax.set_xlabel('UMAP component 1')
+            ax.set_ylabel('UMAP component 2')
+            plt.tight_layout()
+            self.logger.experiment.add_figure('reversed_diffusion_path', fig, global_step=self.global_step)
+            
+            plt.close()
+
+
+
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -440,5 +575,5 @@ class MotionLatentDiffusion(pl.LightningModule):
 
     def configure_optimizers(self):
         opt = torch.optim.AdamW(self.parameters(), lr=self.lr)
-        sch = torch.optim.lr_scheduler.StepLR(opt, step_size=10, gamma=0.5)
+        sch = torch.optim.lr_scheduler.StepLR(opt, step_size=10, gamma=0.5, verbose=True)
         return [opt], [sch]

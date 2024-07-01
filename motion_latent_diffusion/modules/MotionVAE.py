@@ -895,7 +895,7 @@ class VAE6(nn.Module):
         x = self.skip_trans_enc(x)
         if self.verbose: print('skip trans enc:', x.shape)
 
-        x = x[:, :2]  # select first frames
+        x = x[:, -2:]  # select first frames
         x = self.flatten(x)
         x = self.latent_enc_linear(x)
 
@@ -1147,6 +1147,8 @@ class MotionVAE(pl.LightningModule):
         
         if (self.save_animations_freq != -1) and (self.current_epoch % self.save_animations_freq == 0):
             self.save_animations_func(recon_seq, motion_seq, file_num)
+            np.save(f"{self.subfolder}/recon_epoch{self.current_epoch}.npy", recon_seq)
+            np.save(f"{self.subfolder}/motion_epoch{self.current_epoch}.npy", motion_seq)
 
     def test_step(self, batch, batch_idx):
         res = self._common_step(batch, batch_idx)

@@ -1,7 +1,7 @@
 
 import argparse
 from utils import load_config
-
+import torch
 from utils import load_config, unpack_nested_dict, get_ckpts
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -52,16 +52,18 @@ if __name__ == "__main__":
         cfg = load_config('pose_VAE', mode='TRAIN', model_type=model_name)
         logger = TensorBoardLogger("logs/PoseVAE", name=model_name)
         datamodule = PoseDataModule(**cfg['DATA'])
-        
+        datamodule.setup('stage')
         ckpt = None
         if cfg['FIT']['load_checkpoint']:
             path = logger.log_dir.split("version_")[0]
-            ckpt = get_ckpt(path)
+            ckpt = get_ckpts(path)
 
-        if model_name == "LINEAR":  model = PoseVAE(model_name, **cfg['MODEL'])
-        elif model_name == "GRAPH": model = PoseVAE(model_name, **cfg['MODEL'])
-        elif model_name == "CONV":  model = PoseVAE(model_name, **cfg['MODEL'])
-        else: raise ValueError("MODEL not recognized")
+        # if model_name == "LINEAR":  model = PoseVAE(model_name, **cfg['MODEL'])
+        # elif model_name == "GRAPH": model = PoseVAE(model_name, **cfg['MODEL'])
+        # elif model_name == "CONV":  model = PoseVAE(model_name, **cfg['MODEL'])
+        # else: raise ValueError("MODEL not recognized")
+        test_video = datamodule.test_video
+        model = PoseVAE(model_name, test_video=test_video, **cfg['MODEL'])
 
         trainer = Trainer(
             logger=logger,

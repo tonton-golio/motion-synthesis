@@ -1,18 +1,18 @@
 # Description: Configuration file for the project
 BASE:
   DATA:
-    BATCH_SIZE: 32
+    BATCH_SIZE: 4
     SCALE: false
   MODEL:
-    HIDDEN_DIM: 128
+    HIDDEN_DIM: 256
     N_HIDDEN: 5
-    TIMESTEPS: 50  # 1 for navigate to cluster, 1 for close range correction
-    TIME_EMBEDDING: 10
-    EPSILON: 0.002
+    TIMESTEPS: 10  # 1 for navigate to cluster, 1 for close range correction
+    TIME_EMBEDDING: 5
+    EPSILON: 0.001
     ACTIVATION: leaky_relu
     OUT_ACTIVATION: None
-    lr: 0.001
-    NOISE: 10.0
+    lr: 0.00005
+    NOISE: 1.0
     LOAD: False  #"epoch=9-step=140.ckpt"  TODO: load doesn't work
     USE_LABEL_FOR_DECODER: False
   LOSS:
@@ -41,4 +41,3 @@ BUILD:
   TRAINER:
     max_epochs: 1
     fast_dev_run: True
-

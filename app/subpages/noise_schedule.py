@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 from subpages.diffusion_intro import plot_variance_schedule_image_series, plot_variance_schedule_hists, prep_image
-from app.utils_app import kl_score, VarianceSchedule, load_or_save_fig
+from utils_app import kl_score, VarianceSchedule, load_or_save_fig
 import torch.nn as nn
 import math
 
@@ -47,20 +47,48 @@ def shannon_entropy_2d(im, plot=False, title1='image'):
 
     return H
 
+def write_scientific_notation(x):
+    # x = f"{x:.2e}"
+    # x = r"{x}".format(x=x)
+    # x = x.replace("1.00", "")
+    # x = x.replace(".00", r"\\times")
+    # x = x.replace("e-0", r"10^{-")
+    # x = x.replace("e+0", r"10^{")
+    # x = x.replace("e", r"10^{")
+    # x += "}"
+    return x
+
 # @load_or_save_fig("assets_produced/3_Diffusion_theory/noise_level_over_time.png", deactivate=deactivate)
 def plot_noise_levels(schedules, colors = ["red", "orange", "salmon"], linestyles = ["-", "--", "-."]):
-    fig, ax = plt.subplots(1, 1, figsize=(5, 3))
+    
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
     for i, m in enumerate(schedules.keys()):
+        label = f"{m}"
+        epsilon = write_scientific_notation(schedules[m].epsilon)
+        beta_start = write_scientific_notation(schedules[m].beta_start)
+        beta_end = write_scientific_notation(schedules[m].beta_end)
+        st.write(epsilon, beta_start, beta_end)
+        epsilon = r'8*10^{-5}'
+        beta_start = r'10^{-6}'
+        beta_end = r'10^{-2}'
+        if m == "cosine":
+            label += f"  ($\\epsilon={epsilon}$)"
+        elif m == "linear":
+            label += f"   ($\\beta_0={beta_start}$, $\\beta_T={beta_end}$)"
+        elif m == "square":
+
+            label += f" ($\\beta_0={beta_start}$, $\\beta_T={beta_end}$)"
+
         ax.plot(schedules[m].sqrt_one_minus_alphas_cumprod,
-                label=f"{m}", 
+                label=label,
                 color=colors[i],
                 linestyle=linestyles[i])
         
 
-    ax.set_title("Variance schedule for different methods ($\\sqrt{1-\\bar\\alpha_i}$)")
-    ax.set_xlabel("Timesteps")
+    ax.set_title("Variance schedule for different methods")
+    ax.set_xlabel("Timestep")
     ax.grid()
-    ax.set_ylabel("Noise level $\\sqrt{1-\\bar\\alpha_i}$")
+    ax.set_ylabel("Noise level: $\\sqrt{1-\\bar\\alpha_i}$")
     ax.legend(loc='lower right', ncol=1)
     plt.tight_layout()
     return fig

@@ -31,9 +31,9 @@ def train(model_name='VAE1', build=False):
     cfg['MODEL']['seq_len'] = cfg['DATA']['seq_len']
     model = VAE(model_name, verbose = False if not build else True, **cfg['MODEL'])
 
-    new_path = 'logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700.ckpt'
-    cpkt_loaded = torch.load(new_path, map_location='mps')
-    model.load_state_dict(cpkt_loaded)
+    # new_path = 'logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700.ckpt'
+    # cpkt_loaded = torch.load(new_path, map_location='mps')
+    # model.load_state_dict(cpkt_loaded)
 
 
     print_header(f"Training {model_name}")

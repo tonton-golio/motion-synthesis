@@ -85,6 +85,10 @@ class VarianceSchedule(nn.Module):
         super(VarianceSchedule, self).__init__()
         self.timesteps = timesteps
 
+        self.beta_start = kwargs.get("beta_start", 1e-4)
+        self.beta_end = kwargs.get("beta_end", 0.02)
+        self.epsilon = kwargs.get("epsilon", 0.08)
+
         if method == "cosine":
             # st.write('using cosine, with epsilon:', kwargs.get("epsilon", 0.008))
             betas = self._cosine_variance_schedule(timesteps, epsilon=kwargs.get("epsilon", 0.008))

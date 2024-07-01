@@ -104,7 +104,7 @@ def plot_trajec(trajec, index, ax):
 
 cols = st.columns(2)
 with cols[0]:
-    data_source = st.radio("Data source", ['HumanML3D', 'VAE', 'LD'])
+    data_source = st.radio("Data source", ['HumanML3D', 'VAE', 'LD', 'POSE'])
     num_images = st.slider("Number of images", 1, 30, 30)
 
     if data_source == 'HumanML3D':
@@ -125,12 +125,26 @@ with cols[0]:
 
         x = np.load(joints_path)
         x.shape
-
+        st.write(x.shape)
         # swap x,z,y to z,x,y
         x = x[:, :, [0, 2,1]]
 
     elif data_source == 'VAE':
-        pass
+        # look for files in : app/assets_produced/17_Motion_VAE_final/animations
+        files = os.listdir('../app/assets_produced/17_Motion_VAE_final/animations')
+        files = [f for f in files if f.endswith('.npy')]
+        file = st.selectbox("Select file", files)
+        fname = f'../app/assets_produced/17_Motion_VAE_final/animations/{file}'
+        x = np.load(fname).squeeze()
+        st.write(x.shape)
+        x = x[:, :, [0, 2,1]]
+        # x[:, :, 1] += np.linspace(-1, 10, x.shape[0])[:, None]
+        vid_fname = fname.replace('.npy', '.mp4')
+        try:
+            st.video(vid_fname)
+        except:
+            st.write("Video not found")
+        text = st.text_area("Text", "")
     elif data_source == 'LD':
         # look for files in : app/assets_produced/30_Motion_Latent_Diffusion_Inference/
         files = os.listdir('../app/assets_produced/30_Motion_Latent_Diffusion_Inference/')
@@ -141,9 +155,16 @@ with cols[0]:
         x = np.concatenate([x[:, :, 0:1], x[:, :, 2:3], x[:, :, 1:2]], axis=-1)
         text = ' '.join(file.split('.')[0].split('_'))
 
-
-    
-
+    elif data_source == 'POSE':
+        pose_vae_type = st.radio("Pose VAE type", ['linear', 'conv', 'graph'])
+        files = os.listdir(f'../app/assets_produced/15_pose_VAE/animations_{pose_vae_type}')
+        files = [f for f in files if f.endswith('.npy')]
+        file = st.selectbox("Select file", files)
+        x = np.load(f'../app/assets_produced/15_pose_VAE/animations_{pose_vae_type}/{file}')
+        x.shape
+        x = x[:, :, [0, 2,1]]
+        x[:, :, 2] +=1
+        text = st.text_area("Text", "")
 
 
 with cols[1]:
@@ -156,8 +177,8 @@ with cols[1]:
         min_z = 0#st. slider("Min Z", -2., 0., -1.)
     with subcols[1]:
         azim = st.slider("Azimuth", -180, 180, -0, step=5)
-        max_x = st.slider("max x", 0., 2., 1., step=0.2)
-        max_y = st.slider("max y", 0., 4., 1., step=0.2)
+        max_x = st.slider("max x", 0., 5., 1., step=0.2)
+        max_y = st.slider("max y", 0., 10., 1., step=0.2)
         max_z = 1.2#st.slider("Max Z", 0., 2., 1.)
 
 

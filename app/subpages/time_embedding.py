@@ -4,7 +4,7 @@ import umap
 import numpy as np
 from utils_app import load_or_save_fig
 
-deactivate = False
+deactivate = True
 
 def sinusoidal_time_embedding(time_indices, dimension):
     """
@@ -42,7 +42,7 @@ def sine_time_embed_demo(T=512, D=32):
 
 
     fig, ax = plt.subplots(1, 2, figsize=(8, 3))
-    fig.suptitle('Sinusoidal Time Embeddings')
+    # fig.suptitle('Sinusoidal Time Embeddings')
 
 
     # 'RdYlBu'
@@ -61,7 +61,9 @@ def sine_time_embed_demo(T=512, D=32):
     scat = ax[1].scatter(umap_embeddings[:, 0], umap_embeddings[:, 1], c=time_indices, cmap=cmap, s=5)
     ax[1].set_title('UMAP projection of embeddings')
     plt.colorbar(scat, ax=ax[1], label='Time Index')
-    ax[1].axis('off')
+    # ax[1].axis('off')
+    ax[1].set_xlabel('UMAP component 1')  
+    ax[1].set_ylabel('UMAP component 2')
 
     plt.tight_layout()
     

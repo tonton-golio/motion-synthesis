@@ -5,8 +5,12 @@ import torch.nn.functional as F
 import numpy as np
 from torch_geometric.nn import GCNConv
 import pytorch_lightning as pl
-from utils import plot_3d_motion_frames_multiple
+from utils import plot_3d_motion_frames_multiple, plot_3d_motion_animation
 from modules.Loss import VAE_Loss
+from umap import UMAP
+import matplotlib.pyplot as plt
+import os
+
 
 # LINEAR VAE
 class LinearLayer(nn.Module):
@@ -87,7 +91,23 @@ class ConvLayer(nn.Module):
         if self.batch_norm:
             x = self.bn(x)
         return x
-    
+
+class ConvTransposeLayer(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, output_padding=0, activation=F.relu, batch_norm=True):
+        super(ConvTransposeLayer, self).__init__()
+        self.conv = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride, padding, output_padding)
+        self.activation = activation
+        self.batch_norm = batch_norm
+        if batch_norm:
+            self.bn = nn.BatchNorm1d(out_channels)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.activation(x)
+        if self.batch_norm:
+            x = self.bn(x)
+        return x    
+
 class ConvVAE(nn.Module):
     # this model should use linear layers to expand the input making a 2d field we can convolve
 
@@ -104,7 +124,7 @@ class ConvVAE(nn.Module):
         self.activation = activation
         
         dims = [input_dim] + [input_dim * m for m in dim_mults]
-        self.linear_reorder = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout) 
+        self.linear_reorder = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout, activation=nn.LeakyReLU())
                                 for in_, out_ in zip(dims[:-1], dims[1:])))
 
         # encoder
@@ -115,12 +135,23 @@ class ConvVAE(nn.Module):
         # flatten
         self.flatten = nn.Flatten()
 
-        self.fc_enc = nn.Linear(60, latent_dim*2)
+        # self.fc_enc = nn.Linear(124, latent_dim*2)
+        dims_fc_enc = [124, 64, 64, latent_dim*2]
+        self.fc_enc = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout, activation=nn.LeakyReLU())
+                                for in_, out_ in zip(dims_fc_enc[:-1], dims_fc_enc[1:])))
 
         # decoder
         dims = [latent_dim] + [input_dim * m for m in dim_mults[::-1]] + [input_dim]
-        self.fc_dec = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout) 
+        self.fc_dec = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout, activation=nn.LeakyReLU())
                                 for in_, out_ in zip(dims[:-1], dims[1:])))
+        
+        self.convT1 = ConvTransposeLayer(1, 8, kernel_size=3, stride=2, padding=0, output_padding=0)
+        self.convT2 = ConvTransposeLayer(8, 16, kernel_size=3, stride=2, padding=0, output_padding=0)
+        self.convT3 = ConvTransposeLayer(16, 4, kernel_size=3, stride=1, padding=0, output_padding=0)
+
+        dims_out = [4*269, 512, 256, 66]
+        self.fc_out = nn.Sequential(*(LinearLayer(in_, out_, dropout=dropout, activation=nn.LeakyReLU())
+                                for in_, out_ in zip(dims_out[:-1], dims_out[1:])))
         
     def forward(self, x):
         z, mu, logvar = self.encode(x)
@@ -154,7 +185,24 @@ class ConvVAE(nn.Module):
         return mu + eps * std
 
     def decode(self, z):
+        bs = z.size(0)
+        if self.verbose: print('before', z.shape)
         x = self.fc_dec(z)
+        if self.verbose: print('before', x.shape)
+        x = x.view(bs, 1, 66)
+        if self.verbose: print('before', x.shape)
+        x = self.convT1(x)
+        if self.verbose: print('before', x.shape)
+        x = self.convT2(x)
+        if self.verbose: print('before', x.shape)
+        x = self.convT3(x)
+        if self.verbose: print('before', x.shape)
+        x = x.view(bs, -1)
+        if self.verbose: print('before', x.shape)
+        x = self.fc_out(x)
+        if self.verbose: print('before', x.shape)
+        # return x
+        # x = self.fc_dec(z)
         x = x.view(-1, 22, 3)
         return x
 
@@ -413,7 +461,7 @@ class GnnVAE(nn.Module):
 
 # Lightning Module
 class PoseVAE(pl.LightningModule):
-    def __init__(self, model_name, **kwargs):
+    def __init__(self, model_name, test_video, **kwargs):
         super().__init__()
 
         if model_name == "LINEAR":  self.model = LinearVAE(**kwargs)
@@ -425,6 +473,8 @@ class PoseVAE(pl.LightningModule):
         self.lr = kwargs.get("learning_rate")
 
         self.test_losses = []
+        self.test_video = test_video.to('mps')
+        self.val_z_outputs = []
 
     def forward(self, batch, stage='train'):
         x = batch
@@ -444,7 +494,10 @@ class PoseVAE(pl.LightningModule):
         return dict(total_loss=total_loss, losses_scaled=losses_scaled, losses_unscaled=losses_unscaled, recon=recon, x=x, z=z, mu=mu, logvar=logvar)
     
     def configure_optimizers(self):
-        return optim.AdamW(self.model.parameters(), lr=self.lr)
+        # return optim.AdamW(self.model.parameters(), lr=self.lr)
+        optimizer = optim.AdamW(self.model.parameters(), lr=self.lr)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.3)
+        return [optimizer], [scheduler]
     
     def training_step(self, batch, batch_idx):
         output = self(batch)
@@ -456,7 +509,8 @@ class PoseVAE(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         output = self(batch, stage='val')
         self.log('val_loss', output['total_loss'], on_step=True, on_epoch=False, prog_bar=True, logger=True)
-        
+        z = output['z']
+        self.val_z_outputs.append(z)
         if batch_idx == 0:
             recon = output['recon']
             x = output['x']
@@ -470,6 +524,37 @@ class PoseVAE(pl.LightningModule):
             grid = plot_3d_motion_frames_multiple( [batch_select, recon_select],  ['gt', 'recon'], nframes=5, radius=2, figsize=(20, 8), return_array=True)
 
             self.logger.experiment.add_image("input", grid, global_step=self.global_step)
+
+        if batch_idx == 0:
+            print('batch.shape', batch.shape)
+            print('self.test_video.shape', self.test_video.shape)
+            recon_video = self(self.test_video)['recon']
+            recon_video = recon_video.detach().cpu().numpy()
+            self.folder = self.logger.log_dir
+            self.subfolder = f"{self.folder}/animations"
+            if not os.path.exists(self.subfolder):  # check if subfolder exists
+                os.makedirs(self.subfolder)
+                print('running save_animations_func')
+            plot_3d_motion_animation(
+                recon_video, 'each frame reconstructed by POSE VAE', figsize=(10, 10), fps=20, radius=2, save_path=f"{self.subfolder}/recon_epoch_{self.current_epoch}.mp4", velocity=False)
+            
+            np.save(f"{self.subfolder}/recon_epoch_{self.current_epoch}.npy", recon_video)
+            plt.close()
+
+    def on_validation_epoch_end(self):
+        z = torch.cat(self.val_z_outputs, dim=0)[:30_000]
+        umap = UMAP(n_components=2)
+        z_umap = umap.fit_transform(z.detach().cpu().numpy())
+
+        fig, ax = plt.subplots()
+        ax.scatter(z_umap[:, 0], z_umap[:, 1], s=1, alpha=0.3)
+        ax.set_title('Latent space')
+        self.logger.experiment.add_figure("latent_space", fig, global_step=self.global_step)
+        plt.close(fig)
+
+        # clear z_outputs
+        self.val_z_outputs = []
+
 
     def test_step(self, batch, batch_idx):
         output = self(batch, stage='test')
