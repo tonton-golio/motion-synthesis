@@ -1,10 +1,7 @@
 import streamlit as st
-import numpy as np
-import os, sys, glob
+import os, glob
 import matplotlib.pyplot as plt
 # path join 
-from os.path import join as pjoin
-from pathlib import Path
 from tensorboard.backend.event_processing import event_accumulator
 import os
 
@@ -21,7 +18,7 @@ tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
 
 
-def find_logs(path = f"../motion_latent_diffusion/logs/MotionLD/VAE1/", cfg_name='hparams'):    
+def find_logs(path = f"motion_latent_diffusion/logs/MotionLD/VAE1/", cfg_name='hparams'):    
     """
     Find saved latent vectors from VAE training
     """

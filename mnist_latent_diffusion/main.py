@@ -203,8 +203,6 @@ if __name__ == "__main__":
             parent_log_dir = 'logs/imageDiffusion/train/'
             checkpoint = get_ckpt(parent_log_dir, config_name='hparams.yaml')
             print(checkpoint)
-            # import sys
-            # sys.exit(0)
             plModule = ImageDiffusionModule.load_from_checkpoint(checkpoint['ckpt_path'])
             plModule.eval()
 

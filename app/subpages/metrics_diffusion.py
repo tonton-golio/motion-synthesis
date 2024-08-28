@@ -1,5 +1,4 @@
-import sys
-# sys.path.append('../')
+
 import streamlit as st
 from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 import numpy as np
@@ -8,9 +7,7 @@ from torcheval.metrics import FrechetInceptionDistance as FID
 import torch
 from torch import Tensor
 
-import seaborn as sns
-import pandas as pd
-import umap
+
 from sklearn.preprocessing import StandardScaler
 
 ## Diffusion
@@ -170,7 +167,7 @@ def metrics_diffusion_page():
     No, because the FID is a measure of similarity between two sets of images. It is not a differentiable function.
     """)
 
-    cat = plt.imread('assets/example_images/cat.png')[:,:,:3]
+    cat = plt.imread('app/assets/example_images/cat.png')[:,:,:3]
     cat_noisy = cat + np.random.rand(*cat.shape)*0.1
     cat_NOISY = cat + np.random.rand(*cat.shape)*1
 

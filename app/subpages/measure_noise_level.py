@@ -83,11 +83,11 @@ def shannon_entropy_scale_dependence_plot():
     plt.tight_layout()
     return fig
 
-@load_or_save_fig('assets_produced/3_Diffusion_theory/compare_noise_metrics.png', deactivate=deactivate)
+@load_or_save_fig('app/assets_produced/3_Diffusion_theory/compare_noise_metrics.png', deactivate=deactivate)
 def compare_noise_metrics():
     T = 501
     vs = VarianceSchedule(T, method="cosine", epsilon=0.08)
-    img_path = 'assets/example_images/dog.png'
+    img_path = 'app/assets/example_images/dog.png'
     img = prep_image(img_path, size=(512, 512   ))
     noise_type='normal'
     data = {t:{'img': vs(img, t, clip=False, noise_type=noise_type)} for t in range(T)}

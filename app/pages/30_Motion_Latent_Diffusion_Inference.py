@@ -1,11 +1,6 @@
 import streamlit as st
 from transformers import CLIPProcessor, CLIPModel
 import torch
-import sys
-sys.path.append('../motion_latent_diffusion/')
-
-import os
-os.chdir('../motion_latent_diffusion/')
 """
 # Motion Latent Diffusion Inference
 
@@ -31,7 +26,7 @@ clip = model.get_text_features(
 
 clip.shape
 
-ckpt_path_LD = '../motion_latent_diffusion/logs/MotionLD/VAE1/version_67/checkpoints/epoch=999-step=750000.ckpt'
+ckpt_path_LD = 'motion_latent_diffusion/logs/MotionLD/VAE1/version_67/checkpoints/epoch=999-step=750000.ckpt'
 
 from motion_latent_diffusion.modules.LatentMotionData import LatentMotionData
 from motion_latent_diffusion.modules.MotionLatentDiffusion import MotionLatentDiffusion
@@ -50,7 +45,7 @@ V = 77
 #         **cfg["MODEL"]
 #     )
 
-model_path = f'../motion_latent_diffusion/logs/MotionLD/VAE1/version_{V}/model.pt'
+model_path = f'motion_latent_diffusion/logs/MotionLD/VAE1/version_{V}/model.pt'
 model = torch.load(model_path)
 
 model.eval()
@@ -65,14 +60,14 @@ sample = sample.detach().cpu().numpy()
 
 # save sample as npy
 import numpy as np
-save_path_base = '../app/assets_produced/30_Motion_Latent_Diffusion_Inference/' 
+save_path_base = 'app/assets_produced/30_Motion_Latent_Diffusion_Inference/' 
 fname = save_path_base+'_'.join(text.split())
 np.save(fname+'.npy', sample)
 
 
 
 import matplotlib.pyplot as plt
-from utils import plot_3d_motion_animation
+from motion_latent_diffusion.utils import plot_3d_motion_animation
 
 
 plot_3d_motion_animation(
@@ -88,4 +83,4 @@ plt.close()
 
 st.video(save_path_base+'_'.join(text.split())+'.mp4')
 
-os.chdir('../app/')
+# os.chdir('../app/')

@@ -24,7 +24,7 @@ tabs = {name: tab for name, tab in zip(tab_names, st.tabs(tab_names))}
 
 with tabs['Select Latent space']:
     from mnist_latent_diffusion.utils import find_saved_latent
-    VAE_data = find_saved_latent(path = f"../mnist_latent_diffusion/logs/VAE/train/")
+    VAE_data = find_saved_latent(path = f"mnist_latent_diffusion/logs/VAE/train/")
     # sort it
     VAE_data = dict(sorted(VAE_data.items(), key=lambda item: int(item[0])))
     with st.sidebar:
@@ -94,10 +94,8 @@ with tabs['Inference']:
         st.session_state.idx = 'None'
     from mnist_latent_diffusion.modules.latentDiffusion import LatentDiffusionModule
     from mnist_latent_diffusion.utils import get_ckpt
-    parent_log_dir = '../mnist_latent_diffusion/logs/latentDiffusion/train/'
+    parent_log_dir = 'mnist_latent_diffusion/logs/latentDiffusion/train/'
     # checkpoint = get_ckpt(parent_log_dir, config_name='hparams.yaml', with_streamlit=True)
-    import sys
-    sys.path.append('../mnist_latent_diffusion/')
 
     def find_latent_diffusion(path):
         LD_data = {}
@@ -125,7 +123,7 @@ with tabs['Inference']:
                 autoencoder_version = None
 
             if not autoencoder_version is None:
-                VAE_path = find_saved_latent(f"../mnist_latent_diffusion/logs/VAE/train/")
+                VAE_path = find_saved_latent(f"mnist_latent_diffusion/logs/VAE/train/")
                 VAE_ckpt_path = VAE_path[autoencoder_version]['paths']['checkpoints'][0]
             else:
                 VAE_ckpt_path = None
@@ -153,7 +151,7 @@ with tabs['Inference']:
     
 
 
-    saved_latent_data = find_latent_diffusion('../mnist_latent_diffusion/logs/latentDiffusion/train/')
+    saved_latent_data = find_latent_diffusion('mnist_latent_diffusion/logs/latentDiffusion/train/')
     'saved_latent_data', saved_latent_data.keys()
     idx = st.selectbox('Select latent diffusion model', list(saved_latent_data.keys()))
     # idx = "79"
@@ -161,7 +159,7 @@ with tabs['Inference']:
 
     ckpt_LD = saved_latent_data[idx]['paths']['checkpoints'][0]
     # ckpt_LD
-    VAE_data  = find_saved_latent(path = f"../mnist_latent_diffusion/logs/VAE/train/")
+    VAE_data  = find_saved_latent(path = f"mnist_latent_diffusion/logs/VAE/train/")
     data_version = VAE_data[saved_latent_data[idx]['VAE_version']]
     # data_version
     # autoencoder = torch.load(saved_latent_data[idx]['VAE_ckpt_path'])

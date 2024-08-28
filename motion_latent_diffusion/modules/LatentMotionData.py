@@ -1,7 +1,10 @@
 import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, TensorDataset
-from utils import print_header
+try:
+    from utils import print_header
+except:
+    from motion_latent_diffusion.utils import print_header
 # transform
 from sklearn.preprocessing import StandardScaler, MaxAbsScaler
 

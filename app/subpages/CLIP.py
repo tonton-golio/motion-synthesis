@@ -11,7 +11,7 @@ def render():
 
     cols = st.columns(2)
     with cols[1]:
-        st.image('assets_produced/17_CLIP/dalle_woman_on_boat.png', caption='dalle prompt: Give me an image containing a woman on a boat in a lake, with a mountain and the sky in the bacground.')
+        st.image('app/assets_produced/17_CLIP/dalle_woman_on_boat.png', caption='dalle prompt: Give me an image containing a woman on a boat in a lake, with a mountain and the sky in the bacground.')
 
     with cols[0]:
         st.write("""
@@ -100,6 +100,6 @@ def render():
 
     st.divider()
 
-    st.image('assets_produced/17_CLIP/label_similarity.png', caption='Label similarity')
-    st.image('assets_produced/17_CLIP/class_similarity.png', caption='Class similarity')
-    st.image('assets_produced/17_CLIP/label_projection.png', caption='Label projection')
+    st.image('app/assets_produced/17_CLIP/label_similarity.png', caption='Label similarity')
+    st.image('app/assets_produced/17_CLIP/class_similarity.png', caption='Class similarity')
+    st.image('app/assets_produced/17_CLIP/label_projection.png', caption='Label projection')

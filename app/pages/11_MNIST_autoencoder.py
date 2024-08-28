@@ -60,7 +60,7 @@ with tabs['Latent Space']:
 	# st.pyplot(fig)
 
 	from mnist_latent_diffusion.utils import find_saved_latent
-	VAE_data = find_saved_latent(path = f"../mnist_latent_diffusion/logs/VAE/train/")
+	VAE_data = find_saved_latent(path = f"mnist_latent_diffusion/logs/VAE/train/")
 	
 	for entry in VAE_data:
 		VAE_data[entry]['image'] = plt.imread(VAE_data[entry]['paths']['projection'])

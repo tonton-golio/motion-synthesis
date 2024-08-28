@@ -90,7 +90,7 @@ class MappingCLIPToLatent(nn.Module):
 
 
 
-base_path = '../motion_latent_diffusion/logs/MotionVAE/VAE1/train/version_107/saved_latent/'    
+base_path = 'motion_latent_diffusion/logs/MotionVAE/VAE1/train/version_107/saved_latent/'    
 paths = {
     f'latent_{stage}': base_path + f'latent_{stage}.pt' for stage in ['train', 'val', 'test']
 }

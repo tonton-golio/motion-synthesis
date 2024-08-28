@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-import os, sys, glob
+import os
 import streamlit as st
 
 # counts the number of lines, words, characters, and functions in the repo

@@ -1,7 +1,6 @@
 import streamlit as st
 
 # title and introduction
-# st.set_page_config(layout="wide")
 def render():
     """
     ### Unet Architecture

@@ -4,11 +4,12 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 import math
 from tqdm import tqdm
-import torchvision
-
-
-from utils import plot_3d_motion_animation, translate
 import matplotlib.pyplot as plt
+
+try:
+    from utils import plot_3d_motion_animation, translate
+except:
+    from motion_latent_diffusion.utils import plot_3d_motion_animation, translate
 
 
 class TimeMLP(nn.Module):

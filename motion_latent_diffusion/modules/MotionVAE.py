@@ -9,12 +9,22 @@ import os, shutil, copy
 from torch import Tensor
 from typing import List, Optional
 
-from modules.Loss import VAE_Loss
-from utils import (
-    plot_3d_motion_frames_multiple,
-    plot_3d_motion_animation,
-    activation_dict,
-)
+try:
+    from modules.Loss import VAE_Loss
+except:
+    from motion_latent_diffusion.modules.Loss import VAE_Loss
+try:
+    from utils import (
+        plot_3d_motion_frames_multiple,
+        plot_3d_motion_animation,
+        activation_dict,
+    )
+except:
+    from motion_latent_diffusion.utils import (
+        plot_3d_motion_frames_multiple,
+        plot_3d_motion_animation,
+        activation_dict,
+    )
 
 
 

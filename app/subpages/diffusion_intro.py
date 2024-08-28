@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from torchvision import transforms
-import sys
 import streamlit as st
 import math
 from utils_app import load_or_save_fig, VarianceSchedule, kl_score
@@ -135,7 +134,7 @@ def plot_variance_schedule_hists(img, vs, noise_type='normal', ax=None):
 
 
 # MAIN
-@load_or_save_fig(savepath="assets_produced/3_diffusion_theory/diffusion_constriction_plot", deactivate=deactivate)
+@load_or_save_fig(savepath="app/assets_produced/3_diffusion_theory/diffusion_constriction_plot", deactivate=deactivate)
 def diffusion_constriction_plot():
     ## PARTICLE DIFFUSION
     n, d, T = 1000, 2, 10001
@@ -149,7 +148,7 @@ def diffusion_constriction_plot():
     ## IMAGE DIFFUSION
     T = 4
     vs = VarianceSchedule(T, method="cosine", epsilon=0.08)
-    img_path = 'assets/example_images/cat.png'
+    img_path = 'app/assets/example_images/cat.png'
     img = prep_image(img_path)
 
 

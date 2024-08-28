@@ -10,7 +10,7 @@
 
 import streamlit as st
 import numpy as np
-import os, sys, glob
+import os, glob
 import matplotlib.pyplot as plt
 # path join 
 from os.path import join as pjoin

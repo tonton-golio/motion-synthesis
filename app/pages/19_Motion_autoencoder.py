@@ -1,15 +1,8 @@
 import streamlit as st
-import numpy as np
-import os, sys, glob
+import os, glob
 import matplotlib.pyplot as plt
-# path join 
-from os.path import join as pjoin
-from pathlib import Path
 from tensorboard.backend.event_processing import event_accumulator
 import os
-import torch
-
-
 
 # Intro and title
 """
@@ -151,7 +144,7 @@ def view_entry(entry):
 
 
 
-VAE_data = find_saved_latent('../motion_latent_diffusion/logs/MotionVAE/VAE1/train/')
+VAE_data = find_saved_latent('motion_latent_diffusion/logs/MotionVAE/VAE1/train/')
 idx = st.selectbox('Select VAE model', list(VAE_data.keys()))
 
 

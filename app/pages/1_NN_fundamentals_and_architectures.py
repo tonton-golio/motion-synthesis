@@ -29,7 +29,7 @@ with st.sidebar:
 with tabs['Activation Functions']:
 
 
-    @load_or_save_fig('assets_produced/1_NN_fundamentals_and_architectures/activation_functions.png', deactivate=False, darkmode=darkmode)
+    @load_or_save_fig('app/assets_produced/1_NN_fundamentals_and_architectures/activation_functions.png', deactivate=False, darkmode=darkmode)
     def activation_grid(darkmode=False):
         """
         Create a grid of activation function plots.

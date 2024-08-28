@@ -39,6 +39,6 @@ with tabs['Time Embedding']:
 
 # Metrics
 with tabs['Metrics']:
-    from app.subpages.metrics_diffusion import metrics_diffusion_page
+    from subpages.metrics_diffusion import metrics_diffusion_page
     metrics_diffusion_page()
 

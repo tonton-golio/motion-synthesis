@@ -318,7 +318,6 @@ with tabs['PCA demo']:
 
 
 #     """
-#     import os, sys, glob
 
 
 

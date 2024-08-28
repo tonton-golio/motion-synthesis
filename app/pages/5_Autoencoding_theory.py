@@ -4,7 +4,7 @@ import numpy as np
 import seaborn as sns
 import umap
 from sklearn.metrics import pairwise_distances
-from app.utils_app import load_or_save_fig
+from utils_app import load_or_save_fig
 # Title and intro
 """
 # Autoencoding Theory
@@ -35,7 +35,7 @@ with tabs['General']:
         Seeing as these networks are encoding a sample, we may consider them dimensionality reduction algorithms. The latent space is a compressed representation of the input data.     
         """)
     with cols[1]:
-        st.image('assets/5_Autoencoding_theory/AutoEncoderSchema.png', caption='Autoencoder schema', use_column_width=True)
+        st.image('app/assets/5_Autoencoding_theory/AutoEncoderSchema.png', caption='Autoencoder schema', use_column_width=True)
 
 # Reconstruction Error
 with tabs['Reconstruction Error (RE)']:
@@ -75,7 +75,7 @@ with tabs['KL Divergence (KL)']:
     def kl_divergence_loss(mu, log_var):
         return -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var), axis=-1)
 
-    @load_or_save_fig('assets_produced/5_Autoencoding_theory/kl_divergence_contour.png')
+    @load_or_save_fig('app/assets_produced/5_Autoencoding_theory/kl_divergence_contour.png')
     def make_contour_plot(low_alpha=-np.pi, high_alpha=np.pi, low_beta=-np.pi, high_beta=np.pi):
         n, n_ = 100, 10
 
@@ -107,7 +107,7 @@ with tabs['KL Divergence (KL)']:
         plt.gca().set_aspect('equal', adjustable='box')
         return fig
 
-    @load_or_save_fig('assets_produced/5_Autoencoding_theory/kl_divergence_dist.png')
+    @load_or_save_fig('app/assets_produced/5_Autoencoding_theory/kl_divergence_dist.png')
     def dist_plot(n):
         mu = np.random.rand(n)# * alpha
         log_var = np.random.rand(n)# * beta
@@ -173,7 +173,7 @@ with tabs['Inverse spatial entropy (ISE)']:
 
         return (np.mean(vals), np.std(vals)), X
     
-    @load_or_save_fig('assets_produced/5_Autoencoding_theory/umap_space_inverse_entropy.png')
+    @load_or_save_fig('app/assets_produced/5_Autoencoding_theory/umap_space_inverse_entropy.png')
     def make_space_full_plot(n_sample_points=1000):
         N = n_sample_points  # number of sampling points
 

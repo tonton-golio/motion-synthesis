@@ -8,7 +8,7 @@ import streamlit as st
 We obtain a latent embedding from our `Motion VAE` model. If we take the actions optained in the text shortening step, we actions are grouped together and similar action are near each other. This is shown in the Figure below
 """
 
-st.image('assets/17_Motion_VAE_final/actions_highlighted.png')
+st.image('app/assets/17_Motion_VAE_final/actions_highlighted.png')
 
 """
 Specifically, notice that the action `walk` occupies the top-left region. The action `sidestep` is also here. At the same time, we see actions like `wave`, `throw` and `clap` grouped together on the right side. This is a good sign that the model has learned to group similar actions together.
@@ -17,7 +17,7 @@ Specifically, notice that the action `walk` occupies the top-left region. The ac
 If we instead use the action categories, we see a similar coherence in the latent space. This is shown in the Figure below
 """
 
-st.image('assets/17_Motion_VAE_final/groups_highlighted.png')
+st.image('app/assets/17_Motion_VAE_final/groups_highlighted.png')
 
 
 """
@@ -30,7 +30,7 @@ st.divider()
 ## Latent distribution and scaling
 
 """
-st.columns((1,2,1))[1].image('assets/17_Motion_VAE_final/latent_component_distribution_106.png')
+st.columns((1,2,1))[1].image('app/assets/17_Motion_VAE_final/latent_component_distribution_106.png')
 
 """
 I it already centered around zero for all latent components across the training set.
@@ -38,8 +38,8 @@ I it already centered around zero for all latent components across the training 
 cols = st.columns(2)
 with cols[1]:
 
-    st.image('assets_produced/17_Motion_VAE_final/latent_distributions_with_various_scalers_108.png')
-    st.image('assets_produced/17_Motion_VAE_final/latent_distributions_with_various_scalers_128.png')
+    st.image('app/assets_produced/17_Motion_VAE_final/latent_distributions_with_various_scalers_108.png')
+    st.image('app/assets_produced/17_Motion_VAE_final/latent_distributions_with_various_scalers_128.png')
 
 with cols[0]:
 

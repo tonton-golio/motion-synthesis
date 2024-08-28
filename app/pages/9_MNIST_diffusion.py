@@ -1,8 +1,6 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
-sys.path.append('..')
 from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 import torch
 import torch.nn as nn
@@ -94,7 +92,7 @@ with tabs['Network']:
     try:
         def make_graph(model):
             # check if graph.png exists
-            fname = 'assets_produced/9_MNIST_diffusion/graph'
+            fname = 'app/assets_produced/9_MNIST_diffusion/graph'
             if not fname in os.listdir():
                 model.eval()
                 x = torch.randn(1, 1, 28, 28)
@@ -140,7 +138,7 @@ with tabs['Losses & Metrics']:
         st.pyplot(fig)
         plt.close(fig)
 
-    path = '../mnist_latent_diffusion/logs/imageDiffusion/train'
+    path = 'mnist_latent_diffusion/logs/imageDiffusion/train'
     folders = sorted(os.listdir(path), key=lambda x: int(x.split('_')[1]))[::-1]
 
     cols = st.columns([1, 1, 1])

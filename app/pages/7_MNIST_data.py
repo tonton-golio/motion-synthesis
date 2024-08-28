@@ -2,8 +2,6 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import umap
-import sys
-sys.path.append('..')
 from mnist_latent_diffusion.modules.dataModules import MNISTDataModule
 
 from utils_app import VarianceSchedule

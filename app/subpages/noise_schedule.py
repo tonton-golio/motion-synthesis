@@ -193,7 +193,7 @@ def noise_schedule_page():
             beta_end_square = st.select_slider("Beta end (square)", options=[0.001, 0.005, 0.01, 0.05, 0.1], value=0.01)
 
     with cols[1]:
-        img_path = 'assets/example_images/penguin.png'
+        img_path = 'app/assets/example_images/penguin.png'
         img = prep_image(img_path)
         T = 641
 

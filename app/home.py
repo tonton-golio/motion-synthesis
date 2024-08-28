@@ -1,5 +1,13 @@
 import streamlit as st
 import base64
+import sys
+st.set_page_config(page_title='Motion Synthesis from a Text Prompt', page_icon='🕺')
+# print current working directory
+st.write(sys.path)
+base_path = '/Users/tonton/Documents/motion-synthesis/'
+
+if base_path not in sys.path:
+    sys.path.append(base_path)
 
 title = "# Motion: synthesized from text"
 abstract = """
@@ -7,6 +15,7 @@ abstract = """
 
     The approach I will be employing, is diffusion on a latent representation. This is a powerful technique demonstrated in the literature. I work with the publicly available HumanML3D dataset, which contains 3D motion capture data with descriptive text strings from KIT.
     """
+
 
 def todo():
     from subpages.todo import todo_interface2, todo_interface
@@ -19,14 +28,14 @@ def home():
     with cols[0]:  # Introduction
         st.markdown(abstract)
 
-    cols[1].image('assets/0_home/flow_pipeline/flow2.png', caption='Schematic of the architecture/flow employed.', width=180)  # Flow
+    cols[1].image('app/assets/0_home/flow_pipeline/flow2.png', caption='Schematic of the architecture/flow employed.', width=180)  # Flow
 
     # model interface
     ## text prompt
     cols[0].text_area('Text prompt', 'A person turns on the spot.')
 
     ## centering the video.
-    st.columns([1, 2, 1])[1].video('assets/0_home/recon_fake.mp4')
+    st.columns([1, 2, 1])[1].video('app/assets/0_home/recon_fake.mp4')
 
 def learning_goals():
     st.write("""
@@ -36,7 +45,7 @@ def learning_goals():
     * Implement a model that can generate motion from a text prompt.
     """)
 
-def embed_pdf(pdf_file='assets/papers/Thesis_compressed_compressed.pdf', st=st, height=700, width=700):
+def embed_pdf(pdf_file='app/assets/papers/Thesis_compressed_compressed.pdf', st=st, height=700, width=700):
     with open(pdf_file, 'rb') as f:
         pdf = f.read()#).decode()
     base64_pdf = base64.b64encode(pdf).decode()
@@ -44,7 +53,7 @@ def embed_pdf(pdf_file='assets/papers/Thesis_compressed_compressed.pdf', st=st, 
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 if __name__ == '__main__':
-    st.set_page_config(page_title='Motion Synthesis from a Text Prompt', page_icon='🕺')
+    
     st.markdown(title)
 
     tab_names = ['TODO', 
