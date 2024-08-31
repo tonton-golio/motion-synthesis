@@ -8,6 +8,11 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from modules.PoseVAE import PoseVAE
 from modules.PoseData import PoseDataModule
+import sys
+sys.path.append('/Users/tonton/Documents/motion-synthesis/')
+for p in sys.path:
+    print(p)
+
 
 
 if __name__ == "__main__":
@@ -37,12 +42,12 @@ if __name__ == "__main__":
 
     elif args.model_name[:2] == 'LD':
         if args.mode == 'train':
-            from scripts.MotionLD_train import train
+            from motion_latent_diffusion.scripts.MotionLD_train import train
             
             # 
             train(VAE_version=args.model_name.split('_')[1])
         elif args.mode == 'inference':
-            from scripts.MotionLD_train import inference
+            from motion_latent_diffusion.scripts.MotionLD_train import inference
             inference(VAE_version=args.model_name.split('_')[1])
 
     elif args.model_name[:4] == 'POSE':

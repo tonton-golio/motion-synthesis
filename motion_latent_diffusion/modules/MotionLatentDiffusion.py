@@ -504,7 +504,7 @@ class MotionLatentDiffusion(pl.LightningModule):
                 if file_num is not None:
                     file_num_formatted = str(file_num[rand_idx].item())
                     file_num_formatted = '0'* (6 - len(file_num_formatted)) + file_num_formatted
-                    path_text = '../stranger_repos/HumanML3D/HumanML3D/texts'
+                    path_text = 'stranger_repos/HumanML3D/HumanML3D/texts'
                     with open(f"{path_text}/{file_num_formatted}.txt", 'r') as f:
                         text = f.read().split('\n')[0].split('#')[0]
 

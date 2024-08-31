@@ -22,7 +22,7 @@ class MotionDataset(Dataset):
         # self.max_text_len = 100
 
         # self.path_text_enc = "../stranger_repos/HumanML3D/HumanML3D/texts_enc/simple/"
-        self.path_text_enc = "data/CLIP/"
+        self.path_text_enc = "motion_latent_diffusion/data/CLIP/"
         # self.idx2word = np.load(f"{self.path_text_enc}idx2word.npz", allow_pickle=True)[ "arr_0"]
         # self.word2idx = np.load(f"{self.path_text_enc}word2idx.npz", allow_pickle=True)["arr_0"]
 
@@ -55,7 +55,7 @@ class MotionDataset(Dataset):
         # load text group and text short
         self.filenames_short = [f.split('/')[-1].split('.')[0] for f in self.filenames]
         self.file_nums = [int(f.split('/')[-1].split('.')[0].replace("M", "")) for f in self.filenames]
-        path_grouped = 'text_backup/texts_grouped.csv'
+        path_grouped = 'motion_latent_diffusion/text_backup/texts_grouped.csv'
         df = pd.read_csv(path_grouped)
         self.df = df
 

@@ -10,21 +10,25 @@ from torch import Tensor
 from typing import List, Optional
 
 try:
-    from modules.Loss import VAE_Loss
-except:
     from motion_latent_diffusion.modules.Loss import VAE_Loss
-try:
-    from utils import (
-        plot_3d_motion_frames_multiple,
-        plot_3d_motion_animation,
-        activation_dict,
-    )
 except:
+    assert False
+    #from modules.Loss import VAE_Loss
+
+    
+try:
     from motion_latent_diffusion.utils import (
         plot_3d_motion_frames_multiple,
         plot_3d_motion_animation,
         activation_dict,
     )
+except:
+    assert False
+    # from utils import (
+    #     plot_3d_motion_frames_multiple,
+    #     plot_3d_motion_animation,
+    #     activation_dict,
+    # )
 
 
 
@@ -1038,7 +1042,7 @@ class MotionVAE(pl.LightningModule):
         if file_num is not None:
             file_num_formatted = str(file_num.item())
             file_num_formatted = '0'* (6 - len(file_num_formatted)) + file_num_formatted
-            path_text = '../stranger_repos/HumanML3D/HumanML3D/texts'
+            path_text = 'stranger_repos/HumanML3D/HumanML3D/texts'
             with open(f"{path_text}/{file_num_formatted}.txt", 'r') as f:
                 text = f.read().split('\n')[0].split('#')[0]
 

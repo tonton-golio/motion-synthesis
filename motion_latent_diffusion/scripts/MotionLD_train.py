@@ -3,19 +3,21 @@ import os
 import matplotlib.pyplot as plt
 import glob
 import torch
-from utils import test_translate
-from utils import get_ckpt
 
 import pytorch_lightning as pl
-from modules.LatentMotionData import LatentMotionData
-from modules.MotionLatentDiffusion import MotionLatentDiffusion
-from utils import plot_3d_motion_animation, load_config
-
 # logger
 from pytorch_lightning.loggers import TensorBoardLogger
 
+
+import sys
+sys.path.append('/Users/tonton/Documents/motion-synthesis/')
+from motion_latent_diffusion.modules.LatentMotionData import LatentMotionData
+from motion_latent_diffusion.modules.MotionLatentDiffusion import MotionLatentDiffusion    
+from motion_latent_diffusion.utils import test_translate, get_ckpt, plot_3d_motion_animation, load_config
+
+
 # get latent vectors
-def find_saved_latent(path = f"logs/MotionVAE/VAE1/train/", cfg_name='config'):
+def find_saved_latent(path = f"motion_latent_diffusion/logs/MotionVAE/VAE1/train/", cfg_name='config'):
     """
     Find saved latent vectors from VAE training
     """
@@ -199,14 +201,14 @@ def train(VAE_version = 'VAE5'):
 
     # load config and instantiate logger
     cfg = load_config('motion_LD')
-    logger = TensorBoardLogger('logs', name=f'MotionLD/{VAE_version}')
+    logger = TensorBoardLogger('motion_latent_diffusion/logs', name=f'MotionLD/{VAE_version}')
 
 
     # make animations folder
-    if not os.path.exists(f'logs/MotionLD/{VAE_version}/animations'):
+    if not os.path.exists(f'motion_latent_diffusion/logs/MotionLD/{VAE_version}/animations'):
         os.makedirs(logger.log_dir + '/animations')
     # load latent vectors
-    data_version, version = latent_picker(f'logs/MotionVAE/{VAE_version}/train/', cfg_name='hparams', show=False)
+    data_version, version = latent_picker(f'motion_latent_diffusion/logs/MotionVAE/{VAE_version}/train/', cfg_name='hparams', show=False)
     res_loaded = load_latent(data_version)
 
     z_train = res_loaded['z_train']

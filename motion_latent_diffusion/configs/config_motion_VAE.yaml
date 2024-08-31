@@ -86,10 +86,10 @@ BASE:
     seq_len: 160
     batch_size: 16
     file_list_paths:
-      _train: ../stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
-      _val: ../stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt
-      _test: ../stranger_repos/HumanML3D/HumanML3D/test_cleaned.txt
-    _motion_path: ../stranger_repos/HumanML3D/HumanML3D/new_joints
+      _train: stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
+      _val: stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt
+      _test: stranger_repos/HumanML3D/HumanML3D/test_cleaned.txt
+    _motion_path: stranger_repos/HumanML3D/HumanML3D/new_joints
   TRAINER:
     accelerator: mps
     devices: 1

@@ -2,19 +2,23 @@
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 # from pytorch_lightning.profilers import PyTorchProfiler
-from utils import load_config, get_ckpts, get_ckpt, print_header
-from utils import prep_save, plotUMAP, save_for_diffusion
+
 import matplotlib.pyplot as plt
 import torch
 import yaml, os
-from modules.MotionVAE import MotionVAE as VAE
-from modules.MotionData import MotionDataModule1 as DM
+
+import sys
+sys.path.append('/Users/tonton/Documents/motion-synthesis/')
+from motion_latent_diffusion.modules.MotionVAE import MotionVAE as VAE
+from motion_latent_diffusion.modules.MotionData import MotionDataModule1 as DM
+
+from motion_latent_diffusion.utils import load_config, get_ckpts, get_ckpt, print_header, prep_save, plotUMAP, save_for_diffusion
 
 
 def train(model_name='VAE1', build=False):
     cfg= load_config('motion_VAE', mode='TRAIN', model_type=model_name[3:])
 
-    logger = TensorBoardLogger(f"logs/MotionVAE/{model_name}/", name="train" if not build else "build")
+    logger = TensorBoardLogger(f"motion_latent_diffusion/logs/MotionVAE/{model_name}/", name="train" if not build else "build")
     # profiler = PyTorchProfiler(
     #     on_trace_ready=torch.profiler.tensorboard_trace_handler("tb_logs/profiler0"),
     #     #schedule=torch.profiler.schedule(skip_first=1, wait=1, warmup=1, active=20),
@@ -31,9 +35,9 @@ def train(model_name='VAE1', build=False):
     cfg['MODEL']['seq_len'] = cfg['DATA']['seq_len']
     model = VAE(model_name, verbose = False if not build else True, **cfg['MODEL'])
 
-    # new_path = 'logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700.ckpt'
-    # cpkt_loaded = torch.load(new_path, map_location='mps')
-    # model.load_state_dict(cpkt_loaded)
+    new_path = 'motion_latent_diffusion/logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700.ckpt'
+    cpkt_loaded = torch.load(new_path, map_location='mps')
+    model.load_state_dict(cpkt_loaded)
 
 
     print_header(f"Training {model_name}")

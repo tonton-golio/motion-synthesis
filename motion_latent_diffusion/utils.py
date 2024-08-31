@@ -116,7 +116,7 @@ def load_config(name, mode=None, model_type=None, verbose=True):
     if verbose: print_header('Config')
     if verbose: print(f"Loading config for {name}, mode: {mode}, model_type: {model_type}")
     # load config file
-    full_name = name if '.yaml' in name else f'configs/config_{name}.yaml'
+    full_name = name if '.yaml' in name else f'motion_latent_diffusion/configs/config_{name}.yaml'
     with open(full_name, 'r') as file:
         cfg =  yaml.safe_load(file)
 

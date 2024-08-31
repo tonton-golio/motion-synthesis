@@ -11,6 +11,17 @@ import torch
 * then we load the LD model
 """
 
+# # change directory to motion_latent_diffusion
+# # import os
+# # try:
+# #     os.chdir('motion_latent_diffusion')
+# # except:
+# #     pass
+
+# # print current directory
+# current_directory = os.getcwd()
+# st.write(f"Current directory: {current_directory}")
+
 text = st.text_area("Enter a prompt", "A person walking")
 
 processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
@@ -26,12 +37,12 @@ clip = model.get_text_features(
 
 clip.shape
 
-ckpt_path_LD = 'motion_latent_diffusion/logs/MotionLD/VAE1/version_67/checkpoints/epoch=999-step=750000.ckpt'
+ckpt_path_LD = 'logs/MotionLD/VAE1/version_67/checkpoints/epoch=999-step=750000.ckpt'
 
 from motion_latent_diffusion.modules.LatentMotionData import LatentMotionData
 from motion_latent_diffusion.modules.MotionLatentDiffusion import MotionLatentDiffusion
 
-V = 77
+V = 169
 
 # decoder = torch.load(f'../motion_latent_diffusion/logs/MotionLD/VAE1/version_{V}/decoder.pt')
 # scaler = torch.load(f'../motion_latent_diffusion/logs/MotionLD/VAE1/version_{V}/scaler.pt')
@@ -45,22 +56,22 @@ V = 77
 #         **cfg["MODEL"]
 #     )
 
-model_path = f'motion_latent_diffusion/logs/MotionLD/VAE1/version_{V}/model.pt'
+model_path = f'logs/MotionLD/VAE1/version_{V}/model.pt'
 model = torch.load(model_path)
 
 model.eval()
 x_t = model.model.sampling(clip, clipped_reverse_diffusion=False, device='cpu', 
                            noise_mul=1.0
-                           )
-
-x_t.shape
+                           )[0]
+x_t
+# x_t.shape
 
 sample = model.decode(torch.tensor(model.scaler.inverse_transform(x_t.cpu().detach().numpy())).to('mps')).squeeze(0)
 sample = sample.detach().cpu().numpy()
 
 # save sample as npy
 import numpy as np
-save_path_base = 'app/assets_produced/30_Motion_Latent_Diffusion_Inference/' 
+save_path_base = '../app/assets_produced/30_Motion_Latent_Diffusion_Inference/' 
 fname = save_path_base+'_'.join(text.split())
 np.save(fname+'.npy', sample)
 
@@ -83,4 +94,4 @@ plt.close()
 
 st.video(save_path_base+'_'.join(text.split())+'.mp4')
 
-# os.chdir('../app/')
+# os.chdir('../')
