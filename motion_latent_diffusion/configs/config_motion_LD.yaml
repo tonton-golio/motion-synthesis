@@ -1,14 +1,5 @@
-# hidden_dim=512,
-# nhidden=5,
-# timesteps=1000,
-# time_embedding_dim=12,
-# target_embedding_dim=100,
-# epsilon=0.0008,
-# dp_rate=0.1,
-
-# lr = 0.0001,
-# verbose=False
-
+# Latent-space conditional diffusion over motion-VAE latents.
+# Rebuilt for eps-prediction + DDPM/DDIM + classifier-free guidance.
 
 TRAINER:
   fast_dev_run: false
@@ -16,31 +7,27 @@ TRAINER:
   enable_checkpointing: True
   log_every_n_steps: 100
   accelerator: mps
+  gradient_clip_val: 1.0
 
 MODEL:
-  hidden_dim: 128
-  nhidden: 10
-  timesteps: 4
-  time_embedding_dim: 4
-  target_embedding_dim: 16
-  epsilon: 0.0008
-  dp_rate: 0.15
-  noise_multiplier: 1
-
-  lr: 0.01
-  z_limit: 10.0
-
-
-  verbose: false
+  hidden_dim: 512
+  nhidden: 4
+  timesteps: 1000           # was 4 (far too few); DDIM uses sample_steps below
+  schedule: cosine
+  time_embedding_dim: 64    # was 4
+  target_embedding_dim: 512 # CLIP text feature dim
+  dp_rate: 0.1
+  # classifier-free guidance
+  cfg_dropout: 0.1          # condition-dropout prob during training
+  cfg_scale: 2.5            # guidance weight at sampling (motion regime ~2-2.5)
+  sample_steps: 50          # DDIM steps
+  clip_x0: 3.0              # clip predicted x0 (latents are standardized)
+  lr: 1.0e-4               # was 0.01
 
 DATA:
-  batch_size: 2
-  scale: false
-
-  # shuffle: false
-
-  
-  tiny: 70000
+  batch_size: 64
+  scale: true               # standardize latents (diffusion expects ~unit variance)
+  tiny: false
 
 FIT:
   load_checkpoint: false

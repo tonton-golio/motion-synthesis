@@ -28,7 +28,9 @@ class LatentMotionData(pl.LightningDataModule):
         self.batch_size = batch_size
         self.latent_dim = z_train.shape[-1]
         self.z_limit = kwargs.get('z_limit', 5.0)
-        self.scale = kwargs.get('scale', False)
+        # Diffusion expects ~unit-variance inputs, so standardize latents by default
+        # (the toy-2D test shows DDIM is unstable on unnormalized data).
+        self.scale = kwargs.get('scale', True)
         self.tiny = kwargs.get('tiny', False)
 
         print('self scale:', self.scale)
@@ -42,9 +44,12 @@ class LatentMotionData(pl.LightningDataModule):
         self.z_val = self.transform_data(self.z_val, self.scaler)
         self.z_test = self.transform_data(self.z_test, self.scaler)
 
-        self.z_train = torch.tensor(self.z_train).float().to('mps')
-        self.z_val = torch.tensor(self.z_val).float().to('mps')
-        self.z_test = torch.tensor(self.z_test).float().to('mps')
+        # Keep tensors on CPU; Lightning moves batches to the right device. (The
+        # original hardcoded .to('mps'), breaking non-Apple machines and eagerly
+        # pinning the whole dataset to the GPU.)
+        self.z_train = torch.tensor(self.z_train).float()
+        self.z_val = torch.tensor(self.z_val).float()
+        self.z_test = torch.tensor(self.z_test).float()
 
         self.file_num_train = torch.tensor(self.file_num_train).long()
         self.file_num_val = torch.tensor(self.file_num_val).long()
@@ -58,13 +63,21 @@ class LatentMotionData(pl.LightningDataModule):
         print('file_num_train shape:', self.file_num_train.shape)
 
     def prepare_data_(self, z, texts, file_num):
-        
-        # repeat data for each text
-        z = z.repeat(3, 1).cpu().numpy()
-        texts = texts.view(-1, texts.shape[-1])
-        file_num = file_num.repeat(3).cpu().numpy()
-        
-        # remove outliers        
+
+        # Each motion has 3 captions: texts is (N, 3, cond_dim). Flattening gives
+        # [t0a,t0b,t0c, t1a,...], so the latents/file_nums must be INTERLEAVED to
+        # match ([z0,z0,z0, z1,...]). The original used .repeat(3,1) which TILES
+        # ([z0..zN, z0..zN, ...]) and paired every latent with the wrong caption
+        # (deep-review D-LatentMotionData).
+        n_caps = texts.shape[1] if texts.dim() == 3 else 1
+        z = z.repeat_interleave(n_caps, dim=0).cpu().numpy()
+        texts = texts.reshape(-1, texts.shape[-1])
+        file_num = file_num.repeat_interleave(n_caps).cpu().numpy()
+        assert z.shape[0] == texts.shape[0] == file_num.shape[0], (
+            f"latent/text/file_num misaligned: {z.shape[0]}, {texts.shape[0]}, {file_num.shape[0]}"
+        )
+
+        # remove outliers
         bad_idx = (np.abs(z)>self.z_limit).max(axis=1).astype(bool)
         print(f"Removing {bad_idx.sum()} outliers")
 
