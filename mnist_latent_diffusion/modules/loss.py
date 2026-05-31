@@ -67,6 +67,12 @@ class VAE_Loss(nn.Module):
         Returns:
             Tensor: The computed KL divergence loss.
         """
+        # NOTE: like the motion VAE (deep-review B01), this is a bare torch.sum
+        # over batch*latent and is mismatched against the mean-reduced recon
+        # terms; the correct form is per-sample (sum over latent, mean over
+        # batch). It is left as-is here because retuning this reference pipeline's
+        # KL weight cannot be validated without training on MNIST. See
+        # motion_latent_diffusion/modules/loss.py for the corrected version.
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
 if __name__ == '__main__':
