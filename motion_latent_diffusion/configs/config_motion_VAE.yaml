@@ -1,7 +1,8 @@
 TRAIN:
   DATA:
     tiny: -1
-  
+
+  # Legacy model blocks (VAE1/4/5/6) kept for loading old checkpoints only.
   MODEL_1:
     nhead: 6
     ff_transformer: 1024
@@ -11,14 +12,12 @@ TRAIN:
     transformer_activation: relu
 
   MODEL_4:
-    batch_norm: true
     latent_dim: 256
     nhead: 8
     nlayers_transformer: 5
     ff_transformer: 1024
 
   MODEL_5:
-
     latent_dim: 256
     nhead: 8
     num_layers: 5
@@ -26,65 +25,67 @@ TRAIN:
     dropout: 0.10
 
   MODEL_6:
-
     latent_dim: 256
     nhead: 8
     nlayers_transformer: 9
     transformer_activation: gelu
     dropout: 0.20
 
+  # Recommended model: corrected ACTOR/MLD-style transformer VAE.
+  MODEL_MLD:
+    latent_dim: 256
+    latent_size: 1            # try 7 (MLD-7) if reconstruction underfits
+    nhead: 4
+    nlayers_transformer: 9
+    ff_transformer: 1024
+    transformer_activation: gelu
+    dropout: 0.1
+
   MODEL_BASE:
     dropout: 0.1
-    
     seq_len: 160
 
+    learning_rate: 1.0e-4     # was 1e-10 (deep-review B02); sane Adam value
+    # KL is now batch-invariant (deep-review B01), so beta is a real beta:
+    kl_beta: 1.0e-4           # MLD/ACTOR regime
+    kl_warmup_epochs: 2       # hold beta=0, then linearly ramp (Bowman warm-up)
+    kl_anneal_epochs: 20
+    free_bits: 0.0
+    # Reconstruction term weights (normalized space): position + velocity + foot-skate
+    w_pos: 1.0
+    w_vel: 0.5
+    w_foot: 1.0
 
-    learning_rate: 0.000_000_000_1
-    clip_grad_norm: .1
-    LOSS:
-      DIVERGENCE_KL: 0.000_000_01
-      VELOCITY_L2: .0 #001 
-      ROOT_L2: .01 #01
-      POSE0_L2: 0.01 #10.
-      MOTION_L2: 0.0
-      MOTIONRELATIVE_L2: 2. #.1
-      VELOCITYRELATIVE_L2: 5.
+    # logging
+    save_animations_freq: 25
 
   TRAINER:
     max_epochs: 1000
     enable_checkpointing: True
     log_every_n_steps: 10
-    # overfit_batches: 1
+    gradient_clip_val: 1.0    # grad clip belongs on the Trainer, not in training_step (B11)
 
   FIT:
     load_checkpoint: true
-    
+
 BUILD:
   DATA:
-    batch_size: 2
+    batch_size: 4
     SHUFFLE: false
-  MODEL:
-    hidden_dim: 256
   TRAINER:
-    #fast_dev_run: True
     overfit_batches: 1
 
 BASE:
   MODEL_BASE:
     input_dim: 66
-    hidden_dim_transformer: 256
-    
-    
-    hidden_dim_linear: 256
-    latent_dim: 1024
-
-    # logging
-    save_animations_freq: 1
-
+    latent_dim: 256
+    latent_size: 1
 
   DATA:
     seq_len: 160
     batch_size: 16
+    normalize: true
+    canonicalize_heading: true
     file_list_paths:
       _train: stranger_repos/HumanML3D/HumanML3D/train_cleaned.txt
       _val: stranger_repos/HumanML3D/HumanML3D/val_cleaned.txt
@@ -94,4 +95,3 @@ BASE:
     accelerator: mps
     devices: 1
     precision: "32-true"
-  

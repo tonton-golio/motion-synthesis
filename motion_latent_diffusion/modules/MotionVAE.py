@@ -10,25 +10,21 @@ from torch import Tensor
 from typing import List, Optional
 
 try:
-    from motion_latent_diffusion.modules.Loss import VAE_Loss
-except:
-    assert False
-    #from modules.Loss import VAE_Loss
-
-    
-try:
+    from motion_latent_diffusion.modules.loss import VAE_Loss, MotionVAELoss
+    from motion_latent_diffusion.modules.motion_vae_mld import MotionVAE_MLD
     from motion_latent_diffusion.utils import (
         plot_3d_motion_frames_multiple,
         plot_3d_motion_animation,
         activation_dict,
     )
-except:
-    assert False
-    # from utils import (
-    #     plot_3d_motion_frames_multiple,
-    #     plot_3d_motion_animation,
-    #     activation_dict,
-    # )
+except ImportError:  # allow running from inside the package directory
+    from modules.loss import VAE_Loss, MotionVAELoss
+    from modules.motion_vae_mld import MotionVAE_MLD
+    from utils import (
+        plot_3d_motion_frames_multiple,
+        plot_3d_motion_animation,
+        activation_dict,
+    )
 
 
 
@@ -974,6 +970,20 @@ class VAE6(nn.Module):
 
 # Lightning Module
 class MotionVAE(pl.LightningModule):
+    """LightningModule wrapping the motion VAE.
+
+    The supported model is ``VAEMLD`` (the corrected MLD-style VAE in
+    ``motion_vae_mld.py``); VAE1/4/5/6 are kept only for loading legacy
+    checkpoints and are not the recommended training path.
+
+    Training uses the masked, batch-invariant ``MotionVAELoss`` (position +
+    velocity + foot-contact + annealed KL) in *normalized* space. Gradient
+    clipping is delegated to the Trainer (``gradient_clip_val``), not done by hand
+    inside ``training_step`` where it would run before backward() and be a no-op.
+    """
+
+    LEGACY_MODELS = {"VAE1": VAE1, "VAE4": VAE4, "VAE5": VAE5, "VAE6": VAE6}
+
     def __init__(
         self,
         model_name: str,
@@ -982,35 +992,65 @@ class MotionVAE(pl.LightningModule):
     ):
         super(MotionVAE, self).__init__()
 
-        self.lr = kwargs.get("learning_rate")
-        self.clip = kwargs.get("clip_grad_norm", 1)
+        self.model_name = model_name
+        self.lr = kwargs.get("learning_rate", 1e-4)
         self.save_animations_freq = kwargs.get("save_animations_freq", -1)
         self.epochs_animated = []
+        self.is_mld = model_name in ("VAEMLD", "MLD")
 
-        self.model = {
-            "VAE1": VAE1,
-            "VAE4": VAE4,
-            "VAE5": VAE5,
-            "VAE6": VAE6,
-        }[model_name](**kwargs)
+        if self.is_mld:
+            self.model = MotionVAE_MLD(**kwargs)
+        else:
+            self.model = self.LEGACY_MODELS[model_name](**kwargs)
         assert self.model is not None, f"Model {model_name} not found"
 
-        if verbose: self.model.verbose = True
+        if verbose:
+            self.model.verbose = True
 
-        loss_weights = kwargs.get("LOSS")
-        self.loss_function = VAE_Loss(loss_weights)
+        # --- KL annealing (Bowman warm-up): hold beta=0, then ramp to target ---
+        self.kl_target_beta = float(kwargs.get("kl_beta", 1e-4))
+        self.kl_warmup_epochs = int(kwargs.get("kl_warmup_epochs", 2))
+        self.kl_anneal_epochs = int(kwargs.get("kl_anneal_epochs", 20))
+
+        if self.is_mld:
+            self.loss_function = MotionVAELoss(
+                w_pos=float(kwargs.get("w_pos", 1.0)),
+                w_vel=float(kwargs.get("w_vel", 0.5)),
+                w_foot=float(kwargs.get("w_foot", 1.0)),
+                free_bits=float(kwargs.get("free_bits", 0.0)),
+            )
+        else:
+            self.loss_function = VAE_Loss(kwargs.get("LOSS", {}))
+
+        # Normalization stats for de-normalizing before visualization. Default is
+        # identity; the DataModule can overwrite these buffers with real stats.
+        self.register_buffer("data_mean", torch.zeros(3))
+        self.register_buffer("data_std", torch.ones(3))
 
         self.val_outputs = {}
-        
-    def forward(self, x):
-        return self.model(x)
-    
-    def encode(self, x):
-        z = self.model.encode(x)[0]  # only return z
-        return z
 
-    def decode(self, z):
-        return self.model.decode(z)
+    def forward(self, x, lengths=None):
+        return self.model(x, lengths) if self.is_mld else self.model(x)
+
+    def encode(self, x, lengths=None):
+        out = self.model.encode(x, lengths) if self.is_mld else self.model.encode(x)
+        return out[0]  # z only
+
+    def decode(self, z, lengths=None):
+        return self.model.decode(z, lengths)
+
+    def denormalize(self, motion):
+        return motion * self.data_std.to(motion.device) + self.data_mean.to(motion.device)
+
+    def current_beta(self):
+        try:
+            e = self.current_epoch
+        except (RuntimeError, AttributeError):
+            e = 0
+        if e < self.kl_warmup_epochs:
+            return 0.0
+        ramp = (e - self.kl_warmup_epochs) / max(1, self.kl_anneal_epochs)
+        return min(1.0, ramp) * self.kl_target_beta
 
 
     def log_images_arr(self, recon_seq, motion_seq, nframes=5):
@@ -1065,100 +1105,74 @@ class MotionVAE(pl.LightningModule):
                 motion_seq, text, figsize=(10, 10), fps=20, radius=2, save_path=f"{self.folder}/recon_true.mp4", velocity=False)
             plt.close()
 
-    def decompose_recon(self, motion_seq):
-        pose0 = motion_seq[:, :1]
-        root_travel = motion_seq[:, :, :1, :]
-        root_travel = root_travel - root_travel[:1]  # relative to the first frame
-        motion_less_root = motion_seq - root_travel  # relative motion
-        velocity = torch.diff(motion_seq, dim=1)
-        velocity_relative = torch.diff(motion_less_root, dim=1)
+    @staticmethod
+    def _unpack(batch):
+        """Accept the new (motion, lengths, text, action_group, action, file_num)
+        batch, or a legacy 5-tuple without lengths."""
+        if len(batch) == 6:
+            motion_seq, lengths, text, action_group, action, file_num = batch
+        else:
+            motion_seq, text, action_group, action, file_num = batch
+            lengths = None
+        return motion_seq, lengths, text, file_num
 
-        return pose0, velocity_relative, root_travel, motion_less_root, velocity
-
-    def _common_step(self, batch, batch_idx):
-        motion_seq, text, action_group, action, file_num = batch
-        recon, z, mu, logvar = self(motion_seq)
-        
-        pose0_pred, vel_rel_pred, root_trvl_pred, motion_rel_pred, vel_pred = self.decompose_recon(recon)
-        pose0_gt, vel_rel_gt, root_trvl_gt, motion_rel_gt, vel_gt = self.decompose_recon(motion_seq)
-        
-        loss_data = {
-            "VELOCITYRELATIVE_L2": {
-                "true": vel_rel_gt,
-                "rec": vel_rel_pred
-            },
-            'VELOCITY_L2': {
-                'true': vel_gt,
-                'rec': vel_pred
-            },
-            "ROOT_L2": {
-                "true": root_trvl_gt,
-                "rec": root_trvl_pred
-            },  
-            "POSE0_L2": {
-                "true": pose0_gt,
-                "rec": pose0_pred
-            }, 
-            "MOTION_L2": {
-                "true": motion_seq,
-                "rec": recon
-            }, 
-            "MOTIONRELATIVE_L2": {
-                "true": motion_rel_gt,
-                "rec": motion_rel_pred
-            }, 
-            'DIVERGENCE_KL': {
-                'mu': mu, 
-                'logvar': logvar}
-        }
-
-        total_loss, losses_scaled, losses_unscaled = self.loss_function(loss_data)
+    def _common_step(self, batch, batch_idx=None):
+        motion_seq, lengths, text, file_num = self._unpack(batch)
+        recon, z, mu, logvar = self(motion_seq, lengths)
+        total_loss, losses_scaled, losses_unscaled = self.loss_function(
+            recon, motion_seq, mu, logvar, lengths=lengths, beta=self.current_beta()
+        )
         return dict(
             total_loss=total_loss,
             losses_scaled=losses_scaled,
             losses_unscaled=losses_unscaled,
             motion_seq=motion_seq,
             recon_seq=recon,
+            lengths=lengths,
             text=text,
             file_num=file_num,
         )
 
     def training_step(self, batch, batch_idx):
         res = self._common_step(batch, batch_idx)
-        
         loss = {k + "_trn": v for k, v in res["losses_unscaled"].items()}
-
         self.log_dict(loss, prog_bar=True, logger=True)
         self.log("total_loss_trn", res["total_loss"])
-        # clip gradients --> do i do this here? # TODO
-        if self.clip > 0:
-            torch.nn.utils.clip_grad_norm_(self.parameters(), self.clip)
+        self.log("kl_beta", self.current_beta())
+        # NOTE: gradient clipping is configured on the Trainer (gradient_clip_val);
+        # clipping here would run before backward() and be a no-op (deep-review B11).
         return res["total_loss"]
 
     def validation_step(self, batch, batch_idx):
         res = self._common_step(batch, batch_idx)
-        # loss = {k + "_val": v for k, v in res["losses_unscaled"].items()}
-        # self.log_dict(loss)
         self.log("total_loss_val", res["total_loss"])
-        
+        self.log_dict({k + "_val": v for k, v in res["losses_unscaled"].items()})
+
         rand_idx = torch.randint(0, len(res["motion_seq"]), (1,))
-        print('rand_idx:', rand_idx)    
         self.val_outputs['motion_seq'] = res['motion_seq'][rand_idx]
         self.val_outputs['recon_seq'] = res['recon_seq'][rand_idx]
-        self.val_outputs['file_num'] = res['file_num'][rand_idx]
+        self.val_outputs['file_num'] = res['file_num'][rand_idx] if res['file_num'] is not None else None
 
     def on_validation_epoch_end(self):
-        motion_seq, recon_seq, file_num = self.val_outputs['motion_seq'], self.val_outputs['recon_seq'], self.val_outputs['file_num']
-        motion_seq = motion_seq.cpu().detach().numpy()
-        recon_seq = recon_seq.cpu().detach().numpy()
+        if not self.val_outputs:
+            return
+        # De-normalize to metric space before plotting.
+        motion_seq = self.denormalize(self.val_outputs['motion_seq']).cpu().detach().numpy()
+        recon_seq = self.denormalize(self.val_outputs['recon_seq']).cpu().detach().numpy()
+        file_num = self.val_outputs['file_num']
 
-        self.log_images_arr(recon_seq, motion_seq)
+        try:
+            self.log_images_arr(recon_seq, motion_seq)
+        except Exception as e:
+            print(f"log_images_arr skipped: {e}")
 
+        if getattr(self, "logger", None) is None or self.logger.log_dir is None:
+            return
         self.folder = self.logger.log_dir
         self.subfolder = f"{self.folder}/animations"
-        if not os.path.exists(self.subfolder):  # check if subfolder exists
+        if not os.path.exists(self.subfolder):
             os.makedirs(self.subfolder)
-        
+
         if (self.save_animations_freq != -1) and (self.current_epoch % self.save_animations_freq == 0):
             self.save_animations_func(recon_seq, motion_seq, file_num)
             np.save(f"{self.subfolder}/recon_epoch{self.current_epoch}.npy", recon_seq)
@@ -1167,17 +1181,14 @@ class MotionVAE(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         res = self._common_step(batch, batch_idx)
         loss = {k + "_tst": v for k, v in res["losses_unscaled"].items()}
-        # self.log("test_loss", loss)
-        # we want to add test loss final to the tensorboard
         self.log_dict(loss)
-
+        self.log("total_loss_tst", res["total_loss"])
         return loss
 
-
     def configure_optimizers(self):
-        # configure optimizers and schedulers
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=15, verbose=True)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=0.5, patience=15)
         return {
             'optimizer': optimizer,
             'lr_scheduler': {
@@ -1190,16 +1201,18 @@ class MotionVAE(pl.LightningModule):
 
 if __name__ == "__main__":
     import argparse
-    args = argparse.ArgumentParser()
-    args.add_argument("--model_name", type=str, default="VAE4")
-    args = args.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_name", type=str, default="VAEMLD")
+    parser.add_argument("--seq_len", type=int, default=160)
+    args = parser.parse_args()
 
-    model = MotionVAE(model_name=args.model_name, verbose=True)
+    model = MotionVAE(model_name=args.model_name, verbose=True,
+                      seq_len=args.seq_len, latent_dim=256, latent_size=1)
 
-    x = torch.randn(128, 160, 22, 3)
-    mu, logvar, z, recon = model(x)
-    print('x shape: ', x.shape)
-    print('recon shape: ', recon.shape)
-    print('mu shape: ', mu.shape)
-    print('logvar shape: ', logvar.shape)
-    print('z shape: ', z.shape)
+    x = torch.randn(8, args.seq_len, 22, 3)
+    recon, z, mu, logvar = model(x)
+    print('x shape:    ', tuple(x.shape))
+    print('recon shape:', tuple(recon.shape))
+    print('mu shape:   ', tuple(mu.shape))
+    print('logvar shape:', tuple(logvar.shape))
+    print('z shape:    ', tuple(z.shape))

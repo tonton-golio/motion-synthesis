@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
 import torch
 import yaml, os
 
-import sys
-sys.path.append('/Users/tonton/Documents/motion-synthesis/')
 from motion_latent_diffusion.modules.MotionVAE import MotionVAE as VAE
 from motion_latent_diffusion.modules.MotionData import MotionDataModule1 as DM
 
@@ -35,10 +33,11 @@ def train(model_name='VAE1', build=False):
     cfg['MODEL']['seq_len'] = cfg['DATA']['seq_len']
     model = VAE(model_name, verbose = False if not build else True, **cfg['MODEL'])
 
-    new_path = 'motion_latent_diffusion/logs/MotionVAE/VAE1/train/version_89/checkpoints/epoch=299-step=38700.ckpt'
-    cpkt_loaded = torch.load(new_path, map_location='mps')
-    model.load_state_dict(cpkt_loaded)
-
+    # Resuming from a checkpoint is handled below via trainer.fit(ckpt_path=ckpt),
+    # which restores weights AND optimizer/epoch state. (The previous code here
+    # unconditionally load_state_dict'd a hardcoded VAE1 checkpoint regardless of
+    # model_name — deep-review B13/B17 — which crashed on a fresh clone and loaded
+    # mismatched weights for non-VAE1 models.)
 
     print_header(f"Training {model_name}")
     trainer = Trainer(

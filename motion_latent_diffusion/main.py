@@ -8,10 +8,6 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from modules.PoseVAE import PoseVAE
 from modules.PoseData import PoseDataModule
-import sys
-sys.path.append('/Users/tonton/Documents/motion-synthesis/')
-for p in sys.path:
-    print(p)
 
 
 
@@ -21,8 +17,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, default='VAE', help='Model to run')
     parser.add_argument('--mode', type=str, default='train', help='Mode to run')
     args = parser.parse_args()
-    assert args.model_name.upper() in ['VAE1', 'VAE4', 'VAE5', 'VAE6', # MotionVAE
-                          'LD_VAE1', 'LD_VAE4', 'LD_VAE5', # Latent Diffusion
+    assert args.model_name.upper() in ['VAEMLD', 'VAE1', 'VAE4', 'VAE5', 'VAE6', # MotionVAE
+                          'LD_VAEMLD', 'LD_VAE1', 'LD_VAE4', 'LD_VAE5', # Latent Diffusion
                             'POSELINEAR', 'POSEGRAPH', 'POSECONV'  # PoseVAE
                           ]
     assert args.mode.lower() in ['train', 'build', 'inference', 'optuna']

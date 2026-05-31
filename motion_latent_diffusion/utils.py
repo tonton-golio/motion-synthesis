@@ -469,8 +469,16 @@ def prep_save(model, data_loader, log_dir=None):
     # fnames = list()
     file_nums = list()
     for batch in tqdm(data_loader):
-        x_, text, action_group, action, file_num = batch  
-        z = model.encode(x_).squeeze()
+        # New batch format carries true lengths; fall back to the legacy 5-tuple.
+        if len(batch) == 6:
+            x_, lengths, text, action_group, action, file_num = batch
+            z = model.encode(x_, lengths)
+        else:
+            x_, text, action_group, action, file_num = batch
+            z = model.encode(x_)
+        # Flatten latent dims but PRESERVE the batch axis (argument-less .squeeze()
+        # collapsed the batch when batch_size==1 — deep-review B16).
+        z = z.reshape(z.shape[0], -1)
         latent.append(z.detach())
         texts.append(text.detach())
         action_groups.append(action_group)
@@ -512,9 +520,12 @@ def save_for_diffusion(save_path, model=None, **kwargs):
 
 # data utils
 def pad_crop(data, length=420):
-    # Use numpy to handle padding and truncating efficiently
+    # ZERO-pad (not edge-pad). Edge-padding replicated the last frame, teaching the
+    # model to "freeze" at sequence end and giving padded frames zero velocity
+    # (deep-review B18). Padded frames must be masked out of the loss via the true
+    # sequence length; see modules/preprocessing.pad_to_length which also returns it.
     if data.shape[0] < length:
-        pad_cropped = np.pad(data, ((0, length - data.shape[0]), (0, 0), (0, 0)), mode='edge')
+        pad_cropped = np.pad(data, ((0, length - data.shape[0]), (0, 0), (0, 0)), mode='constant')
     else:
         pad_cropped = data[:length]
     return pad_cropped
