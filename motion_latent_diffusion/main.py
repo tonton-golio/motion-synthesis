@@ -43,8 +43,15 @@ if __name__ == "__main__":
             # 
             train(VAE_version=args.model_name.split('_')[1])
         elif args.mode == 'inference':
-            from motion_latent_diffusion.scripts.MotionLD_train import inference
-            inference(VAE_version=args.model_name.split('_')[1])
+            # Text->motion inference needs a trained model, its scaler/decoder, and
+            # a CLIP text encoder (app/subpages/CLIP.py). Load those, then call
+            # scripts.MotionLD_train.predict(clip_embedding, model, decoder, scaler)
+            # or inference(model, decoder, text_to_clip, scaler). The Streamlit app
+            # (app/pages/30_Motion_Latent_Diffusion_Inference.py) wires this up.
+            raise SystemExit(
+                "Run text->motion inference via the Streamlit app or by calling "
+                "scripts.MotionLD_train.predict() with a CLIP embedding, a trained "
+                "model, its decoder and scaler.")
 
     elif args.model_name[:4] == 'POSE':
         # if args.mode = 'train', train the model

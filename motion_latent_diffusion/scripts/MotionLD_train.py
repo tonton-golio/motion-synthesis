@@ -9,11 +9,19 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 
 
-import sys
-sys.path.append('/Users/tonton/Documents/motion-synthesis/')
 from motion_latent_diffusion.modules.LatentMotionData import LatentMotionData
-from motion_latent_diffusion.modules.MotionLatentDiffusion import MotionLatentDiffusion    
+from motion_latent_diffusion.modules.MotionLatentDiffusion import MotionLatentDiffusion
 from motion_latent_diffusion.utils import test_translate, get_ckpt, plot_3d_motion_animation, load_config
+
+
+def _device():
+    if torch.backends.mps.is_available():
+        return torch.device('mps')
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    return torch.device('cpu')
+
+DEVICE = _device()
 
 
 # get latent vectors
@@ -131,9 +139,9 @@ def latent_picker(path, cfg_name='config', show=True):
 
 def load_latent(data_version):
     path = data_version['paths']['saved_latent']
-    z_test = torch.load(path + '/latent_test.pt').to(torch.device('mps'))
-    z_train = torch.load(path + '/latent_train.pt').to(torch.device('mps'))
-    z_val = torch.load(path + '/latent_val.pt').to(torch.device('mps'))
+    z_test = torch.load(path + '/latent_test.pt').to(DEVICE)
+    z_train = torch.load(path + '/latent_train.pt').to(DEVICE)
+    z_val = torch.load(path + '/latent_val.pt').to(DEVICE)
     
     text_test = torch.load(path + '/clip_test.pt')
     text_train = torch.load(path + '/clip_train.pt')
@@ -143,7 +151,7 @@ def load_latent(data_version):
     file_num_train = torch.load(path + '/file_nums_train.pt')
     file_num_val = torch.load(path + '/file_nums_val.pt')
     
-    autoencoder = torch.load(path + '/model.pth').to(torch.device('mps'))
+    autoencoder = torch.load(path + '/model.pth').to(DEVICE)
     projector = torch.load(path + '/projector.pt')
     projection = torch.load(path + '/projection.pt')
 
@@ -167,34 +175,35 @@ def load_latent(data_version):
     )
 
 class LatentDecoder:
-    def __init__(self, autoencoder, VAE_version):
+    def __init__(self, autoencoder, VAE_version, seq_len=160):
         self.autoencoder = autoencoder
         self.VAE_version = VAE_version
+        self.seq_len = seq_len
 
     def decode(self, z):
-        return decode_latent(z, self.autoencoder, self.VAE_version)
+        return decode_latent(z, self.autoencoder, self.VAE_version, self.seq_len)
 
     def __call__(self, z):
         return self.decode(z)
 
-def decode_latent(z, autoencoder, VAE_version):
-    """
-    makes a single vector in z into a reconstruction
-    """
+def decode_latent(z, autoencoder, VAE_version, seq_len=160):
+    """Decode a batch of flat latents (B, latent_dim_flat) back to motion (B, T, 22, 3)."""
     autoencoder.eval()
-    if VAE_version == 'VAE5':
-        reconstruction = autoencoder.model.decode(z[0].unsqueeze(0), 
-                                                torch.tensor([200]).to(torch.device('mps')))
+    z = z.to(DEVICE)
+    if z.dim() == 1:
+        z = z.unsqueeze(0)
+    bs = z.shape[0]
+    lengths = torch.full((bs,), seq_len, device=DEVICE, dtype=torch.long)
 
-    elif VAE_version == 'VAE1':
-        # if VAE1
-        reconstruction = autoencoder.decode(z[0].unsqueeze(0))
-
-    elif VAE_version == 'VAE4':
-        reconstruction = autoencoder.model.decode(z[0].unsqueeze(0), 
-                                                torch.tensor([420]).to(torch.device('mps')))
-        
-    return reconstruction
+    if VAE_version in ('VAEMLD', 'MLD'):
+        # restore the (B, latent_size, latent_dim) shape the decoder expects
+        ld = autoencoder.model.latent_dim
+        z = z.reshape(bs, -1, ld)
+        return autoencoder.decode(z, lengths)
+    if VAE_version == 'VAE1':
+        return autoencoder.decode(z)  # legacy, no lengths
+    # legacy VAE4/VAE5: pass the true seq_len (NOT the old hardcoded 420/200)
+    return autoencoder.model.decode(z, lengths)
 
 # train
 def train(VAE_version = 'VAE5'):
@@ -243,7 +252,8 @@ def train(VAE_version = 'VAE5'):
     torch.save(scaler, logger.log_dir + '/scaler.pt')
     
     # decoder
-    decoder = LatentDecoder(autoencoder, VAE_version)
+    seq_len = getattr(getattr(autoencoder, "model", autoencoder), "seq_len", 160)
+    decoder = LatentDecoder(autoencoder, VAE_version, seq_len=seq_len)
 
     # save decoder
     torch.save(decoder, logger.log_dir + '/decoder.pt')
@@ -273,49 +283,43 @@ def train(VAE_version = 'VAE5'):
     torch.save(model, logger.log_dir + '/model.pt')
 
 
-def predict(text_input, translate_inv, word2idx, model, decoder):
-    # predict text input
-    text_enc_input = translate_inv(text_input, word2idx).unsqueeze(0)
-    noisy_latent = (torch.randn_like(z[0]) * 8.0).unsqueeze(0)
-    print('text_enc_input', text_enc_input.shape)
-    print('noisy_latent', noisy_latent.shape)
-    # pred_noise, noise = model((noisy_latent.unsqueeze(0), text_enc_input.unsqueeze(0)))
-    print(noisy_latent.sum())
-    # # subtact pred
-    t = 9
-    out = noisy_latent.clone().to(torch.device('mps'))
-    for i in range(t, 1, -1):
-        print(i, end='\r')
-        out = model._reverse_diffusion(out.to(torch.device('mps')),
-                                    text_enc_input.to(torch.device('mps')),
-                                    torch.tensor([i]).to(torch.device('mps')) )
-        # print(noisy_latent.shape)
+@torch.no_grad()
+def predict(clip_embedding, model, decoder, scaler=None, cfg_scale=2.5,
+            save_path="recon_text.mp4", title="generated"):
+    """Generate motion from a CLIP text embedding via guided latent diffusion.
 
-    print(noisy_latent.sum())
-    print(out.sum())
-    # decode
-    reconstruction = decoder.decode(out)
-    recon_noisy = decoder.decode(noisy_latent.to(torch.device('mps')))
-    print(reconstruction.shape)
+    clip_embedding: (cond_dim,) or (B, cond_dim) tensor (the CLIP text features;
+    encode text with the CLIP encoder in app/subpages/CLIP.py). The diffusion runs
+    in standardized latent space, so we inverse-transform with the saved scaler
+    before decoding.
+    """
+    model.eval().to(DEVICE)
+    cond = clip_embedding.to(DEVICE).float()
+    if cond.dim() == 1:
+        cond = cond.unsqueeze(0)
 
-    plot_3d_motion_animation(reconstruction[0].cpu().detach().numpy(), text_input,
-                                            figsize=(10, 10), fps=20, radius=2, save_path=f"recon_text.mp4", velocity=False)
+    z = model.sample(cond, scale=cfg_scale)  # (B, latent_dim), standardized space
+    if scaler is not None:
+        z = torch.tensor(scaler.inverse_transform(z.cpu().numpy())).float().to(DEVICE)
+
+    motion = decoder.decode(z)  # (B, T, 22, 3)
+    plot_3d_motion_animation(motion[0].cpu().detach().numpy(), title,
+                             figsize=(10, 10), fps=20, radius=2,
+                             save_path=save_path, velocity=False)
     plt.close()
+    return motion
 
-    plot_3d_motion_animation(recon_noisy[0].cpu().detach().numpy(), text_input,
-                                            figsize=(10, 10), fps=20, radius=2, save_path=f"recon_text_noisy.mp4", velocity=False)
-    plt.close()
 
-def inference(trans_inv, word2idx, model, decoder):
-    # inference mode
-    print('Inference mode')
+def inference(model, decoder, text_to_clip, scaler=None, cfg_scale=2.5):
+    """Interactive text->motion loop. ``text_to_clip`` maps a string to a CLIP
+    embedding (cond_dim,)."""
+    print('Inference mode (type "exit" to quit)')
     while True:
         text_input = input('Please enter a sentence: ')
         if text_input == 'exit':
             break
-        predict(text_input, 
-                translate_inv=trans_inv,
-                word2idx=word2idx,
-                model=model,
-                decoder=decoder)
+        emb = text_to_clip(text_input)
+        predict(emb, model=model, decoder=decoder, scaler=scaler,
+                cfg_scale=cfg_scale, title=text_input,
+                save_path=f"recon_{text_input[:30].replace(' ', '_')}.mp4")
     print('Exiting Inference mode')
